@@ -1,0 +1,181 @@
+import { serve } from '@hono/node-server';
+import { cors } from 'hono/cors';
+import { Hono } from 'hono';
+import { createHash } from 'node:crypto';
+import {
+    getNearDepositAddress,
+    sendUsdtNear,
+    waitForBitfinexCredit,
+} from './bitfinex.js';
+
+const PORT = 3000;
+
+import {
+    contractCall,
+    contractView,
+    getAgentAccount,
+} from '@neardefi/shade-agent-js';
+
+const callWithAgent = async ({ methodName, args }) =>
+    fetch(`http://localhost:3140/api/call`, {
+        method: 'POST',
+        body: JSON.stringify({
+            methodName,
+            args,
+        }),
+    });
+
+const app = new Hono();
+
+app.use('/*', cors());
+
+app.get('/api/test', async (c) => {
+    const res1 = await fetch('http://localhost:3000/api/test-deposit').then(
+        (r) => r.json(),
+    );
+    console.log(res1);
+
+    const res2 = await fetch('http://localhost:3000/api/intents').then((r) =>
+        r.json(),
+    );
+    console.log(res2);
+
+    const res3 = await fetch('http://localhost:3000/api/claim-intent').then(
+        (r) => r.json(),
+    );
+    console.log(res3);
+
+    const res4 = await fetch('http://localhost:3000/api/solver-intent').then(
+        (r) => r.json(),
+    );
+    console.log(res4);
+
+    const res5 = await fetch(
+        'http://localhost:3000/api/request-liquidity',
+    ).then((r) => r.json());
+    console.log(res5);
+});
+
+app.get('/api/test-deposit', async (c) => {
+    try {
+        const intentRes = await callWithAgent({
+            methodName: 'new_intent',
+            args: {
+                amount: '1000000',
+                hash: '0xe2a2b0f97cbbf233a23d33548e33ded6911848623992487325beab95eb6f7d27',
+                src_token_address: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+                src_chain_id: 1,
+                dest_token_address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+                dest_chain_id: 728126428,
+                dest_receiver_address:
+                    '0x525521d79134822a342d330bd91DA67976569aF1',
+            },
+        });
+
+        return c.json({ intentRes: intentRes.status === 200 });
+    } catch (e) {
+        return c.json({ intentRes: false });
+    }
+});
+
+app.get('/api/intents', async (c) => {
+    const getDepositsRes = await contractView({
+        methodName: 'get_intents',
+        args: {},
+    });
+
+    if (getDepositsRes.length === 0) {
+        return c.json({ error: 'No intents found' }, 404);
+    }
+
+    return c.json(getDepositsRes);
+});
+
+app.get('/api/claim-intent', async (c) => {
+    try {
+        const claimIntent = await callWithAgent({
+            methodName: 'claim_intent',
+            args: {
+                index: 0,
+            },
+        });
+
+        return c.json({ intentRes: claimIntent.status === 200 });
+    } catch (e) {
+        return c.json({ claimIntent: false });
+    }
+});
+
+app.get('/api/solver-intent', async (c) => {
+    const account_id = (await getAgentAccount()).workerAccountId;
+
+    const solverIntent = await contractView({
+        methodName: 'get_intent_by_solver',
+        args: {
+            account_id,
+        },
+    });
+
+    return c.json(solverIntent);
+});
+
+app.get('/api/request-liquidity', async (c) => {
+    const account_id = (await getAgentAccount()).workerAccountId;
+    const receiver_id = await getNearDepositAddress();
+
+    const solverIntent = await contractView({
+        methodName: 'get_intent_by_solver',
+        args: {
+            account_id,
+        },
+    });
+
+    const liqRes = await callWithAgent({
+        methodName: 'request_liquidity',
+        args: {
+            receiver_id,
+            amount: solverIntent.amount,
+        },
+    });
+
+    return c.json(liqRes);
+});
+
+// dep
+
+app.get('/api/test2', async (c) => {
+    const depositAddrRes = await getNearDepositAddress();
+    if (!depositAddrRes) {
+        return c.json({ error: 'Failed to get NEAR deposit address' }, 500);
+    }
+    console.log('depositAddrRes', depositAddrRes);
+
+    const sendUsdtNearRes = await sendUsdtNear(depositAddrRes, 1);
+    console.log('sendUsdtNearRes', sendUsdtNearRes);
+
+    const res = await waitForBitfinexCredit();
+
+    if (!res) {
+        return c.json({ error: 'Failed to get required credit' }, 500);
+    }
+
+    return c.json(res);
+});
+
+app.get('/api/check2', async (c) => {
+    const res = await waitForBitfinexCredit(1, 1751062473000);
+
+    if (!res) {
+        return c.json({ error: 'Failed to get required credit' }, 500);
+    }
+
+    return c.json(res);
+});
+
+console.log('Server listening on port: ', PORT);
+
+serve({
+    fetch: app.fetch,
+    port: PORT,
+    hostname: '0.0.0.0',
+});

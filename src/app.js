@@ -107,12 +107,12 @@ app.get('/api/claim-intent', async (c) => {
 });
 
 app.get('/api/solver-intent', async (c) => {
-    const account_id = (await getAgentAccount()).workerAccountId;
+    const solver_id = (await getAgentAccount()).workerAccountId;
 
     const solverIntent = await contractView({
         methodName: 'get_intent_by_solver',
         args: {
-            account_id,
+            solver_id,
         },
     });
 
@@ -120,13 +120,13 @@ app.get('/api/solver-intent', async (c) => {
 });
 
 app.get('/api/request-liquidity', async (c) => {
-    const account_id = (await getAgentAccount()).workerAccountId;
+    const solver_id = (await getAgentAccount()).workerAccountId;
     const receiver_id = await getNearDepositAddress();
 
     const solverIntent = await contractView({
         methodName: 'get_intent_by_solver',
         args: {
-            account_id,
+            solver_id,
         },
     });
 

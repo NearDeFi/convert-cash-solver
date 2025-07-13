@@ -1,11 +1,10 @@
 import { serve } from '@hono/node-server';
 import { cors } from 'hono/cors';
 import { Hono } from 'hono';
-import { createHash } from 'node:crypto';
 import {
     getNearDepositAddress,
-    sendUsdtNear,
-    waitForBitfinexCredit,
+    withdrawToTron,
+    checkBitfinexMoves,
 } from './bitfinex.js';
 
 const PORT = 3000;
@@ -141,19 +140,19 @@ app.get('/api/request-liquidity', async (c) => {
     return c.json(liqRes);
 });
 
-// dep
+// test manually after request_liquidity
 
-app.get('/api/test2', async (c) => {
-    const depositAddrRes = await getNearDepositAddress();
-    if (!depositAddrRes) {
-        return c.json({ error: 'Failed to get NEAR deposit address' }, 500);
-    }
-    console.log('depositAddrRes', depositAddrRes);
+app.get('/api/near-deposit-address', async (c) =>
+    c.json({ address: await getNearDepositAddress() }),
+);
 
-    const sendUsdtNearRes = await sendUsdtNear(depositAddrRes, 1);
-    console.log('sendUsdtNearRes', sendUsdtNearRes);
-
-    const res = await waitForBitfinexCredit();
+app.get('/api/check-near', async (c) => {
+    const res = await checkBitfinexMoves({
+        amount: 1,
+        start: 1751062473000,
+        receiver: await getNearDepositAddress(),
+        method: 'near',
+    });
 
     if (!res) {
         return c.json({ error: 'Failed to get required credit' }, 500);
@@ -162,8 +161,13 @@ app.get('/api/test2', async (c) => {
     return c.json(res);
 });
 
-app.get('/api/check2', async (c) => {
-    const res = await waitForBitfinexCredit(1, 1751062473000);
+app.get('/api/check-tron', async (c) => {
+    const res = await checkBitfinexMoves({
+        amount: -5,
+        start: 1751062473000,
+        receiver: 'TXrv6zHfFuCvRetZcEq2k6f7SQ8LnsgD8X',
+        method: 'tron',
+    });
 
     if (!res) {
         return c.json({ error: 'Failed to get required credit' }, 500);

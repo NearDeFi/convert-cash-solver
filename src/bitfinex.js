@@ -6,8 +6,6 @@
 
 import fetch from 'node-fetch'; // v2 – CommonJS compatible
 import crypto from 'crypto';
-import nearAPI from 'near-api-js';
-import { KeyPair } from 'near-api-js';
 import dotenv from 'dotenv';
 const dir = process.cwd();
 dotenv.config({ path: `${dir}/.env.development.local` });

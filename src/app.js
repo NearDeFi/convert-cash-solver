@@ -6,6 +6,7 @@ import {
     withdrawToTron,
     checkBitfinexMoves,
 } from './bitfinex.js';
+import { requestLiquidity } from './near.js';
 
 const PORT = 3000;
 
@@ -27,6 +28,13 @@ const callWithAgent = async ({ methodName, args }) =>
 const app = new Hono();
 
 app.use('/*', cors());
+
+// quick test
+
+app.get('/api/mpc', async (c) => {
+    const { address, publicKey } = await requestLiquidity();
+    return c.json({ address, publicKey });
+});
 
 app.get('/api/test', async (c) => {
     const res1 = await fetch('http://localhost:3000/api/test-deposit').then(

@@ -6,7 +6,7 @@ import {
     withdrawToTron,
     checkBitfinexMoves,
 } from './bitfinex.js';
-import { requestLiquidity } from './near.js';
+import { requestLiquidityUnsigned, requestLiquidityBroadcast } from './near.js';
 
 const PORT = 3000;
 
@@ -16,6 +16,8 @@ import {
     getAgentAccount,
 } from '@neardefi/shade-agent-js';
 
+import { getTronAddress, tronUSDTUnsigned } from './tron.js';
+
 const callWithAgent = async ({ methodName, args }) =>
     fetch(`http://localhost:3140/api/call`, {
         method: 'POST',
@@ -23,17 +25,17 @@ const callWithAgent = async ({ methodName, args }) =>
             methodName,
             args,
         }),
-    });
+    }).then((r) => r.json());
 
 const app = new Hono();
 
 app.use('/*', cors());
 
-// quick test
+app.get('/api/test-tron', async (c) => {
+    const { address } = await getTronAddress();
+    const { txHash, rawTransaction } = await tronUSDTUnsigned(address);
 
-app.get('/api/mpc', async (c) => {
-    const { address, publicKey } = await requestLiquidity();
-    return c.json({ address, publicKey });
+    return c.json({ address, txHash });
 });
 
 app.get('/api/test', async (c) => {
@@ -128,8 +130,7 @@ app.get('/api/solver-intent', async (c) => {
 
 app.get('/api/request-liquidity', async (c) => {
     const solver_id = (await getAgentAccount()).workerAccountId;
-    const receiver_id = await getNearDepositAddress();
-
+    const to = await getNearDepositAddress();
     const solverIntent = await contractView({
         methodName: 'get_intent_by_solver',
         args: {
@@ -137,22 +138,23 @@ app.get('/api/request-liquidity', async (c) => {
         },
     });
 
-    const liqRes = await callWithAgent({
-        methodName: 'request_liquidity',
-        args: {
-            receiver_id,
-            amount: solverIntent.amount,
-        },
+    const { payload, transaction } = await requestLiquidityUnsigned({
+        to,
+        amount: solverIntent.amount,
     });
 
-    return c.json(liqRes);
+    const liqRes = await callWithAgent({
+        methodName: 'request_liquidity',
+        args: { payload },
+    });
+
+    const broadcastRes = await requestLiquidityBroadcast({
+        transaction,
+        signature: liqRes.signature,
+    });
+
+    return c.json({ broadcastRes });
 });
-
-// test manually after request_liquidity
-
-app.get('/api/near-deposit-address', async (c) =>
-    c.json({ address: await getNearDepositAddress() }),
-);
 
 app.get('/api/check-near', async (c) => {
     const res = await checkBitfinexMoves({

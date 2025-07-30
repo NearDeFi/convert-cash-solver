@@ -1,3 +1,15 @@
+/** 
+
+TRON Bitfinex Deposit Address: TC2Xv6gHTKczLnvXC2PWv8X44rWUYFwjEw
+ETH Bitfinex Deposit Address: 0xdeD214b52CFc4BeDEDEAD938a82A9D2012e13d8f
+NEAR Bitfinex Deposit Address: f4fed98a87edbef955c28e1a4d9a1b547343f05df9882db134447d89d318177e
+
+EVM Derived Address, ac-proxy.shadeagent.near, evm-1: 0x09Ff5BE31041ec96406EaFa3Abc9d098085381e9
+Tron Derived Address ac-proxy.shadeagent.near, tron-1: TQ4Jo6cNH4hsdqKpkAYH4HZvj7ng1HcQm3
+Tron Test Wallet: TXrv6zHfFuCvRetZcEq2k6f7SQ8LnsgD8X
+
+**/
+
 import { serve } from '@hono/node-server';
 import { cors } from 'hono/cors';
 import { Hono } from 'hono';
@@ -16,9 +28,16 @@ import {
     getAgentAccount,
 } from '@neardefi/shade-agent-js';
 
-import { getTronAddress, tronUSDTUnsigned } from './tron.js';
+import {
+    getTronAddress,
+    tronUSDTUnsigned,
+    tronBroadcastTx,
+    constructTronSignature,
+} from './tron.js';
 
-const callWithAgent = async ({ methodName, args }) =>
+import { sendTokens } from './evm.js';
+
+export const callWithAgent = async ({ methodName, args }) =>
     fetch(`http://localhost:3140/api/call`, {
         method: 'POST',
         body: JSON.stringify({
@@ -31,11 +50,33 @@ const app = new Hono();
 
 app.use('/*', cors());
 
+app.get('/api/test-evm', async (c) => {
+    const res = await sendTokens({});
+    return c.json(res);
+});
+
 app.get('/api/test-tron', async (c) => {
     const { address } = await getTronAddress();
-    const { txHash, rawTransaction } = await tronUSDTUnsigned(address);
 
-    return c.json({ address, txHash });
+    const { txHash, rawTransaction } = await tronUSDTUnsigned({
+        to: 'TC2Xv6gHTKczLnvXC2PWv8X44rWUYFwjEw',
+        from: address,
+        amount: 5,
+    });
+
+    console.log('tron tx: getting chain sig');
+    const sigRes = await callWithAgent({
+        methodName: 'get_signature',
+        args: { path: 'tron-1', payload: txHash, key_type: 'Ecdsa' },
+    });
+    console.log(sigRes);
+    const signatureHex = constructTronSignature(sigRes);
+    console.log('sig:', signatureHex);
+    // await verifySignature(txHash, signatureHex);
+    console.log('tron tx: broadcasting');
+    const res = await tronBroadcastTx(rawTransaction, signatureHex);
+
+    return c.json({ res });
 });
 
 app.get('/api/test', async (c) => {
@@ -60,9 +101,14 @@ app.get('/api/test', async (c) => {
     console.log(res4);
 
     const res5 = await fetch(
-        'http://localhost:3000/api/request-liquidity',
+        'http://localhost:3000/api/update-intent-state',
     ).then((r) => r.json());
     console.log(res5);
+
+    const res6 = await fetch('http://localhost:3000/api/solver-intent').then(
+        (r) => r.json(),
+    );
+    console.log(res6);
 });
 
 app.get('/api/test-deposit', async (c) => {
@@ -128,6 +174,20 @@ app.get('/api/solver-intent', async (c) => {
     return c.json(solverIntent);
 });
 
+app.get('/api/update-intent-state', async (c) => {
+    const solver_id = (await getAgentAccount()).workerAccountId;
+
+    const solverIntent = await contractCall({
+        methodName: 'update_intent_state',
+        args: {
+            solver_id,
+            state: 'LiquidityProvided',
+        },
+    });
+
+    return c.json(solverIntent);
+});
+
 app.get('/api/request-liquidity', async (c) => {
     const solver_id = (await getAgentAccount()).workerAccountId;
     const to = await getNearDepositAddress();
@@ -144,14 +204,16 @@ app.get('/api/request-liquidity', async (c) => {
     });
 
     const liqRes = await callWithAgent({
-        methodName: 'request_liquidity',
-        args: { payload },
+        methodName: 'get_signature',
+        args: { path: 'pool-1', payload, key_type: 'Eddsa' },
     });
 
     const broadcastRes = await requestLiquidityBroadcast({
         transaction,
         signature: liqRes.signature,
     });
+
+    // TODO if successful, update intent state to LiquidityProvided
 
     return c.json({ broadcastRes });
 });

@@ -7,6 +7,11 @@ const tronWeb = new TronWeb({
     fullHost: 'https://api.trongrid.io',
 });
 
+export async function checkTronTx(txHash) {
+    const res = tronWeb.trx.getTransaction(txHash);
+    return res.ret.contractRet === 'SUCCESS';
+}
+
 export async function verifySignature(txHash, signatureHex) {
     const txHashHex = '0x' + txHash.toString('hex');
     const signature = '0x' + signatureHex;

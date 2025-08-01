@@ -43,12 +43,9 @@ export const getAccount = (id = accountId) => new Account(id, provider, signer);
 export const viewFunction = ({ contractId, methodName, args }) =>
     provider.callFunction(contractId, methodName, args);
 
-export async function requestLiquidityUnsigned({ to, amount }) {
-    // relay from solvers funding account in env vars
-    const account = getAccount();
-
+export async function getNearAddress() {
     // TODO make env vars for path and predecessor
-    const derivedPublicKey = await account.callFunction({
+    const derivedPublicKey = await viewFunction({
         contractId: 'v1.signer',
         methodName: 'derived_public_key',
         args: {
@@ -61,6 +58,12 @@ export async function requestLiquidityUnsigned({ to, amount }) {
     const accountId = Buffer.from(baseDecode(derivedPublicKey.split(':')[1]))
         .toString('hex')
         .toLowerCase();
+
+    return accountId;
+}
+
+export async function requestLiquidityUnsigned({ to, amount }) {
+    const accountId = await getNearAddress();
 
     // USDT contract and FT transfer details
     const usdtContract = 'usdt.tether-token.near'; // mainnet USDT contract

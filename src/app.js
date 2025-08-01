@@ -6,6 +6,7 @@ NEAR Bitfinex Deposit Address: f4fed98a87edbef955c28e1a4d9a1b547343f05df9882db13
 
 EVM Derived Address, ac-proxy.shadeagent.near, evm-1: 0x09Ff5BE31041ec96406EaFa3Abc9d098085381e9
 Tron Derived Address ac-proxy.shadeagent.near, tron-1: TQ4Jo6cNH4hsdqKpkAYH4HZvj7ng1HcQm3
+NEAR Derived Address, ac-proxy.shadeagent.near, pool-1: cfbdf6e7462659d18926d14b942c6e320a75f59b811a7f7e52c154750e059f84
 Tron Test Wallet: TXrv6zHfFuCvRetZcEq2k6f7SQ8LnsgD8X
 
 **/
@@ -18,7 +19,12 @@ import {
     withdrawToTron,
     checkBitfinexMoves,
 } from './bitfinex.js';
-import { requestLiquidityUnsigned, requestLiquidityBroadcast } from './near.js';
+
+import {
+    requestLiquidityUnsigned,
+    requestLiquidityBroadcast,
+    getNearAddress,
+} from './near.js';
 
 const PORT = 3000;
 
@@ -49,6 +55,18 @@ export const callWithAgent = async ({ methodName, args }) =>
 const app = new Hono();
 
 app.use('/*', cors());
+
+app.get('/api/near-address', async (c) => {
+    const address = await getNearAddress();
+
+    return c.json({ address });
+});
+
+app.get('/api/bitfinex-moves', async (c) => {
+    const res = await checkBitfinexMoves({});
+    console.log(res);
+    return c.json(res);
+});
 
 app.get('/api/test-evm', async (c) => {
     const res = await sendTokens({});
@@ -117,7 +135,8 @@ app.get('/api/test-deposit', async (c) => {
             methodName: 'new_intent',
             args: {
                 amount: '1000000',
-                hash: '0xe2a2b0f97cbbf233a23d33548e33ded6911848623992487325beab95eb6f7d27',
+                deposit_hash:
+                    '0xe2a2b0f97cbbf233a23d33548e33ded6911848623992487325beab95eb6f7d27',
                 src_token_address: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
                 src_chain_id: 1,
                 dest_token_address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',

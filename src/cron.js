@@ -1,11 +1,10 @@
 import {
     getNearDepositAddress,
     withdrawToTron,
+    withdrawToNear,
     checkBitfinexMoves,
 } from './bitfinex.js';
 import { requestLiquidityUnsigned, requestLiquidityBroadcast } from './near.js';
-
-const PORT = 3000;
 
 import {
     contractCall,
@@ -14,10 +13,10 @@ import {
 } from '@neardefi/shade-agent-js';
 
 import {
-    getTronAddress,
     tronUSDTUnsigned,
     tronBroadcastTx,
     constructTronSignature,
+    checkTronTx,
 } from './tron.js';
 
 import { sendTokens } from './evm.js';
@@ -52,7 +51,7 @@ async function claimIntent() {
     }
 }
 
-async function updateIntentState(solver_id, state) {
+async function updateState(solver_id, state) {
     try {
         await contractCall({
             methodName: 'update_intent_state',
@@ -71,6 +70,7 @@ async function updateIntentState(solver_id, state) {
 
 const stateFuncs = {
     Claimed: async (intent, solver_id) => {
+        console.log('Requesting liquidity for intent', intent.amount);
         try {
             const { payload, transaction } = await requestLiquidityUnsigned({
                 to,
@@ -87,18 +87,112 @@ const stateFuncs = {
                 signature: liqRes.signature,
             });
 
-            console.log('requestLiquidityBroadcast', broadcastRes);
+            // TODO check broadcastRes for status SuccessValue etc... what should it say?
 
+            // every state transition needs to add "nextState" to the intent and return true
             intent.nextState = 'LiquidityProvided';
             return true;
         } catch (e) {
+            console.log('Error requesting liquidity:', e);
+        }
+        return false;
+    },
+    LiquidityProvided: async (intent, solver_id) => {
+        console.log(
+            'Checking Bitfinex moves to see if liquidity was provided for intent',
+            intent.amount,
+        );
+        try {
+            const res = await checkBitfinexMoves({
+                amount: intent.amount,
+                start: intent.created / 1000000, // convert to ms from nanos
+                receiver: await getNearDepositAddress(),
+                method: 'near',
+            });
+
+            if (!res) {
+                return false;
+            }
+
+            intent.nextState = 'LiquidityCredited';
+            return true;
+        } catch (e) {
+            console.log('Error checking Bitfinex moves:', e);
+        }
+        return false;
+    },
+    LiquidityCredited: async (intent, solver_id) => {
+        console.log('Withdrawing liquidity to Tron for intent', intent.amount);
+
+        const res = await withdrawToTron(intent.amount);
+
+        // TODO update intent state in contract with txHash of tron withdrawal
+    },
+    WithdrawRequested: async (intent, solver_id) => {
+        // TODO finish this check to see if withdrawal requested is completed, e.g. put in arguments of withdrawal
+        const res = await checkBitfinexMoves({});
+        console.log(res);
+    },
+    CompleteSwap: async (intent, solver_id) => {
+        // TODO replace this with derived address?
+        const { address } = await getTronAddress();
+
+        try {
+            const { txHash, rawTransaction } = await tronUSDTUnsigned({
+                to: 'TC2Xv6gHTKczLnvXC2PWv8X44rWUYFwjEw',
+                from: address,
+                amount: 5,
+            });
+
+            console.log('tron tx: getting chain sig');
+            const sigRes = await callWithAgent({
+                methodName: 'get_signature',
+                args: { path: 'tron-1', payload: txHash, key_type: 'Ecdsa' },
+            });
+            console.log(sigRes);
+            const signatureHex = constructTronSignature(sigRes);
+            console.log('sig:', signatureHex);
+            // await verifySignature(txHash, signatureHex);
+            console.log('tron tx: broadcasting');
+            await tronBroadcastTx(rawTransaction, signatureHex);
+
+            await contractCall({
+                methodName: 'update_swap_hash',
+                args: {
+                    solver_id,
+                    swap_hash,
+                    txHash,
+                },
+            });
+            return true;
+        } catch (e) {
+            console.log('Error completing swap:', e);
+        }
+        return false;
+    },
+    CheckSwapComplete: async (intent, solver_id) => {
+        const txHash = intent.swap_hash;
+
+        try {
+            return await checkTronTx(txHash);
+        } catch (e) {
+            console.log('Error checking Tron tx:', e);
             return false;
         }
     },
-    LiquidityProvided: (intent, solver_id) => {},
-    SwapComplete: (intent, solver_id) => {},
-    UserLiquidityProvided: (intent, solver_id) => {},
-    LiquidityReturned: (intent, solver_id) => {},
+    SwapComplete: async (intent, solver_id) => {
+        // TODO move user liquidity to Bitfinex
+
+        const res = await sendTokens({});
+    },
+    UserLiquidityProvided: async (intent, solver_id) => {
+        // TODO finish this check to see if withdrawal requested is completed, e.g. put in arguments of withdrawal
+        const res = await checkBitfinexMoves({});
+        console.log(res);
+    },
+    ReturnLiquidity: async (intent, solver_id) => {
+        const res = await withdrawToNear(intent.amount);
+    },
 };
 
 const cronTimeout = () => setTimeout(cron, 10000); // 10s
@@ -106,9 +200,9 @@ const cronTimeout = () => setTimeout(cron, 10000); // 10s
 export async function cron(prevIntent) {
     const solver_id = (await getAgentAccount()).workerAccountId;
 
-    // check
+    // check if we have a previous intent whose state was not updated successfully
     if (prevIntent) {
-        // ready for next state
+        // update to the next state (this should eventually resolve)
         const updateStateResult = await updateState(
             solver_id,
             prevIntent.nextState,
@@ -119,6 +213,8 @@ export async function cron(prevIntent) {
             );
             return cronTimeout(prevIntent);
         }
+        // state was updated, continue with cron and get intent at next state
+        return cronTimeout();
     }
 
     // get the current intent
@@ -140,10 +236,12 @@ export async function cron(prevIntent) {
         return cronTimeout();
     }
 
-    // ready for next state
+    // update to next state
     const updateStateResult = await updateState(solver_id, intent.nextState);
     if (!updateStateResult) {
         console.log(`Failed to update state to ${intent.nextState}`);
         return cronTimeout(intent);
     }
+
+    return cronTimeout();
 }

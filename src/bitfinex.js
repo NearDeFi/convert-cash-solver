@@ -31,6 +31,11 @@ const BITFINEX_METHODS = {
 const BITFINEX_KEY = process.env.BITFINEX_KEY;
 const BITFINEX_SECRET = process.env.BITFINEX_SECRET;
 
+// derived addresses
+export const TRON_DERIVED_ADDRESS = 'TQ4Jo6cNH4hsdqKpkAYH4HZvj7ng1HcQm3';
+export const NEAR_DERIVED_ADDRESS =
+    'cfbdf6e7462659d18926d14b942c6e320a75f59b811a7f7e52c154750e059f84';
+
 // --- helpers ---------------------------------------------------------------
 
 function nonce() {
@@ -97,45 +102,48 @@ export async function checkBitfinexMoves({
     start,
     receiver,
     method = 'near',
-    timeoutMin = 60,
-    pollFreq = 30000,
 }) {
-    const started = Date.now();
+    const moves = await bitfinexRequest('v2/auth/r/movements/UST/hist', {
+        limit: 20,
+        start,
+    });
 
-    while (Date.now() - started < timeoutMin * 60_000) {
-        console.log(
-            `Checking ${amount} was sent to ${receiver} after ${new Date(
-                start,
-            )}`,
-        );
-        // Bitfinex’s code for Tether is UST
-        const moves = await bitfinexRequest('v2/auth/r/movements/UST/hist', {
-            limit: 20,
-            start,
-        });
+    console.log(moves);
 
-        const credited = moves.find(
-            (m) =>
-                m[1] === 'UST' && // currency
-                m[2] === BITFINEX_METHODS[method] && // method
-                // Number(m[5]) >= start && // received after start
-                m[9] === 'COMPLETED' && // status
-                Number(m[12]) >= amount && // amount
-                m[16] == receiver, // amount
-        );
+    const credited = moves.find(
+        (m) =>
+            m[1] === 'UST' && // currency
+            m[2] === BITFINEX_METHODS[method] && // method
+            // Number(m[5]) >= start && // received after start
+            m[9] === 'COMPLETED' && // status
+            Number(m[12]) >= amount && // amount
+            m[16] == receiver, // amount
+    );
 
-        if (credited) return true; // deposit/withdrawal confirmed
-        await new Promise((r) => setTimeout(r, pollFreq));
-    }
-
-    return false;
+    return !!credited;
 }
 
 export async function withdrawToTron(amount) {
     const body = {
         wallet: 'exchange',
         method: METHOD_TRON,
-        address: 'TXrv6zHfFuCvRetZcEq2k6f7SQ8LnsgD8X',
+        address: TRON_DERIVED_ADDRESS,
+        amount: amount.toFixed(2),
+        travel_rule_tos: false,
+    };
+
+    const res = await bitfinexRequest('v2/auth/w/withdraw', body);
+    const status = res[6];
+    console.log(res);
+    console.log(`Withdrawal request status: ${status}`);
+    if (status !== 'SUCCESS') throw new Error('Withdrawal failed');
+}
+
+export async function withdrawToNear(amount) {
+    const body = {
+        wallet: 'exchange',
+        method: METHOD_NEAR,
+        address: NEAR_DERIVED_ADDRESS,
         amount: amount.toFixed(2),
         travel_rule_tos: false,
     };

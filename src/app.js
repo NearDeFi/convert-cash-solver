@@ -18,6 +18,8 @@ import {
     getNearDepositAddress,
     withdrawToTron,
     checkBitfinexMoves,
+    getBitfinexMoves,
+    getEvmDepositAddress,
 } from './bitfinex.js';
 
 import {
@@ -41,8 +43,6 @@ import {
     constructTronSignature,
 } from './tron.js';
 
-import { sendTokens } from './evm.js';
-
 export const callWithAgent = async ({ methodName, args }) =>
     fetch(`http://localhost:3140/api/call`, {
         method: 'POST',
@@ -56,14 +56,22 @@ const app = new Hono();
 
 app.use('/*', cors());
 
+app.get('/api/evm-address', async (c) => {
+    const address = await getEvmDepositAddress();
+    return c.json({ address });
+});
+
 app.get('/api/near-address', async (c) => {
     const address = await getNearAddress();
-
+    return c.json({ address });
+});
+app.get('/api/tron-address', async (c) => {
+    const { address } = await getTronAddress();
     return c.json({ address });
 });
 
 app.get('/api/bitfinex-moves', async (c) => {
-    const res = await checkBitfinexMoves({});
+    const res = await getBitfinexMoves({});
     console.log(res);
     return c.json(res);
 });

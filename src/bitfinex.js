@@ -22,10 +22,12 @@ const BITFINEX_REST = 'https://api.bitfinex.com';
 const METHOD_NEAR = 'tetherusdtnear'; // NEAR transport string
 const METHOD_SOL = 'tetherusdtsol'; // Solana transport string
 const METHOD_TRON = 'tetherusx'; // Solana transport string
+const METHOD_EVM = 'tetheruse';
 
 const BITFINEX_METHODS = {
     near: 'TETHERUSDTNEAR',
     tron: 'TETHERUSX',
+    evm: 'TETHERUSE',
 };
 
 const BITFINEX_KEY = process.env.BITFINEX_KEY;
@@ -97,18 +99,36 @@ export async function getNearDepositAddress() {
     return address;
 }
 
+export async function getEvmDepositAddress() {
+    const path = 'v2/auth/w/deposit/address';
+    const body = { wallet: 'exchange', method: METHOD_EVM, op_renew: 0 };
+    const res = await bitfinexRequest(path, body);
+
+    let address = res[4][4]; // address field
+
+    if (address?.length !== 42) {
+        address = null;
+    }
+
+    return address;
+}
+
+export async function getBitfinexMoves(start = 0) {
+    const moves = await bitfinexRequest('v2/auth/r/movements/UST/hist', {
+        limit: 20,
+        start,
+    });
+
+    return moves;
+}
+
 export async function checkBitfinexMoves({
     amount,
     start,
     receiver,
     method = 'near',
 }) {
-    const moves = await bitfinexRequest('v2/auth/r/movements/UST/hist', {
-        limit: 20,
-        start,
-    });
-
-    console.log(moves);
+    const moves = await getBitfinexMoves(start);
 
     const credited = moves.find(
         (m) =>
@@ -136,7 +156,8 @@ export async function withdrawToTron(amount) {
     const status = res[6];
     console.log(res);
     console.log(`Withdrawal request status: ${status}`);
-    if (status !== 'SUCCESS') throw new Error('Withdrawal failed');
+    if (status !== 'SUCCESS') return false;
+    return true;
 }
 
 export async function withdrawToNear(amount) {
@@ -152,5 +173,230 @@ export async function withdrawToNear(amount) {
     const status = res[6];
     console.log(res);
     console.log(`Withdrawal request status: ${status}`);
-    if (status !== 'SUCCESS') throw new Error('Withdrawal failed');
+    if (status !== 'SUCCESS') return false;
+    return true;
 }
+
+// moves sample output:
+
+/*
+[
+    [
+        23672426,
+        'UST',
+        'TETHERUSX',
+        null,
+        null,
+        1754347945000,
+        1754348152000,
+        null,
+        null,
+        'COMPLETED',
+        null,
+        null,
+        -5,
+        0,
+        null,
+        null,
+        'TQ4Jo6cNH4hsdqKpkAYH4HZvj7ng1HcQm3',
+        null,
+        null,
+        null,
+        '933ae456e277b2c283302fab5ea73aab2bd2cb2fd67c8429a6bc06df73f15172',
+        null,
+    ],
+    [
+        23672417,
+        'UST',
+        'TETHERUSDTNEAR',
+        null,
+        null,
+        1754347473000,
+        1754347773000,
+        null,
+        null,
+        'COMPLETED',
+        null,
+        null,
+        55,
+        0,
+        null,
+        null,
+        '14e7dc7619fb07ad49044e92c99c55d5a352aebbc4be2a714f638a4fc561058f',
+        null,
+        null,
+        null,
+        'gHVFb8AYzGERsf7papcPNs1WHumMzDgJ95qe8BFQr7E',
+        null,
+    ],
+    [
+        23604418,
+        'UST',
+        'TETHERUSX',
+        null,
+        null,
+        1751930687000,
+        1751957933000,
+        null,
+        null,
+        'COMPLETED',
+        null,
+        null,
+        -5,
+        0,
+        null,
+        null,
+        'TXrv6zHfFuCvRetZcEq2k6f7SQ8LnsgD8X',
+        null,
+        null,
+        null,
+        'e9476cb74b930feba79c70c5d27e111496e5835b6d18316ddfeb5b73ebb4815a',
+        null,
+    ],
+    [
+        23586275,
+        'UST',
+        'TETHERUSDTNEAR',
+        null,
+        null,
+        1751062473000,
+        1751062773000,
+        null,
+        null,
+        'COMPLETED',
+        null,
+        null,
+        1,
+        0,
+        null,
+        null,
+        '14e7dc7619fb07ad49044e92c99c55d5a352aebbc4be2a714f638a4fc561058f',
+        null,
+        null,
+        null,
+        'AzYSaAjpbKzgKCzPBoZqR7RonKzhR12gN8qeoNknyHcM',
+        null,
+    ],
+    [
+        23572075,
+        'UST',
+        'TETHERUSDTSOL',
+        null,
+        null,
+        1750451557000,
+        1750451798000,
+        null,
+        null,
+        'COMPLETED',
+        null,
+        null,
+        -5,
+        -0.5,
+        null,
+        null,
+        '9Y7SQmMoMq7E9x3f4MMCYj1DWZXQspNHzEaqPW4MQAvp',
+        null,
+        null,
+        null,
+        '4XVfw9XdZu5h3j9GUS9fs7fcM5MZr56TTZPPT2jAJDyocg6w3NdKxuUR6Nf96qkR1qzaG2L9GHeCEy4v4TUaRs2M',
+        null,
+    ],
+    [
+        23572049,
+        'UST',
+        'TETHERUSDTNEAR',
+        null,
+        null,
+        1750450984000,
+        1750451313000,
+        null,
+        null,
+        'COMPLETED',
+        null,
+        null,
+        5,
+        0,
+        null,
+        null,
+        '14e7dc7619fb07ad49044e92c99c55d5a352aebbc4be2a714f638a4fc561058f',
+        null,
+        null,
+        null,
+        '3y2LVU6WZ9yhJU5DrdL9SGXTeKQQBJFTH9jb7ZLNFS4z',
+        null,
+    ],
+    [
+        23572021,
+        'UST',
+        'TETHERUSDTSOL',
+        null,
+        null,
+        1750450181000,
+        1750450495000,
+        null,
+        null,
+        'COMPLETED',
+        null,
+        null,
+        -5,
+        -0.5,
+        null,
+        null,
+        '9Y7SQmMoMq7E9x3f4MMCYj1DWZXQspNHzEaqPW4MQAvp',
+        null,
+        null,
+        null,
+        '5N3fuLgm8Rt3Y9khAjmdVjXu2kY2rUPy1d8QuTucrPr9YzASNpiXfqtf5b9SvGenhY1mVxGZn7Gap9LGWiyBH4Wp',
+        null,
+    ],
+    [
+        23571981,
+        'UST',
+        'TETHERUSDTNEAR',
+        null,
+        null,
+        1750449124000,
+        1750449784000,
+        null,
+        null,
+        'COMPLETED',
+        null,
+        null,
+        5,
+        0,
+        null,
+        null,
+        '14e7dc7619fb07ad49044e92c99c55d5a352aebbc4be2a714f638a4fc561058f',
+        null,
+        null,
+        null,
+        '5DbyEpfcfmAXQky7nDsWBv4Jat561HYXMzgRmJctqNHk',
+        null,
+    ],
+    [
+        23571962,
+        'UST',
+        'TETHERUSDTNEAR',
+        null,
+        null,
+        1750448283000,
+        1750448584000,
+        null,
+        null,
+        'COMPLETED',
+        null,
+        null,
+        5,
+        0,
+        null,
+        null,
+        '14e7dc7619fb07ad49044e92c99c55d5a352aebbc4be2a714f638a4fc561058f',
+        null,
+        null,
+        null,
+        'HEuFD3VXHtSEASSbYqUqD7WPLHHcR7vjLJdPqHfyqCwQ',
+        null,
+    ],
+];
+
+*/

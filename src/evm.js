@@ -45,7 +45,7 @@ export async function verifySignature(txHash, signatureHex) {
     return recoveredEthAddress;
 }
 
-export async function sendTokens({
+export async function sendEVMTokens({
     tokenAddress = USDT_ADDRESS,
     receiver = '0x525521d79134822a342d330bd91da67976569af1',
     amount = ethers.parseUnits('1.0', 6),

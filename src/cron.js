@@ -1,5 +1,6 @@
 import {
     getNearDepositAddress,
+    getEvmDepositAddress,
     withdrawToTron,
     withdrawToNear,
     checkBitfinexMoves,
@@ -17,11 +18,14 @@ import {
     tronBroadcastTx,
     constructTronSignature,
     checkTronTx,
+    getTronAddress,
 } from './tron.js';
 
-import { sendTokens } from './evm.js';
+import { getEvmAddress, sendEVMTokens } from './evm.js';
 
 import { callWithAgent } from './app.js';
+
+const nanoToMs = (nanos) => nanos / 1e6 - 1000;
 
 async function getIntent(solver_id) {
     try {
@@ -105,7 +109,7 @@ const stateFuncs = {
         try {
             const res = await checkBitfinexMoves({
                 amount: intent.amount,
-                start: intent.created / 1000000, // convert to ms from nanos
+                start: nanoToMs(intent.created), // convert to ms from nanos
                 receiver: await getNearDepositAddress(),
                 method: 'near',
             });
@@ -126,12 +130,28 @@ const stateFuncs = {
 
         const res = await withdrawToTron(intent.amount);
 
-        // TODO update intent state in contract with txHash of tron withdrawal
+        if (!res) {
+            return false;
+        }
+        intent.nextState = 'WithdrawRequested';
+        return true;
     },
     WithdrawRequested: async (intent, solver_id) => {
         // TODO finish this check to see if withdrawal requested is completed, e.g. put in arguments of withdrawal
-        const res = await checkBitfinexMoves({});
-        console.log(res);
+        const res = await checkBitfinexMoves({
+            amount: parseInt(intent.amount) * -1, // negative for withdrawals
+            start: nanoToMs(intent.created), // convert to ms from nanos
+            receiver: await getTronAddress(),
+            method: 'tron',
+        });
+
+        if (!res) {
+            return false;
+        }
+        intent.nextState = 'CompleteSwap';
+        return true;
+
+        // TODO update intent state in contract with txHash of tron withdrawal
     },
     CompleteSwap: async (intent, solver_id) => {
         // TODO replace this with derived address?
@@ -139,9 +159,9 @@ const stateFuncs = {
 
         try {
             const { txHash, rawTransaction } = await tronUSDTUnsigned({
-                to: 'TC2Xv6gHTKczLnvXC2PWv8X44rWUYFwjEw',
+                to: intent.dest_receiver_address,
                 from: address,
-                amount: 5,
+                amount: intent.amount,
             });
 
             console.log('tron tx: getting chain sig');
@@ -154,7 +174,11 @@ const stateFuncs = {
             console.log('sig:', signatureHex);
             // await verifySignature(txHash, signatureHex);
             console.log('tron tx: broadcasting');
-            await tronBroadcastTx(rawTransaction, signatureHex);
+            const res = await tronBroadcastTx(rawTransaction, signatureHex);
+
+            // TODO check if tron tx was succcessful or not right away
+
+            console.log('Tron broadcast', res);
 
             await contractCall({
                 methodName: 'update_swap_hash',
@@ -171,6 +195,8 @@ const stateFuncs = {
         return false;
     },
     CheckSwapComplete: async (intent, solver_id) => {
+        // make sure tron tx is complete, how many confirmations?
+
         const txHash = intent.swap_hash;
 
         try {
@@ -183,17 +209,65 @@ const stateFuncs = {
     SwapComplete: async (intent, solver_id) => {
         // TODO move user liquidity to Bitfinex
 
-        const res = await sendTokens({});
+        const receiver = await getEvmDepositAddress();
+
+        // tokenAddress defaults to USDT on ETH mainnet
+        const res = await sendEVMTokens({
+            receiver,
+            amount: intent.amount,
+            chainId: 1,
+        });
+
+        if (!res.success) {
+            console.log('Error sending EVMTokens:', res);
+            return false;
+        }
+
+        intent.nextState = 'UserLiquidityProvided';
+        return true;
     },
     UserLiquidityProvided: async (intent, solver_id) => {
         // TODO finish this check to see if withdrawal requested is completed, e.g. put in arguments of withdrawal
-        const res = await checkBitfinexMoves({});
-        console.log(res);
+        const res = await checkBitfinexMoves({
+            method: 'evm',
+            amount: parseInt(intent.amount) * -1,
+            start: nanoToMs(intent.created),
+            receiver: await getEvmDepositAddress(),
+        });
+        if (!res) {
+            return false;
+        }
+        intent.nextState = 'ReturnLiquidity';
+        return true;
     },
     ReturnLiquidity: async (intent, solver_id) => {
         const res = await withdrawToNear(intent.amount);
+
+        if (!res) {
+            return false;
+        }
+        intent.nextState = 'LiquidityReturned';
+        return true;
     },
+    // TODO is this check needed?
+
+    // LiquidityReturned: async (intent, solver_id) => {
+    //     const res = await checkBitfinexMoves({
+    //         amount: parseInt(intent.amount) * -1, // negative for withdrawals
+    //         start: nanoToMs(intent.created), // convert to ms from nanos
+    //         receiver: await getEvmAddress(),
+    //         method: 'tron',
+    //     });
+
+    //     if (!res) {
+    //         return false;
+    //     }
+    //     intent.nextState = 'CompleteSwap';
+    //     return true;
+    // },
 };
+
+// the cron runner
 
 const cronTimeout = () => setTimeout(cron, 10000); // 10s
 

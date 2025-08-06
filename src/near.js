@@ -59,7 +59,7 @@ export async function getNearAddress() {
         .toString('hex')
         .toLowerCase();
 
-    return accountId;
+    return { address: accountId, publicKey: derivedPublicKey };
 }
 
 export async function requestLiquidityUnsigned({ to, amount }) {

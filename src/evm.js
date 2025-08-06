@@ -9,7 +9,7 @@ export const explorerBase = 'https://etherscan.io';
 export const provider = new ethers.JsonRpcProvider(
     'https://gateway.tenderly.co/public/mainnet',
 );
-export const USDT_PATH = `convert-cash-usdt`;
+export const CHAINSIG_PATH = `evm-1`;
 export const USDT_ADDRESS = `0xdAC17F958D2ee523a2206206994597C13D831ec7`;
 
 export async function getEvmAddress() {
@@ -17,7 +17,7 @@ export async function getEvmAddress() {
         contractId: 'v1.signer',
         methodName: 'derived_public_key',
         args: {
-            path: USDT_PATH,
+            path: CHAINSIG_PATH,
             predecessor: 'ac-proxy.shadeagent.near',
             domain_id: 0,
         },
@@ -29,7 +29,6 @@ export async function getEvmAddress() {
         .digest()
         .slice(-20);
     const address = '0x' + addressBytes.toString('hex');
-    console.log(address);
 
     return { address, publicKey };
 }
@@ -41,8 +40,23 @@ export async function verifySignature(txHash, signatureHex) {
     const recoveredEthAddress = ethers
         .recoverAddress(txHashHex, signature)
         .toLowerCase();
-    console.log('evmAddress', recoveredEthAddress);
     return recoveredEthAddress;
+}
+
+export async function signAndRecover() {
+    const payload =
+        '74ce137697637a6181681d3210f66fbe6516a4c4d1234471e38986a1d2ae77e5'; // dummy payload
+    const sigRes = await callWithAgent({
+        methodName: 'get_signature',
+        args: { path: CHAINSIG_PATH, payload, key_type: 'Ecdsa' },
+    });
+    const sig = parseSignature({ sigRes });
+    const sigHex =
+        sig.r.substring(2) +
+        sig.s.substring(2) +
+        sig.v.toString(16).padStart(2, '0');
+    const recoveredAddress = await verifySignature(payload, sigHex);
+    console.log('recoveredAddress', recoveredAddress);
 }
 
 export async function sendEVMTokens({
@@ -63,7 +77,7 @@ export async function sendEVMTokens({
 
     const sigRes = await callWithAgent({
         methodName: 'get_signature',
-        args: { path: USDT_PATH, payload: txHash, key_type: 'Ecdsa' },
+        args: { path: CHAINSIG_PATH, payload: txHash, key_type: 'Ecdsa' },
     });
 
     const sig = (unsignedTx.signature = parseSignature({ sigRes }));

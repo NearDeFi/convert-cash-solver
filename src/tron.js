@@ -1,26 +1,46 @@
+import { ethers } from 'ethers';
 import { TronWeb } from 'tronweb';
 import keccak from 'keccak';
 import { viewFunction } from './near.js';
 import { baseDecode } from '@near-js/utils';
+import { callWithAgent } from './app.js';
+
+const CHAINSIG_PATH = 'tron-1';
 
 const tronWeb = new TronWeb({
     fullHost: 'https://api.trongrid.io',
 });
 
 export async function checkTronTx(txHash) {
-    const res = tronWeb.trx.getTransaction(txHash);
-    return res.ret.contractRet === 'SUCCESS';
+    const res = await tronWeb.trx.getTransaction(txHash);
+
+    // check confirmations
+
+    return res.ret[0].contractRet === 'SUCCESS';
 }
 
-export async function verifySignature(txHash, signatureHex) {
-    const txHashHex = '0x' + txHash.toString('hex');
+export async function signAndVerifyTRON() {
+    const { address: tronAddress } = await getTronAddress();
+    const payload =
+        '74ce137697637a6181681d3210f66fbe6516a4c4d1234471e38986a1d2ae77e5'; // dummy payload
+    const sigRes = await callWithAgent({
+        methodName: 'get_signature',
+        args: { path: CHAINSIG_PATH, payload, key_type: 'Ecdsa' },
+    });
+
+    const signatureHex = constructTronSignature(sigRes);
+
+    const txHashHex = '0x' + payload;
     const signature = '0x' + signatureHex;
 
     const recoveredEthAddress = ethers.recoverAddress(txHashHex, signature);
-    const tronAddressFromRecovered = tronWeb.address.fromHex(
+    const recoveredAddress = tronWeb.address.fromHex(
         '41' + recoveredEthAddress.slice(2),
     );
-    console.log('tronAddressFromRecovered', tronAddressFromRecovered);
+
+    const valid = recoveredAddress.toLowerCase() === tronAddress.toLowerCase();
+    console.log('TRON signature valid:', valid);
+    return valid;
 }
 
 export function constructTronSignature({ big_r, s, recovery_id }) {
@@ -37,7 +57,7 @@ export async function getTronAddress() {
         contractId: 'v1.signer',
         methodName: 'derived_public_key',
         args: {
-            path: 'tron-1',
+            path: CHAINSIG_PATH,
             predecessor: 'ac-proxy.shadeagent.near',
             domain_id: 0,
         },
@@ -78,7 +98,7 @@ export async function tronUSDTUnsigned({
 
     const parameters = [
         { type: 'address', value: to },
-        { type: 'uint256', value: tronWeb.toHex(parseInt(amount) * 1000000) },
+        { type: 'uint256', value: tronWeb.toHex(parseInt(amount)) },
     ];
 
     // Generate unsigned transaction

@@ -10,6 +10,9 @@ import dotenv from 'dotenv';
 const dir = process.cwd();
 dotenv.config({ path: `${dir}/.env.development.local` });
 
+import { getTronAddress } from './tron.js';
+import { getNearAddress } from './near.js';
+
 // --- constants -------------------------------------------------------------
 
 const NEAR_ENDPOINT = 'https://rpc.mainnet.near.org';
@@ -33,12 +36,14 @@ const BITFINEX_METHODS = {
 const BITFINEX_KEY = process.env.BITFINEX_KEY;
 const BITFINEX_SECRET = process.env.BITFINEX_SECRET;
 
-// derived addresses
-export const TRON_DERIVED_ADDRESS = 'TQ4Jo6cNH4hsdqKpkAYH4HZvj7ng1HcQm3';
 export const NEAR_DERIVED_ADDRESS =
     'cfbdf6e7462659d18926d14b942c6e320a75f59b811a7f7e52c154750e059f84';
 
 // --- helpers ---------------------------------------------------------------
+
+export function usdtToSingle(amount) {
+    return Math.floor(Number(amount) / 1000000).toString();
+}
 
 function nonce() {
     return `${Date.now() * 1000}`;
@@ -130,13 +135,16 @@ export async function checkBitfinexMoves({
 }) {
     const moves = await getBitfinexMoves(start);
 
+    // console.log(amount, start, receiver, method);
+    // console.log('moves:', moves);
+
     const credited = moves.find(
         (m) =>
             m[1] === 'UST' && // currency
             m[2] === BITFINEX_METHODS[method] && // method
             // Number(m[5]) >= start && // received after start
             m[9] === 'COMPLETED' && // status
-            Number(m[12]) >= amount && // amount
+            Number(m[12]) >= usdtToSingle(amount) && // amount
             m[16] == receiver, // amount
     );
 
@@ -144,34 +152,35 @@ export async function checkBitfinexMoves({
 }
 
 export async function withdrawToTron(amount) {
+    const { address } = await getTronAddress();
+    console.log('Withdrawing liquidity to Tron derived address', address);
     const body = {
         wallet: 'exchange',
         method: METHOD_TRON,
-        address: TRON_DERIVED_ADDRESS,
-        amount: amount.toFixed(2),
+        address,
+        amount: usdtToSingle(amount),
         travel_rule_tos: false,
     };
 
     const res = await bitfinexRequest('v2/auth/w/withdraw', body);
     const status = res[6];
-    console.log(res);
     console.log(`Withdrawal request status: ${status}`);
     if (status !== 'SUCCESS') return false;
     return true;
 }
 
 export async function withdrawToNear(amount) {
+    const { address } = await getNearAddress();
     const body = {
         wallet: 'exchange',
         method: METHOD_NEAR,
-        address: NEAR_DERIVED_ADDRESS,
-        amount: amount.toFixed(2),
+        address,
+        amount: usdtToSingle(amount),
         travel_rule_tos: false,
     };
 
     const res = await bitfinexRequest('v2/auth/w/withdraw', body);
     const status = res[6];
-    console.log(res);
     console.log(`Withdrawal request status: ${status}`);
     if (status !== 'SUCCESS') return false;
     return true;

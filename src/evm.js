@@ -43,7 +43,8 @@ export async function verifySignature(txHash, signatureHex) {
     return recoveredEthAddress;
 }
 
-export async function signAndRecover() {
+export async function signAndVerifyEVM() {
+    const { address: evmAddress } = await getEvmAddress();
     const payload =
         '74ce137697637a6181681d3210f66fbe6516a4c4d1234471e38986a1d2ae77e5'; // dummy payload
     const sigRes = await callWithAgent({
@@ -56,7 +57,10 @@ export async function signAndRecover() {
         sig.s.substring(2) +
         sig.v.toString(16).padStart(2, '0');
     const recoveredAddress = await verifySignature(payload, sigHex);
-    console.log('recoveredAddress', recoveredAddress);
+
+    const valid = recoveredAddress.toLowerCase() === evmAddress.toLowerCase();
+    console.log('EVM signature valid:', valid);
+    return valid;
 }
 
 export async function sendEVMTokens({

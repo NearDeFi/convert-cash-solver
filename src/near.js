@@ -2,7 +2,7 @@ import * as dotenv from 'dotenv';
 dotenv.config({ path: './.env.development.local' });
 
 // const and helpers
-import { createHash } from 'crypto';
+import { verify, createHash, createPublicKey } from 'crypto';
 import { parseSeedPhrase } from 'near-seed-phrase';
 import {
     createTransaction,
@@ -18,6 +18,9 @@ import { NEAR } from '@near-js/tokens';
 import { KeyPair, PublicKey } from '@near-js/crypto';
 import { baseDecode } from '@near-js/utils';
 import { serialize } from 'borsh';
+import { callWithAgent } from './app.js';
+
+const CHAINSIG_PATH = 'pool-1'; // NEAR derived address path
 
 const contractId = process.env.NEAR_CONTRACT_ID?.replaceAll('"', '');
 const networkId = /testnet/gi.test(contractId) ? 'testnet' : 'mainnet';
@@ -43,13 +46,42 @@ export const getAccount = (id = accountId) => new Account(id, provider, signer);
 export const viewFunction = ({ contractId, methodName, args }) =>
     provider.callFunction(contractId, methodName, args);
 
+export async function signAndVerifyNEAR() {
+    const { publicKey: nearPublicKey } = await getNearAddress();
+
+    const publicKey = createPublicKey({
+        format: 'der',
+        type: 'spki',
+        key: Buffer.concat([
+            Buffer.from('302a300506032b6570032100', 'hex'), // Ed25519 DER prefix
+            Buffer.from(baseDecode(nearPublicKey.split(':')[1])), // Your 32-byte public key
+        ]),
+    });
+
+    const payload =
+        '74ce137697637a6181681d3210f66fbe6516a4c4d1234471e38986a1d2ae77e5'; // dummy payload
+    const sigRes = await callWithAgent({
+        methodName: 'get_signature',
+        args: { path: CHAINSIG_PATH, payload, key_type: 'Eddsa' },
+    });
+
+    const valid = verify(
+        null,
+        Buffer.from(payload, 'hex'),
+        publicKey,
+        Buffer.from(sigRes.signature),
+    );
+    console.log('NEAR signature valid:', valid);
+    return valid;
+}
+
 export async function getNearAddress() {
     // TODO make env vars for path and predecessor
     const derivedPublicKey = await viewFunction({
         contractId: 'v1.signer',
         methodName: 'derived_public_key',
         args: {
-            path: 'pool-1',
+            path: CHAINSIG_PATH,
             predecessor: 'ac-proxy.shadeagent.near',
             domain_id: 1,
         },
@@ -63,7 +95,7 @@ export async function getNearAddress() {
 }
 
 export async function requestLiquidityUnsigned({ to, amount }) {
-    const accountId = await getNearAddress();
+    const { address, publicKey } = await getNearAddress();
 
     // USDT contract and FT transfer details
     const usdtContract = 'usdt.tether-token.near'; // mainnet USDT contract
@@ -75,7 +107,7 @@ export async function requestLiquidityUnsigned({ to, amount }) {
     const ftGas = '30000000000000'; // 30 Tgas
     const ftDeposit = '1'; // 1 yoctoNEAR required for ft_transfer
     const accessKey = await provider.query(
-        `access_key/${accountId}/${derivedPublicKey}`,
+        `access_key/${address}/${publicKey}`,
         '',
     );
     const recentBlockHash = baseDecode(accessKey.block_hash);
@@ -83,8 +115,8 @@ export async function requestLiquidityUnsigned({ to, amount }) {
         actionCreators.functionCall('ft_transfer', ftArgs, ftGas, ftDeposit),
     ];
     const transaction = createTransaction(
-        accountId,
-        PublicKey.from(derivedPublicKey),
+        address,
+        PublicKey.from(publicKey),
         usdtContract,
         ++accessKey.nonce,
         actions,
@@ -124,6 +156,7 @@ export async function requestLiquidityBroadcast({ transaction, signature }) {
     );
 
     return {
+        txHash: result.transaction.hash,
         explorerLink: `Explorer: https://nearblocks.io/txns/${result.transaction.hash}`,
     };
 }

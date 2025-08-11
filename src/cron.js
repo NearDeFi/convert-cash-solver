@@ -11,11 +11,7 @@ import {
     getNearAddress,
 } from './near.js';
 
-import {
-    contractCall,
-    contractView,
-    getAgentAccount,
-} from '@neardefi/shade-agent-js';
+import { agentCall, agentView, agentAccountId } from '@neardefi/shade-agent-js';
 
 import {
     tronUSDTUnsigned,
@@ -33,7 +29,7 @@ const nanoToMs = (nanos) => Math.floor(nanos / 1e6) - 1000;
 
 async function getIntent(solver_id) {
     try {
-        const intent = await contractView({
+        const intent = await agentView({
             methodName: 'get_intent_by_solver',
             args: {
                 solver_id,
@@ -82,7 +78,7 @@ Error claiming new intent 1af660a79008c0ce0c5a5605c6107fd7f355a41cb407d4728300a4
 
 export async function updateState(solver_id, state) {
     try {
-        await contractCall({
+        await agentCall({
             methodName: 'update_intent_state',
             args: {
                 solver_id,
@@ -234,7 +230,7 @@ const stateFuncs = {
 
 */
 
-            await contractCall({
+            await agentCall({
                 methodName: 'update_swap_hash',
                 args: {
                     solver_id,
@@ -338,7 +334,7 @@ const cronTimeout = (prevIntent) => {
 };
 
 export async function cron(prevIntent) {
-    const solver_id = (await getAgentAccount()).workerAccountId;
+    const solver_id = (await agentAccountId()).workerAccountId;
 
     // check if we have a previous intent whose state was not updated successfully
     if (prevIntent) {

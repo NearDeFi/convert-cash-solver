@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { signWithAgent } from '@neardefi/shade-agent-js';
+import { requestSignature } from '@neardefi/shade-agent-js';
 import { viewFunction } from './near.js';
 import { callWithAgent } from './app.js';
 import keccak from 'keccak';
@@ -115,7 +115,7 @@ export async function sendETH({
         chainId,
     });
 
-    const sigRes = await signWithAgent(path, payload);
+    const sigRes = await requestSignature({ path, payload });
     unsignedTx.signature = parseSignature({ sigRes });
     const res = await broadcastTransaction(unsignedTx.serialized);
     return res;

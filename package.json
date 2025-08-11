@@ -24,7 +24,7 @@
         "@near-js/signers": "^2.2.2",
         "@near-js/tokens": "^2.2.2",
         "@near-js/utils": "^2.2.2",
-        "@neardefi/shade-agent-js": "^0.2.3",
+        "@neardefi/shade-agent-js": "^1.0.4",
         "@types/elliptic": "^6",
         "@types/node": "^22.15.21",
         "borsh": "^2.0.0",

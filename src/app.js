@@ -22,7 +22,7 @@ import {
     getNearDepositAddress,
     getEvmDepositAddress,
 } from './bitfinex.js';
-import { getAgentAccount } from '@neardefi/shade-agent-js';
+import { agentAccountId, agentCall } from '@neardefi/shade-agent-js';
 import { getEvmAddress, signAndVerifyEVM } from './evm.js';
 import { getTronAddress, signAndVerifyTRON } from './tron.js';
 import { getNearAddress, signAndVerifyNEAR } from './near.js';
@@ -31,13 +31,18 @@ import { cron, updateState } from './cron.js';
 const PORT = 3000;
 
 export const callWithAgent = async ({ methodName, args }) => {
-    const res = await fetch(`http://localhost:3140/api/call`, {
-        method: 'POST',
-        body: JSON.stringify({
-            methodName,
-            args,
-        }),
+    const res = await agentCall({
+        methodName,
+        args,
     });
+
+    // const res = await fetch(`http://localhost:3140/api/call`, {
+    //     method: 'POST',
+    //     body: JSON.stringify({
+    //         methodName,
+    //         args,
+    //     }),
+    // });
 
     try {
         return res.json();
@@ -54,13 +59,27 @@ const app = new Hono();
 
 app.use('/*', cors());
 
+app.get('/api/test-sign', async (c) => {
+    // check contract to see if intent already exists
+    const sigRes = await agentCall({
+        methodName: 'request_signature',
+        args: {
+            path: 'foo',
+            payload:
+                '74ce137697637a6181681d3210f66fbe6516a4c4d1234471e38986a1d2ae77e5',
+            key_type: 'Ecdsa',
+        },
+    });
+    return c.json({ sigRes });
+});
+
 app.get('/api/cron', async (c) => {
     cron(); // can't await cron it runs forever
     return c.json({ done: true });
 });
 
 app.get('/api/state', async (c) => {
-    const solver_id = (await getAgentAccount()).workerAccountId;
+    const solver_id = (await agentAccountId()).workerAccountId;
     const res = await updateState(solver_id, 'LiquidityProvided');
     return c.json({ res });
 });

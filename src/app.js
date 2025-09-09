@@ -11,7 +11,6 @@ Tron Test Wallet: TXrv6zHfFuCvRetZcEq2k6f7SQ8LnsgD8X
 
 Next steps tron to eth
 
-
 **/
 
 import { serve } from '@hono/node-server';
@@ -23,54 +22,46 @@ import {
     getEvmDepositAddress,
 } from './bitfinex.js';
 import { agentAccountId, agentCall } from '@neardefi/shade-agent-js';
+import { signAndRecover } from './erc191.js';
 import { getEvmAddress, signAndVerifyEVM } from './evm.js';
 import { getTronAddress, signAndVerifyTRON } from './tron.js';
-import { getNearAddress, signAndVerifyNEAR } from './near.js';
+import {
+    getNearAddress,
+    signAndVerifyNEAR,
+    requestLiquidityUnsigned,
+    requestLiquidityBroadcast,
+} from './near.js';
 import { cron, updateState } from './cron.js';
 
 const PORT = 3000;
 
 export const callWithAgent = async ({ methodName, args }) => {
-    const res = await agentCall({
-        methodName,
-        args,
-    });
+    console.log(methodName);
 
-    // const res = await fetch(`http://localhost:3140/api/call`, {
-    //     method: 'POST',
-    //     body: JSON.stringify({
-    //         methodName,
-    //         args,
-    //     }),
-    // });
-
+    let res;
     try {
-        return res.json();
+        res = await agentCall({
+            methodName,
+            args,
+        });
     } catch (e) {
-        if (res.status !== 200) {
-            console.log('Error from fetch call to agent:', await res.text());
-            return { success: false };
-        }
-        return { success: true };
+        console.log('Error from fetch call to agent', e);
     }
+
+    if (res.error) {
+        console.log('Error from fetch call to agent:', res.error);
+        return { success: false };
+    }
+
+    return res;
 };
 
 const app = new Hono();
 
 app.use('/*', cors());
 
-app.get('/api/test-sign', async (c) => {
-    // check contract to see if intent already exists
-    const sigRes = await agentCall({
-        methodName: 'request_signature',
-        args: {
-            path: 'foo',
-            payload:
-                '74ce137697637a6181681d3210f66fbe6516a4c4d1234471e38986a1d2ae77e5',
-            key_type: 'Ecdsa',
-        },
-    });
-    return c.json({ sigRes });
+app.get('/api/test-erc191', async (c) => {
+    signAndRecover();
 });
 
 app.get('/api/cron', async (c) => {
@@ -79,9 +70,38 @@ app.get('/api/cron', async (c) => {
 });
 
 app.get('/api/state', async (c) => {
-    const solver_id = (await agentAccountId()).workerAccountId;
-    const res = await updateState(solver_id, 'LiquidityProvided');
+    const solver_id = (await agentAccountId()).accountId;
+    const res = await updateState(solver_id, 'LiquidityCredited');
     return c.json({ res });
+});
+
+app.get('/api/return-near', async (c) => {
+    try {
+        const { payload, transaction } = await requestLiquidityUnsigned({
+            to: '70d6b5c7307f794c799370bc495ce5f7c9dfc1f27f59f411a9c135076d4e74be',
+            amount: '5000000000',
+        });
+
+        const liqRes = await callWithAgent({
+            methodName: 'request_signature',
+            args: { path: 'pool-1', payload, key_type: 'Eddsa' },
+        });
+
+        const broadcastRes = await requestLiquidityBroadcast({
+            transaction,
+            signature: liqRes.signature,
+        });
+
+        if (!broadcastRes?.txHash) {
+            console.log('Error broadcasting liquidity request:', broadcastRes);
+            return c.json({ success: false });
+        }
+
+        return c.json({ success: true });
+    } catch (e) {
+        console.log('Error requesting liquidity:', e);
+    }
+    return c.json({ success: false });
 });
 
 app.get('/api/test-deposit', async (c) => {

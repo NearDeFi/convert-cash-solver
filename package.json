@@ -3,18 +3,19 @@
     "name": "docker",
     "packageManager": "yarn@4.9.1",
     "scripts": {
+        "build:proxy": "cd ./contracts/proxy && RUSTFLAGS='-C link-arg=--enable-bulk-memory' cargo near build non-reproducible-wasm",
+        "build:sandbox": "cd ./contracts/sandbox && RUSTFLAGS='-C link-arg=--enable-bulk-memory' cargo near build non-reproducible-wasm",
         "phala:test": "phala cvms create --name shade-agent-api-test --compose ./docker-compose.yaml --env-file ./.env.development.local",
-        "deploy:global": "node ../scripts/deploy-global.js",
-        "docker:script": "node ../scripts/docker.js",
-        "all:scripts": "yarn docker:script && yarn deploy:global && yarn phala:test",
         "docker:test": "sudo docker build -t myapp . && sudo docker run -p 3000:3000 --env-file .env.development.local --rm -e PORT=3000 myapp",
         "docker:prune": "sudo docker system prune",
         "docker:restart": "sudo systemctl restart docker",
         "docker:restart:mac": "osascript -e 'quit app \"Docker\"' && open -a Docker",
         "docker:image": "sudo docker build --no-cache -t mattdlockyer/shade-agent-api-test:latest .",
         "docker:push": "sudo docker push mattdlockyer/shade-agent-api-test",
-        "start": "node src/app.js",
-        "cli:proxy": "node cli.js"
+        "start": "yarn node ./src/app.js",
+        "dev": "yarn node ./src/app.js",
+        "cli": "yarn node ./cli.js",
+        "cli:proxy": "yarn build:proxy && yarn node ./cli.js ./contracts/proxy/target/near/contract.wasm"
     },
     "dependencies": {
         "@hono/node-server": "^1.14.2",

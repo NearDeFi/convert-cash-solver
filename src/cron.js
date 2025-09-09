@@ -35,6 +35,9 @@ async function getIntent(solver_id) {
                 solver_id,
             },
         });
+        if (intent.error) {
+            return null;
+        }
         return intent;
     } catch (e) {
         console.log(e);
@@ -43,25 +46,6 @@ async function getIntent(solver_id) {
 }
 
 async function claimIntent() {
-    /*
-
-TODO upgrade to latest shade-agent-js to fix this error
-
-	Claiming new intent for solver_id 1af660a79008c0ce0c5a5605c6107fd7f355a41cb407d4728300a4e15b35cdbb
-SyntaxError: Unexpected end of JSON input
-    at JSON.parse (<anonymous>)
-    at parseJSONFromBytes (node:internal/deps/undici/undici:5738:19)
-    at successSteps (node:internal/deps/undici/undici:5719:27)
-    at fullyReadBody (node:internal/deps/undici/undici:4609:9)
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    at async consumeBody (node:internal/deps/undici/undici:5728:7)
-    at async claimIntent (file:///home/matt/Projects/mattlockyer/convert-cash-solver/src/cron.js:47:9)
-    at async cron (file:///home/matt/Projects/mattlockyer/convert-cash-solver/src/cron.js:309:25)
-    at async file:///home/matt/Projects/mattlockyer/convert-cash-solver/src/app.js:43:5
-    at async dispatch (file:///home/matt/Projects/mattlockyer/convert-cash-solver/node_modules/hono/dist/compose.js:22:17)
-Error claiming new intent 1af660a79008c0ce0c5a5605c6107fd7f355a41cb407d4728300a4e15b35cdbb
-*/
-
     try {
         const res = await callWithAgent({
             methodName: 'claim_intent',
@@ -78,13 +62,16 @@ Error claiming new intent 1af660a79008c0ce0c5a5605c6107fd7f355a41cb407d4728300a4
 
 export async function updateState(solver_id, state) {
     try {
-        await agentCall({
+        const res = await agentCall({
             methodName: 'update_intent_state',
             args: {
                 solver_id,
                 state,
             },
         });
+        if (res.error) {
+            throw new Error(res.error);
+        }
         console.log(`State updated to ${state} for solver_id ${solver_id}`);
         return true;
     } catch (e) {
@@ -105,7 +92,7 @@ const stateFuncs = {
             });
 
             const liqRes = await callWithAgent({
-                methodName: 'get_signature',
+                methodName: 'request_signature',
                 args: { path: 'pool-1', payload, key_type: 'Eddsa' },
             });
 
@@ -191,7 +178,7 @@ const stateFuncs = {
 
             console.log('tron tx: getting chain sig');
             const sigRes = await callWithAgent({
-                methodName: 'get_signature',
+                methodName: 'request_signature',
                 args: { path: 'tron-1', payload: txHash, key_type: 'Ecdsa' },
             });
             console.log(sigRes);
@@ -334,7 +321,7 @@ const cronTimeout = (prevIntent) => {
 };
 
 export async function cron(prevIntent) {
-    const solver_id = (await agentAccountId()).workerAccountId;
+    const solver_id = (await agentAccountId()).accountId;
 
     // check if we have a previous intent whose state was not updated successfully
     if (prevIntent) {

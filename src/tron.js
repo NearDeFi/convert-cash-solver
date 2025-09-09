@@ -24,7 +24,7 @@ export async function signAndVerifyTRON() {
     const payload =
         '74ce137697637a6181681d3210f66fbe6516a4c4d1234471e38986a1d2ae77e5'; // dummy payload
     const sigRes = await callWithAgent({
-        methodName: 'get_signature',
+        methodName: 'request_signature',
         args: { path: CHAINSIG_PATH, payload, key_type: 'Ecdsa' },
     });
 

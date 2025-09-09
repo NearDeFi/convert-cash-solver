@@ -159,10 +159,13 @@ export async function withdrawToTron(amount) {
         method: METHOD_TRON,
         address,
         amount: usdtToSingle(amount),
-        travel_rule_tos: false,
+        travel_rule_tos: true,
+        beneficiary_self: true,
     };
 
     const res = await bitfinexRequest('v2/auth/w/withdraw', body);
+    console.log(res);
+
     const status = res[6];
     console.log(`Withdrawal request status: ${status}`);
     if (status !== 'SUCCESS') return false;
@@ -176,7 +179,8 @@ export async function withdrawToNear(amount) {
         method: METHOD_NEAR,
         address,
         amount: usdtToSingle(amount),
-        travel_rule_tos: false,
+        travel_rule_tos: true,
+        beneficiary_self: true,
     };
 
     const res = await bitfinexRequest('v2/auth/w/withdraw', body);

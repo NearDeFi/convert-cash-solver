@@ -5,7 +5,7 @@ use near_sdk::{
 };
 
 mod chainsig;
-mod intents;
+pub mod intents;
 mod solvers;
 
 use intents::State;

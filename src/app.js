@@ -86,6 +86,50 @@ app.post('/api/verifyIntent', async (c) => {
     );
 
     const { deposits } = await getRecentDeposits(recoveredAddress, srcChain);
+
+    // check recent deposit matches payload details
+    const deposit = deposits[0];
+    const tokenDiffIntent = payload.intents[0];
+    const withdrawIntent = payload.intents[1];
+    const [srcToken, srcAmount] = Object.entries(tokenDiffIntent.diff).find(
+        ([k]) => k === deposit.defuse_asset_identifier,
+    );
+    const [destToken, destAmount] = Object.entries(tokenDiffIntent.diff).find(
+        ([k]) => k !== deposit.defuse_asset_identifier,
+    );
+
+    const intentValidity = {
+        isTokenDiff: tokenDiffIntent.intent === 'token_diff',
+        accountIdMatch: tokenDiffIntent.signer_id === deposit.account_id,
+        chainMatch: srcChain === deposit.chain,
+        depositAddressMatch: deposit.address === depositsAddress,
+        defuseAssetMatch: srcToken === deposit.defuse_asset_identifier,
+        amountMatch: srcAmount === deposit.amount,
+        isDepositCompleted: deposit.status === 'COMPLETED',
+    };
+
+    const isIntentValid = Object.values(intentValidity).reduce(
+        (acc, val) => acc && val,
+        true,
+    );
+    console.log('isIntentValid', isIntentValid);
+    if (!isIntentValid) {
+        return c.json({ intentValidity, error: 'intent is invalid' });
+    }
+
+    // check contract to see if intent already exists
+    const getIntentsRes = await agentView({
+        methodName: 'get_intents',
+        args: {},
+    });
+
+    if (getIntentsRes.find((i) => i.deposit_hash === deposit.tx_hash)) {
+        return c.json({
+            intentValidity,
+            error: 'intent already exists in contract',
+        });
+    }
+
     /*{
         "tx_hash": "",
         "chain": "CHAIN_TYPE:CHAIN_ID",
@@ -98,43 +142,6 @@ app.post('/api/verifyIntent', async (c) => {
       },
       */
 
-    // check recent deposit matches payload details
-    const intent = payload.intents[0];
-    const deposit = deposits[0];
-
-    const intentValidity = {
-        isTokenDiff: intent.intent === 'token_diff',
-        accountIdMatch: intent.signer_id === deposit.account_id,
-        chainMatch: srcChain === deposit.chain,
-        depositAddressMatch: deposit.address === depositsAddress,
-        defuseAssetMatch: Object.keys(intent.diff).includes(
-            deposit.defuse_asset_identifier,
-        ),
-        amountMatch:
-            intent.diff[deposit.defuse_asset_identifier] === deposit.amount,
-        isDepositCompleted: deposit.status === 'COMPLETED',
-    };
-
-    const isIntentValid = Object.values(intentValidity).reduce(
-        (acc, val) => acc && val,
-        true,
-    );
-    console.log('isIntentValid', isIntentValid);
-    if (!isIntentValid) {
-        return c.json(intentValidity);
-    }
-
-    // check contract to see if intent already exists
-    const getIntentsRes = await agentView({
-        methodName: 'get_intents',
-        args: {},
-    });
-
-    if (getIntentsRes.find((d) => d.hash === deposit.tx_hash)) {
-        return c.json({ isVerified, error: 'intent already exists' });
-    }
-    console.log('getIntentsRes', getIntentsRes);
-
     // submit intent to contract
     let submitted = false,
         error = null;
@@ -142,13 +149,13 @@ app.post('/api/verifyIntent', async (c) => {
         await agentCall({
             methodName: 'new_intent',
             args: {
-                amount: tx.amount,
-                deposit_hash: deposit_tx_hash,
-                src_token_address: ETH_USDT_ADDRESS,
-                src_chain_id: 1,
-                dest_token_address: TRON_ETH_USDT_ADDRESS,
-                dest_chain_id: TRON_CHAIN_ID,
-                dest_receiver_address: dest_address,
+                amount: deposit.amount,
+                deposit_hash: deposit.tx_hash,
+                src_token_address: srcToken,
+                src_chain: deposit.chain,
+                dest_token_address: destToken,
+                dest_chain_id: destToken, // TODO what should this be? Do we need to keep it?
+                dest_receiver_address: withdrawIntent.receiver_id,
             },
         });
         submitted = true;
@@ -159,8 +166,7 @@ app.post('/api/verifyIntent', async (c) => {
             : e.message;
     }
 
-    // happy path is submitted is true and isVerified is true
-    return c.json({ isVerified, submitted, error });
+    return c.json({ intentValidity, submitted, error });
 });
 
 app.get('/api/cron', async (c) => {

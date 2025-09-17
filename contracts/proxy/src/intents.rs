@@ -26,9 +26,9 @@ pub struct Intent {
     pub deposit_hash: String,
     pub swap_hash: String,
     pub src_token_address: String,
-    pub src_chain_id: u64,
+    pub src_chain: String,
     pub dest_token_address: String,
-    pub dest_chain_id: u64,
+    pub dest_chain: String,
     pub dest_receiver_address: String,
 }
 
@@ -39,9 +39,9 @@ impl Contract {
         amount: String,
         deposit_hash: String,
         src_token_address: String,
-        src_chain_id: u64,
+        src_chain: String,
         dest_token_address: String,
-        dest_chain_id: u64,
+        dest_chain: String,
         dest_receiver_address: String,
     ) {
         // TODO require intent agent
@@ -56,9 +56,9 @@ impl Contract {
             deposit_hash,
             swap_hash: "".to_owned(),
             src_token_address,
-            src_chain_id,
+            src_chain,
             dest_token_address,
-            dest_chain_id,
+            dest_chain,
             dest_receiver_address,
         });
     }

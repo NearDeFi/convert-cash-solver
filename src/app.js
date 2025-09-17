@@ -22,7 +22,6 @@ import {
     getEvmDepositAddress,
 } from './bitfinex.js';
 import { agentAccountId, agentCall } from '@neardefi/shade-agent-js';
-import { signAndRecover } from './erc191.js';
 import { getEvmAddress, signAndVerifyEVM } from './evm.js';
 import { getTronAddress, signAndVerifyTRON } from './tron.js';
 import {
@@ -33,8 +32,15 @@ import {
 } from './near.js';
 import { cron, updateState } from './cron.js';
 
+import {
+    erc191Verify,
+    getDepositAddress,
+    getRecentDeposits,
+} from './intents.js';
+
 const PORT = 3000;
 
+// helper
 export const callWithAgent = async ({ methodName, args }) => {
     console.log(methodName);
 
@@ -60,14 +66,121 @@ const app = new Hono();
 
 app.use('/*', cors());
 
-app.get('/api/test-erc191', async (c) => {
-    signAndRecover();
+app.post('/api/verifyIntent', async (c) => {
+    // erc191 message
+    const args = await c.req.json();
+
+    const srcChain = 'eth:1';
+
+    // check message and signature is valid
+    const { recoveredAddress, validSignature, payload } = await erc191Verify(
+        args,
+    );
+    if (!validSignature) {
+        return c.json({ validSignature });
+    }
+
+    const { depositAddress } = await getDepositAddress(
+        recoveredAddress,
+        srcChain,
+    );
+
+    const { deposits } = await getRecentDeposits(recoveredAddress, srcChain);
+    /*{
+        "tx_hash": "",
+        "chain": "CHAIN_TYPE:CHAIN_ID",
+        "defuse_asset_identifier": "eth:8543:0x123",
+        "decimals": 18,
+        "amount": 10000000000,
+        "account_id": "user.near",
+        "address": "0x123",
+        "status": "COMPLETED" // PENDING, FAILED
+      },
+      */
+
+    // check recent deposit matches payload details
+    const intent = payload.intents[0];
+    const deposit = deposits[0];
+
+    const intentValidity = {
+        isTokenDiff: intent.intent === 'token_diff',
+        accountIdMatch: intent.signer_id === deposit.account_id,
+        chainMatch: srcChain === deposit.chain,
+        depositAddressMatch: deposit.address === depositsAddress,
+        defuseAssetMatch: Object.keys(intent.diff).includes(
+            deposit.defuse_asset_identifier,
+        ),
+        amountMatch:
+            intent.diff[deposit.defuse_asset_identifier] === deposit.amount,
+        isDepositCompleted: deposit.status === 'COMPLETED',
+    };
+
+    const isIntentValid = Object.values(intentValidity).reduce(
+        (acc, val) => acc && val,
+        true,
+    );
+    console.log('isIntentValid', isIntentValid);
+    if (!isIntentValid) {
+        return c.json(intentValidity);
+    }
+
+    // check contract to see if intent already exists
+    const getIntentsRes = await agentView({
+        methodName: 'get_intents',
+        args: {},
+    });
+
+    if (getIntentsRes.find((d) => d.hash === deposit.tx_hash)) {
+        return c.json({ isVerified, error: 'intent already exists' });
+    }
+    console.log('getIntentsRes', getIntentsRes);
+
+    // submit intent to contract
+    let submitted = false,
+        error = null;
+    try {
+        await agentCall({
+            methodName: 'new_intent',
+            args: {
+                amount: tx.amount,
+                deposit_hash: deposit_tx_hash,
+                src_token_address: ETH_USDT_ADDRESS,
+                src_chain_id: 1,
+                dest_token_address: TRON_ETH_USDT_ADDRESS,
+                dest_chain_id: TRON_CHAIN_ID,
+                dest_receiver_address: dest_address,
+            },
+        });
+        submitted = true;
+    } catch (e) {
+        console.error('Error submitting intent:', e.message);
+        error = /already exists/.test(e.message)
+            ? 'intent already exists'
+            : e.message;
+    }
+
+    // happy path is submitted is true and isVerified is true
+    return c.json({ isVerified, submitted, error });
 });
 
 app.get('/api/cron', async (c) => {
     cron(); // can't await cron it runs forever
     return c.json({ done: true });
 });
+
+console.log('Server listening on port: ', PORT);
+
+serve({
+    fetch: app.fetch,
+    port: PORT,
+    hostname: '0.0.0.0',
+});
+
+/**
+ *
+ * Deprecated
+ *
+ */
 
 app.get('/api/state', async (c) => {
     const solver_id = (await agentAccountId()).accountId;
@@ -156,12 +269,4 @@ app.get('/api/bitfinex-moves', async (c) => {
     const res = await getBitfinexMoves({});
     console.log(res);
     return c.json(res);
-});
-
-console.log('Server listening on port: ', PORT);
-
-serve({
-    fetch: app.fetch,
-    port: PORT,
-    hostname: '0.0.0.0',
 });

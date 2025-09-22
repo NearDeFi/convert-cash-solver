@@ -151,8 +151,7 @@ export async function checkBitfinexMoves({
     return !!credited;
 }
 
-export async function withdrawToTron(amount) {
-    const { address } = await getTronAddress();
+export async function withdrawToTron(amount, address) {
     console.log('Withdrawing liquidity to Tron derived address', address);
     const body = {
         wallet: 'exchange',

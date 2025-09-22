@@ -68,6 +68,14 @@ app.use('/*', cors());
 
 app.post('/api/verifyIntent', async (c) => {
     // erc191 message
+
+    /*
+    {
+        "standard": "erc191",
+        "payload": "{\"signer_id\":\"0xa48c13854fa61720c652e2674cfa82a5f8514036\",\"nonce\":\"etfB9ran4vpg4ilG0I4q9A5K+8RtSBMpd/Ubesi1c6g=\",\"verifying_contract\":\"intents.near\",\"deadline\":\"2025-12-16T23:40:06.907Z\",\"intents\":[{\"intent\":\"token_diff\",\"diff\":{\"nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near\":\"-1000000\",\"nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near\":\"999391\"}},{\"intent\":\"ft_withdraw\",\"token\":\"tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near\",\"receiver_id\":\"tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near\",\"amount\":\"999391\",\"memo\":\"WITHDRAW_TO:TAqER36ULBm63eWVsRJHBbJHeNrP4Lp1jq\"}]}",
+        "signature": "secp256k1:5ddLZT3nSge1yGMBjFJXp4rKPJguabgFXBRzmfWEcrtsjurbBtJ4iQiFHGXNdY6oVWyLCfUG1rx9N48pNNqqMHa1V"
+    }
+     */
     const args = await c.req.json();
 
     const srcChain = 'eth:1';

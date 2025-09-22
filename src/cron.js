@@ -21,9 +21,13 @@ import {
     getTronAddress,
 } from './tron.js';
 
-import { getEvmAddress, sendEVMTokens } from './evm.js';
+import { getDepositAddress } from './intents.js';
+
+import { getEvmAddress, parseSignature, sendEVMTokens } from './evm.js';
 
 import { callWithAgent } from './app.js';
+
+const INTENTS_CHAIN_ID_TRON = 'tron:728126428';
 
 const nanoToMs = (nanos) => Math.floor(nanos / 1e6) - 1000;
 
@@ -139,7 +143,14 @@ const stateFuncs = {
         return false;
     },
     LiquidityCredited: async (intent, solver_id) => {
-        const res = await withdrawToTron(intent.amount);
+        // get an EVM address to use as implicit-eth address for the solver agent
+        const { address } = await getEvmAddress();
+        // get a deposit address for that EVM address on Tron
+        const { depositAddress } = await getDepositAddress(
+            address,
+            INTENTS_CHAIN_ID_TRON,
+        );
+        const res = await withdrawToTron(intent.amount, depositAddress);
 
         if (!res) {
             return false;
@@ -148,12 +159,18 @@ const stateFuncs = {
         return true;
     },
     WithdrawRequested: async (intent, solver_id) => {
-        const { address: receiver } = await getTronAddress();
+        // get an EVM address to use as implicit-eth address for the solver agent
+        const { address } = await getEvmAddress();
+        // get a deposit address for that EVM address on Tron
+        const { depositAddress } = await getDepositAddress(
+            address,
+            INTENTS_CHAIN_ID_TRON,
+        );
         // TODO finish this check to see if withdrawal requested is completed, e.g. put in arguments of withdrawal
         const res = await checkBitfinexMoves({
             amount: parseInt(intent.amount) * -1, // negative for withdrawals
             start: nanoToMs(intent.created), // convert to ms from nanos
-            receiver,
+            receiver: depositAddress,
             method: 'tron',
         });
 
@@ -166,70 +183,130 @@ const stateFuncs = {
         // TODO update intent state in contract with txHash of tron withdrawal
     },
     CompleteSwap: async (intent, solver_id) => {
-        // TODO replace this with derived address?
-        const { address } = await getTronAddress();
+        // get an EVM address to use as implicit-eth address for the solver agent
+        const { address } = await getEvmAddress();
+        // get a deposit address for that EVM address on Tron
+        const { depositAddress } = await getDepositAddress(
+            address,
+            INTENTS_CHAIN_ID_TRON,
+        );
 
-        try {
-            const { txHash, rawTransaction } = await tronUSDTUnsigned({
-                to: intent.dest_receiver_address,
-                from: address,
-                amount: intent.amount,
-            });
+        const fee = 500000;
+        const sendToken =
+            'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near';
+        const receiveToken =
+            'nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near';
+        const sendAmount = '-' + (1000000 - fee).toString();
+        const receiveAmount = '1000000';
+        const standard = 'erc191';
+        const nonce = Buffer.from(randomBytes(n)).toString('base64');
+        const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes from now
 
-            console.log('tron tx: getting chain sig');
-            const sigRes = await callWithAgent({
-                methodName: 'request_signature',
-                args: { path: 'tron-1', payload: txHash, key_type: 'Ecdsa' },
-            });
-            console.log(sigRes);
-            const signatureHex = constructTronSignature(sigRes);
-            console.log('sig:', signatureHex);
-            // await verifySignature(txHash, signatureHex);
-            console.log('tron tx: broadcasting');
-            const res = await tronBroadcastTx(rawTransaction, signatureHex);
-
-            // TODO check if tron tx was succcessful or not right away
-
-            console.log('Tron broadcast', res);
-
-            /*
-
-            Tron broadcast {
-  result: true,
-  txid: '07838fe4ec07b26b16dd331736dd653435182874c6c6be259c3e79a51991b958',
-  transaction: {
-    visible: false,
-    txID: '07838fe4ec07b26b16dd331736dd653435182874c6c6be259c3e79a51991b958',
-    raw_data: {
-      contract: [Array],
-      ref_block_bytes: '0eee',
-      ref_block_hash: '8f09ba181f98c49a',
-      expiration: 1754606994000,
-      fee_limit: 30000000,
-      timestamp: 1754606935169
-    },
-    raw_data_hex: '0a020eee22088f09ba181f98c49a40d084e8b588335aae01081f12a9010a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412740a15419a88ad5b6319871d2aacd74db5c8f191193dd295121541a614f803b6fd780986a42c78ec9c7f77e6ded13c2244a9059cbb000000000000000000000000169149d8c1f5b11d51b98007ffd0d6af8b30830a00000000000000000000000000000000000000000000000000000000004c4b407081b9e4b5883390018087a70e',
-    signature: [
-      'aa274b0e4db64599bbbaf81f576dad1ebcc9d47a02b1903471951c1f3abc64c94c43fb9dc6b69ef6986657d77011689d2d40e303119cc2068fb829a55ab6922600'
-    ]
-  }
-}
-
-*/
-
-            await agentCall({
-                methodName: 'update_swap_hash',
-                args: {
-                    solver_id,
-                    swap_hash: txHash,
+        const payload = {
+            signer_id: address,
+            nonce,
+            verifying_contract: 'intents.near',
+            deadline, 
+            intents: [
+                {
+                    intent: 'token_diff',
+                    diff: {
+                        [sendToken]: sendAmount,
+                        [receiveToken]: receiveAmount,
+                    },
                 },
-            });
-            intent.nextState = 'CheckSwapComplete';
-            return true;
-        } catch (e) {
-            console.log('Error completing swap:', e);
-        }
-        return false;
+                {
+                    intent: 'ft_withdraw',
+                    token: receiveToken,
+                    receiver_id: depositAddress, // TODO bitfinex withdrawal address
+                    amount: receiveAmount,
+                    memo: `WITHDRAW_TO:${depositAddress}`,
+                },
+            ],
+        };
+
+        // sign payload with evm key using chain signatures
+        const payloadStr = JSON.stringify(payload);
+        const payloadHex = Buffer.from(payloadStr).toString('hex');
+        const sigRes = await callWithAgent({
+            methodName: 'request_signature',
+            args: {
+                path: 'evm-1', payload: payloadHex, key_type: 'Ecdsa',
+            }
+        });
+
+        // parse signature response
+        const r = Buffer.from(sigRes.big_r.affine_point.substring(2), 'hex');
+        const s = Buffer.from(sigRes.s.scalar, 'hex');
+        const v = sigRes.recovery_id;
+        const rsvSignature = new Uint8Array(65);
+        rsvSignature.set(r, 0);
+        rsvSignature.set(s, 32);
+        rsvSignature[64] = v;
+        const signature = 'secp256k1:' + bs58.encode(rsvSignature);
+
+        // final intent
+        const intent = {
+            standard,
+            payload,
+            signature,
+        };
+
+        // TODO combine with user intent and verify intent
+
+        return intent;
+
+        // TODO
+        // sign intent with evm key using chain signatures
+
+        //     const sigRes = await callWithAgent({
+        //         methodName: 'request_signature',
+        //         args: { path: 'tron-1', payload: txHash, key_type: 'Ecdsa' },
+        //     });
+        //     console.log(sigRes);
+        //     const signatureHex = constructTronSignature(sigRes);
+        //     console.log('sig:', signatureHex);
+
+        // construct evm signature and signed ERC 191 payload
+
+        /**
+         * Deprecated in favor of using intents to execute the swap
+         * token_diff, token_diff, ft_withdraw, ft_withdraw
+         *
+         */
+        // const { address } = await getTronAddress();
+        // try {
+        //     const { txHash, rawTransaction } = await tronUSDTUnsigned({
+        //         to: intent.dest_receiver_address,
+        //         from: address,
+        //         amount: intent.amount,
+        //     });
+        //     console.log('tron tx: getting chain sig');
+        //     const sigRes = await callWithAgent({
+        //         methodName: 'request_signature',
+        //         args: { path: 'tron-1', payload: txHash, key_type: 'Ecdsa' },
+        //     });
+        //     console.log(sigRes);
+        //     const signatureHex = constructTronSignature(sigRes);
+        //     console.log('sig:', signatureHex);
+        //     // await verifySignature(txHash, signatureHex);
+        //     console.log('tron tx: broadcasting');
+        //     const res = await tronBroadcastTx(rawTransaction, signatureHex);
+        //     // TODO check if tron tx was succcessful or not right away
+        //     console.log('Tron broadcast', res);
+        //     await agentCall({
+        //         methodName: 'update_swap_hash',
+        //         args: {
+        //             solver_id,
+        //             swap_hash: txHash,
+        //         },
+        //     });
+        //     intent.nextState = 'CheckSwapComplete';
+        //     return true;
+        // } catch (e) {
+        //     console.log('Error completing swap:', e);
+        // }
+        // return false;
     },
     CheckSwapComplete: async (intent, solver_id) => {
         // make sure tron tx is complete, how many confirmations?

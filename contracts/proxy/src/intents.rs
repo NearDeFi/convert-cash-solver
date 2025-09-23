@@ -22,28 +22,13 @@ pub enum State {
 pub struct Intent {
     pub created: u64,
     pub state: State,
-    pub amount: String,
+    pub data: String,
     pub deposit_hash: String,
-    pub swap_hash: String,
-    pub src_token_address: String,
-    pub src_chain: String,
-    pub dest_token_address: String,
-    pub dest_chain: String,
-    pub dest_receiver_address: String,
 }
 
 #[near]
 impl Contract {
-    pub fn new_intent(
-        &mut self,
-        amount: String,
-        deposit_hash: String,
-        src_token_address: String,
-        src_chain: String,
-        dest_token_address: String,
-        dest_chain: String,
-        dest_receiver_address: String,
-    ) {
+    pub fn new_intent(&mut self, data: String, deposit_hash: String) {
         // TODO require intent agent
 
         let found = self.intents.iter().find(|d| d.deposit_hash == deposit_hash);
@@ -52,14 +37,8 @@ impl Contract {
         self.intents.push(Intent {
             created: env::block_timestamp(),
             state: State::Deposited,
-            amount,
+            data,
             deposit_hash,
-            swap_hash: "".to_owned(),
-            src_token_address,
-            src_chain,
-            dest_token_address,
-            dest_chain,
-            dest_receiver_address,
         });
     }
 
@@ -102,18 +81,6 @@ impl Contract {
             index,
             Intent {
                 state,
-                ..intent.clone()
-            },
-        );
-    }
-
-    pub fn update_swap_hash(&mut self, solver_id: AccountId, swap_hash: String) {
-        let (intent, index) = self.get_intent_and_index(solver_id);
-
-        self.intents.replace(
-            index,
-            Intent {
-                swap_hash,
                 ..intent.clone()
             },
         );

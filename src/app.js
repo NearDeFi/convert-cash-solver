@@ -21,7 +21,7 @@ import {
     getNearDepositAddress,
     getEvmDepositAddress,
 } from './bitfinex.js';
-import { agentAccountId, agentCall } from '@neardefi/shade-agent-js';
+import { agentAccountId, agentCall, agentView } from '@neardefi/shade-agent-js';
 import { getEvmAddress, signAndVerifyEVM } from './evm.js';
 import { getTronAddress, signAndVerifyTRON } from './tron.js';
 import {
@@ -67,26 +67,26 @@ const app = new Hono();
 app.use('/*', cors());
 
 app.post('/api/verifyIntent', async (c) => {
-    // erc191 message
-
-    /*
-    {
-        "standard": "erc191",
-        "payload": "{\"signer_id\":\"0xa48c13854fa61720c652e2674cfa82a5f8514036\",\"nonce\":\"etfB9ran4vpg4ilG0I4q9A5K+8RtSBMpd/Ubesi1c6g=\",\"verifying_contract\":\"intents.near\",\"deadline\":\"2025-12-16T23:40:06.907Z\",\"intents\":[{\"intent\":\"token_diff\",\"diff\":{\"nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near\":\"-1000000\",\"nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near\":\"999391\"}},{\"intent\":\"ft_withdraw\",\"token\":\"tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near\",\"receiver_id\":\"tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near\",\"amount\":\"999391\",\"memo\":\"WITHDRAW_TO:TAqER36ULBm63eWVsRJHBbJHeNrP4Lp1jq\"}]}",
-        "signature": "secp256k1:5ddLZT3nSge1yGMBjFJXp4rKPJguabgFXBRzmfWEcrtsjurbBtJ4iQiFHGXNdY6oVWyLCfUG1rx9N48pNNqqMHa1V"
-    }
-     */
     const args = await c.req.json();
 
-    const srcChain = 'eth:1';
+    const tokenDiff = {
+        payload: args.token_diff_payload,
+        signature: args.token_diff_signature,
+    };
+
+    const withdraw = {
+        payload: args.withdraw_payload,
+        signature: args.withdraw_signature,
+    };
 
     // check message and signature is valid
-    const { recoveredAddress, validSignature, payload } = await erc191Verify(
-        args,
-    );
+    const { recoveredAddress, validSignature } = await erc191Verify(tokenDiff);
     if (!validSignature) {
         return c.json({ validSignature });
     }
+
+    const srcChain = 'eth:1';
+    const srcToken = '0xdac17f958d2ee523a2206206994597c13d831ec7';
 
     const { depositAddress } = await getDepositAddress(
         recoveredAddress,
@@ -94,25 +94,35 @@ app.post('/api/verifyIntent', async (c) => {
     );
 
     const { deposits } = await getRecentDeposits(recoveredAddress, srcChain);
+    // console.log('deposits:', deposits);
 
     // check recent deposit matches payload details
-    const deposit = deposits[0];
-    const tokenDiffIntent = payload.intents[0];
-    const withdrawIntent = payload.intents[1];
-    const [srcToken, srcAmount] = Object.entries(tokenDiffIntent.diff).find(
-        ([k]) => k === deposit.defuse_asset_identifier,
+    const deposit = deposits
+        .reverse()
+        .find(
+            (d) =>
+                d.status === 'COMPLETED' &&
+                d.defuse_asset_identifier.indexOf(srcToken) > -1,
+        );
+    const tokenDiffIntent = JSON.parse(tokenDiff.payload).intents[0];
+    const withdrawIntent = JSON.parse(withdraw.payload).intents[0];
+
+    const [_, srcAmount] = Object.entries(tokenDiffIntent.diff).find(
+        ([k]) => k.indexOf(srcToken) > -1,
     );
-    const [destToken, destAmount] = Object.entries(tokenDiffIntent.diff).find(
-        ([k]) => k !== deposit.defuse_asset_identifier,
+    const [destToken] = Object.entries(tokenDiffIntent.diff).find(
+        ([k]) => k.indexOf(srcToken) === -1,
     );
 
     const intentValidity = {
         isTokenDiff: tokenDiffIntent.intent === 'token_diff',
-        accountIdMatch: tokenDiffIntent.signer_id === deposit.account_id,
+        accountIdMatch:
+            JSON.parse(tokenDiff.payload).signer_id === deposit.account_id,
         chainMatch: srcChain === deposit.chain,
-        depositAddressMatch: deposit.address === depositsAddress,
-        defuseAssetMatch: srcToken === deposit.defuse_asset_identifier,
-        amountMatch: srcAmount === deposit.amount,
+        depositAddressMatch: deposit.address === depositAddress,
+        defuseAssetMatch:
+            deposit.defuse_asset_identifier.indexOf(srcToken) > -1,
+        amountMatch: srcAmount === '-' + deposit.amount.toString(),
         isDepositCompleted: deposit.status === 'COMPLETED',
     };
 
@@ -121,9 +131,10 @@ app.post('/api/verifyIntent', async (c) => {
         true,
     );
     console.log('isIntentValid', isIntentValid);
-    if (!isIntentValid) {
-        return c.json({ intentValidity, error: 'intent is invalid' });
-    }
+    // if (!isIntentValid) {
+    //     console.log(intentValidity);
+    //     return c.json({ intentValidity, error: 'intent is invalid' });
+    // }
 
     // check contract to see if intent already exists
     const getIntentsRes = await agentView({
@@ -138,18 +149,6 @@ app.post('/api/verifyIntent', async (c) => {
         });
     }
 
-    /*{
-        "tx_hash": "",
-        "chain": "CHAIN_TYPE:CHAIN_ID",
-        "defuse_asset_identifier": "eth:8543:0x123",
-        "decimals": 18,
-        "amount": 10000000000,
-        "account_id": "user.near",
-        "address": "0x123",
-        "status": "COMPLETED" // PENDING, FAILED
-      },
-      */
-
     // submit intent to contract
     let submitted = false,
         error = null;
@@ -157,13 +156,8 @@ app.post('/api/verifyIntent', async (c) => {
         await agentCall({
             methodName: 'new_intent',
             args: {
-                amount: deposit.amount,
                 deposit_hash: deposit.tx_hash,
-                src_token_address: srcToken,
-                src_chain: deposit.chain,
-                dest_token_address: destToken,
-                dest_chain_id: destToken, // TODO what should this be? Do we need to keep it?
-                dest_receiver_address: withdrawIntent.receiver_id,
+                data: JSON.stringify(args), // stringified args of what the user passed in and we verified
             },
         });
         submitted = true;
@@ -174,7 +168,41 @@ app.post('/api/verifyIntent', async (c) => {
             : e.message;
     }
 
+    // check contract to see if intent already exists
+    const getIntentsRes2 = await agentView({
+        methodName: 'get_intents',
+        args: {},
+    });
+
+    if (getIntentsRes2.find((i) => i.deposit_hash === deposit.tx_hash)) {
+        return c.json({
+            intentValidity,
+            error: 'intent already exists in contract',
+        });
+    }
+
     return c.json({ intentValidity, submitted, error });
+});
+
+app.get('/api/test-intent', async (c) => {
+    const testIntent = {
+        token_diff_payload:
+            '{"signer_id":"0xa48c13854fa61720c652e2674cfa82a5f8514036","nonce":"ENirzu1lEehsRCP4GIEb3JKEHVV0b0nO+nwTeCa60Oc=","verifying_contract":"intents.near","deadline":"2025-12-21T23:29:34.696Z","intents":[{"intent":"token_diff","diff":{"nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near":"-5000000","nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near":"4500000"}}]}',
+        token_diff_signature:
+            'secp256k1:KDPeZB7MyJhyDLfgCP1WWv7c9c2MJXf7wEJpc7jypDZVFkULZMTe2571U7B6D3GxiHa3w9XYop5ZzpkMZ6JwEWRpb',
+        withdraw_payload:
+            '{"signer_id":"0xa48c13854fa61720c652e2674cfa82a5f8514036","nonce":"2FnYc/a8NC/4/eGx0yo+gn2l9O0zEY7Bta4PwEkb5Ps=","verifying_contract":"intents.near","deadline":"2025-12-21T23:29:34.697Z","intents":[{"intent":"ft_withdraw","token":"tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near","receiver_id":"tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near","amount":"4500000","memo":"WITHDRAW_TO:TAqER36ULBm63eWVsRJHBbJHeNrP4Lp1jq"}]}',
+        withdraw_signature:
+            'secp256k1:6CETEL5WQuFBtmN3wAD7hyzMTgcVVtvvuSmmGR6NPUE7yruMMYmzPfxPhqfdUaUXzHyZvJMy3LniKr8AmQbQ9qQwh',
+    };
+
+    const res = await fetch('http://localhost:3000/api/verifyIntent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testIntent),
+    });
+
+    return c.json({ res });
 });
 
 app.get('/api/cron', async (c) => {

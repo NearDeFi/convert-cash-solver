@@ -13,13 +13,7 @@ import {
 
 import { agentCall, agentView, agentAccountId } from '@neardefi/shade-agent-js';
 
-import {
-    tronUSDTUnsigned,
-    tronBroadcastTx,
-    constructTronSignature,
-    checkTronTx,
-    getTronAddress,
-} from './tron.js';
+import { checkTronTx } from './tron.js';
 
 import { getDepositAddress } from './intents.js';
 
@@ -200,13 +194,13 @@ const stateFuncs = {
         const receiveAmount = '1000000';
         const standard = 'erc191';
         const nonce = Buffer.from(randomBytes(n)).toString('base64');
-        const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes from now
+        const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
 
         const payload = {
             signer_id: address,
             nonce,
             verifying_contract: 'intents.near',
-            deadline, 
+            deadline,
             intents: [
                 {
                     intent: 'token_diff',
@@ -231,8 +225,10 @@ const stateFuncs = {
         const sigRes = await callWithAgent({
             methodName: 'request_signature',
             args: {
-                path: 'evm-1', payload: payloadHex, key_type: 'Ecdsa',
-            }
+                path: 'evm-1',
+                payload: payloadHex,
+                key_type: 'Ecdsa',
+            },
         });
 
         // parse signature response
@@ -246,7 +242,7 @@ const stateFuncs = {
         const signature = 'secp256k1:' + bs58.encode(rsvSignature);
 
         // final intent
-        const intent = {
+        const nearIntent = {
             standard,
             payload,
             signature,
@@ -254,7 +250,7 @@ const stateFuncs = {
 
         // TODO combine with user intent and verify intent
 
-        return intent;
+        return nearIntent;
 
         // TODO
         // sign intent with evm key using chain signatures

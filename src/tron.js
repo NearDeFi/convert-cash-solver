@@ -52,33 +52,27 @@ export function constructTronSignature({ big_r, s, recovery_id }) {
     return signature.toLowerCase(); // Tron expects lowercase hex
 }
 
-/**
- * Deprecated in favor of depositing to intents tron address through passive deposit/withdrawal service
- *
- * use getDepositAddress() in intents.js instead
- */
+export async function getTronAddress() {
+    const derivedPublicKey = await viewFunction({
+        contractId: 'v1.signer',
+        methodName: 'derived_public_key',
+        args: {
+            path: CHAINSIG_PATH,
+            predecessor: 'ac-proxy.shadeagent.near',
+            domain_id: 0,
+        },
+    });
 
-// export async function getTronAddress() {
-//     const derivedPublicKey = await viewFunction({
-//         contractId: 'v1.signer',
-//         methodName: 'derived_public_key',
-//         args: {
-//             path: CHAINSIG_PATH,
-//             predecessor: 'ac-proxy.shadeagent.near',
-//             domain_id: 0,
-//         },
-//     });
+    const publicKey = baseDecode(derivedPublicKey.split(':')[1]);
+    const addressBytes = keccak('keccak256')
+        .update(Buffer.from(publicKey))
+        .digest()
+        .slice(-20);
+    const tronAddressBytes = Buffer.concat([Buffer.from([0x41]), addressBytes]);
+    const address = tronWeb.address.fromHex(tronAddressBytes.toString('hex'));
 
-//     const publicKey = baseDecode(derivedPublicKey.split(':')[1]);
-//     const addressBytes = keccak('keccak256')
-//         .update(Buffer.from(publicKey))
-//         .digest()
-//         .slice(-20);
-//     const tronAddressBytes = Buffer.concat([Buffer.from([0x41]), addressBytes]);
-//     const address = tronWeb.address.fromHex(tronAddressBytes.toString('hex'));
-
-//     return { address, publicKey };
-// }
+    return { address, publicKey };
+}
 
 export async function tronSendUnsigned({
     to = 'TQ4Jo6cNH4hsdqKpkAYH4HZvj7ng1HcQm3',

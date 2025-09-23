@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { baseDecode } from '@near-js/utils';
 
 const nearIntentsFetch = async (method, params) => {
     try {
@@ -26,17 +27,23 @@ export async function erc191Verify(message) {
     // 2. Recover the address from the signed sample
     const recoveredAddress = ethers.verifyMessage(
         message.payload,
-        message.signature.replace('secp256k1:', ''),
+        '0x' +
+            Buffer.from(
+                baseDecode(message.signature.replace('secp256k1:', '')),
+            ).toString('hex'),
     );
 
     const payload = JSON.parse(message.payload);
-
-    console.log('Recovered address:', recoveredAddress);
+    console.log('erc191Verify signerId:', payload.signer_id.toLowerCase());
+    console.log(
+        'erc191Verify recovered address:',
+        recoveredAddress.toLowerCase(),
+    );
 
     return {
         recoveredAddress,
-        validSignature: payload.signer_id === recoveredAddress,
-        payload,
+        validSignature:
+            payload.signer_id.toLowerCase() === recoveredAddress.toLowerCase(),
     };
 }
 

@@ -10,7 +10,6 @@ import dotenv from 'dotenv';
 const dir = process.cwd();
 dotenv.config({ path: `${dir}/.env.development.local` });
 
-import { getTronAddress } from './tron.js';
 import { getNearAddress } from './near.js';
 
 // --- constants -------------------------------------------------------------

@@ -1,5 +1,7 @@
 import { ethers } from 'ethers';
-import { baseDecode } from '@near-js/utils';
+import { randomBytes } from 'crypto';
+import { baseDecode, baseEncode } from '@near-js/utils';
+import { callWithAgent } from './app.js';
 
 const nearIntentsFetch = async (method, params) => {
     try {
@@ -13,6 +15,7 @@ const nearIntentsFetch = async (method, params) => {
                 params: [params],
             }),
         }).then((r) => r.json());
+
         return res.result;
     } catch (e) {
         console.error(
@@ -48,6 +51,8 @@ export async function erc191Verify(message) {
 }
 
 export async function getDepositAddress(account_id, chain) {
+    console.log(account_id, chain);
+
     const { address } = await nearIntentsFetch('deposit_address', {
         account_id,
         chain,
@@ -61,6 +66,75 @@ export async function getRecentDeposits(account_id, chain) {
         chain,
     });
     return { deposits, chain };
+}
+
+const srcTokenAddress = '0xdac17f958d2ee523a2206206994597c13d831ec7';
+export function getIntentDiffDetails(tokenDiffIntent) {
+    const [srcToken, srcAmount] = Object.entries(tokenDiffIntent.diff).find(
+        ([k]) => k.indexOf(srcTokenAddress) > -1,
+    );
+    const [destToken, destAmount] = Object.entries(tokenDiffIntent.diff).find(
+        ([k]) => k.indexOf(srcTokenAddress) === -1,
+    );
+
+    return {
+        srcToken,
+        srcAmount,
+        destToken,
+        destAmount,
+    };
+}
+
+export async function createSignedErc191Intent(address, intents) {
+    const standard = 'erc191';
+    const nonce = Buffer.from(randomBytes(32)).toString('base64');
+    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
+    const verifying_contract = 'intents.near';
+
+    const payload = {
+        signer_id: address,
+        nonce,
+        verifying_contract,
+        deadline,
+        intents,
+    };
+
+    // sign payload with evm key using chain signatures
+    const payloadBuffer = Buffer.from(JSON.stringify(payload));
+    const prefixBuffer = Buffer.from('\x19Ethereum Signed Message:\n');
+    const lengthBuffer = Buffer.from(payloadBuffer.length.toString());
+
+    const payloadHex = ethers.keccak256(
+        Buffer.concat([prefixBuffer, lengthBuffer, payloadBuffer]),
+    );
+
+    const sigRes = await callWithAgent({
+        methodName: 'request_signature',
+        args: {
+            path: 'evm-1',
+            payload: payloadHex.substring(2),
+            key_type: 'Ecdsa',
+        },
+    });
+
+    // parse signature response
+    const r = Buffer.from(sigRes.big_r.affine_point.substring(2), 'hex');
+    const s = Buffer.from(sigRes.s.scalar, 'hex');
+    const v = sigRes.recovery_id;
+    const rsvSignature = new Uint8Array(65);
+    rsvSignature.set(r, 0);
+    rsvSignature.set(s, 32);
+    rsvSignature[64] = v;
+    const signature = 'secp256k1:' + baseEncode(rsvSignature);
+
+    // final intent
+    const nearIntent = {
+        standard,
+        payload,
+        signature,
+    };
+
+    return nearIntent;
 }
 
 /**

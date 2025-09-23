@@ -36,6 +36,7 @@ import {
     erc191Verify,
     getDepositAddress,
     getRecentDeposits,
+    getIntentDiffDetails,
 } from './intents.js';
 
 const PORT = 3000;
@@ -86,7 +87,7 @@ app.post('/api/verifyIntent', async (c) => {
     }
 
     const srcChain = 'eth:1';
-    const srcToken = '0xdac17f958d2ee523a2206206994597c13d831ec7';
+    const srcTokenAddress = '0xdac17f958d2ee523a2206206994597c13d831ec7';
 
     const { depositAddress } = await getDepositAddress(
         recoveredAddress,
@@ -102,17 +103,12 @@ app.post('/api/verifyIntent', async (c) => {
         .find(
             (d) =>
                 d.status === 'COMPLETED' &&
-                d.defuse_asset_identifier.indexOf(srcToken) > -1,
+                d.defuse_asset_identifier.indexOf(srcTokenAddress) > -1,
         );
     const tokenDiffIntent = JSON.parse(tokenDiff.payload).intents[0];
     const withdrawIntent = JSON.parse(withdraw.payload).intents[0];
 
-    const [_, srcAmount] = Object.entries(tokenDiffIntent.diff).find(
-        ([k]) => k.indexOf(srcToken) > -1,
-    );
-    const [destToken] = Object.entries(tokenDiffIntent.diff).find(
-        ([k]) => k.indexOf(srcToken) === -1,
-    );
+    const { srcAmount } = getIntentDiffDetails(tokenDiffIntent);
 
     const intentValidity = {
         isTokenDiff: tokenDiffIntent.intent === 'token_diff',
@@ -121,7 +117,7 @@ app.post('/api/verifyIntent', async (c) => {
         chainMatch: srcChain === deposit.chain,
         depositAddressMatch: deposit.address === depositAddress,
         defuseAssetMatch:
-            deposit.defuse_asset_identifier.indexOf(srcToken) > -1,
+            deposit.defuse_asset_identifier.indexOf(srcTokenAddress) > -1,
         amountMatch: srcAmount === '-' + deposit.amount.toString(),
         isDepositCompleted: deposit.status === 'COMPLETED',
     };
@@ -200,7 +196,7 @@ app.get('/api/test-intent', async (c) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(testIntent),
-    });
+    }).then((r) => r.json());
 
     return c.json({ res });
 });
@@ -208,6 +204,12 @@ app.get('/api/test-intent', async (c) => {
 app.get('/api/cron', async (c) => {
     cron(); // can't await cron it runs forever
     return c.json({ done: true });
+});
+
+app.get('/api/state', async (c) => {
+    const solver_id = (await agentAccountId()).accountId;
+    const res = await updateState(solver_id, 'Claimed');
+    return c.json({ res });
 });
 
 console.log('Server listening on port: ', PORT);

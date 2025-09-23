@@ -15,13 +15,17 @@ import { agentCall, agentView, agentAccountId } from '@neardefi/shade-agent-js';
 
 import { checkTronTx } from './tron.js';
 
-import { getDepositAddress } from './intents.js';
+import {
+    getDepositAddress,
+    getIntentDiffDetails,
+    createSignedErc191Intent,
+} from './intents.js';
 
 import { getEvmAddress, parseSignature, sendEVMTokens } from './evm.js';
 
 import { callWithAgent } from './app.js';
 
-const INTENTS_CHAIN_ID_TRON = 'tron:728126428';
+const INTENTS_CHAIN_ID_TRON = 'tron:mainnet';
 
 const nanoToMs = (nanos) => Math.floor(nanos / 1e6) - 1000;
 
@@ -184,125 +188,38 @@ const stateFuncs = {
             address,
             INTENTS_CHAIN_ID_TRON,
         );
+        const { srcToken, srcAmount, destToken, destAmount } = intent;
 
-        const fee = 500000;
-        const sendToken =
-            'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near';
-        const receiveToken =
-            'nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near';
-        const sendAmount = '-' + (1000000 - fee).toString();
-        const receiveAmount = '1000000';
-        const standard = 'erc191';
-        const nonce = Buffer.from(randomBytes(n)).toString('base64');
-        const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
-
-        const payload = {
-            signer_id: address,
-            nonce,
-            verifying_contract: 'intents.near',
-            deadline,
-            intents: [
-                {
-                    intent: 'token_diff',
-                    diff: {
-                        [sendToken]: sendAmount,
-                        [receiveToken]: receiveAmount,
-                    },
+        const tokenDiffIntent = await createSignedErc191Intent(address, [
+            {
+                intent: 'token_diff',
+                diff: {
+                    // !!! these are reveresed on purpose for the solver to swap with the user
+                    [srcToken]: destAmount,
+                    [destToken]: srcAmount,
                 },
-                {
-                    intent: 'ft_withdraw',
-                    token: receiveToken,
-                    receiver_id: depositAddress, // TODO bitfinex withdrawal address
-                    amount: receiveAmount,
-                    memo: `WITHDRAW_TO:${depositAddress}`,
-                },
-            ],
-        };
-
-        // sign payload with evm key using chain signatures
-        const payloadStr = JSON.stringify(payload);
-        const payloadHex = Buffer.from(payloadStr).toString('hex');
-        const sigRes = await callWithAgent({
-            methodName: 'request_signature',
-            args: {
-                path: 'evm-1',
-                payload: payloadHex,
-                key_type: 'Ecdsa',
             },
-        });
+        ]);
 
-        // parse signature response
-        const r = Buffer.from(sigRes.big_r.affine_point.substring(2), 'hex');
-        const s = Buffer.from(sigRes.s.scalar, 'hex');
-        const v = sigRes.recovery_id;
-        const rsvSignature = new Uint8Array(65);
-        rsvSignature.set(r, 0);
-        rsvSignature.set(s, 32);
-        rsvSignature[64] = v;
-        const signature = 'secp256k1:' + bs58.encode(rsvSignature);
+        console.log('tokenDiffIntent:', tokenDiffIntent);
 
-        // final intent
-        const nearIntent = {
-            standard,
-            payload,
-            signature,
-        };
+        const tronWithdrawTokenId =
+            'tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near';
+        const withdrawIntent = await createSignedErc191Intent(address, [
+            {
+                intent: 'ft_withdraw',
+                token: tronWithdrawTokenId,
+                receiver_id: tronWithdrawTokenId,
+                amount: srcAmount,
+                memo: `WITHDRAW_TO:${depositAddress}`,
+            },
+        ]);
+
+        console.log('withdrawIntent:', withdrawIntent);
 
         // TODO combine with user intent and verify intent
 
-        return nearIntent;
-
-        // TODO
-        // sign intent with evm key using chain signatures
-
-        //     const sigRes = await callWithAgent({
-        //         methodName: 'request_signature',
-        //         args: { path: 'tron-1', payload: txHash, key_type: 'Ecdsa' },
-        //     });
-        //     console.log(sigRes);
-        //     const signatureHex = constructTronSignature(sigRes);
-        //     console.log('sig:', signatureHex);
-
-        // construct evm signature and signed ERC 191 payload
-
-        /**
-         * Deprecated in favor of using intents to execute the swap
-         * token_diff, token_diff, ft_withdraw, ft_withdraw
-         *
-         */
-        // const { address } = await getTronAddress();
-        // try {
-        //     const { txHash, rawTransaction } = await tronUSDTUnsigned({
-        //         to: intent.dest_receiver_address,
-        //         from: address,
-        //         amount: intent.amount,
-        //     });
-        //     console.log('tron tx: getting chain sig');
-        //     const sigRes = await callWithAgent({
-        //         methodName: 'request_signature',
-        //         args: { path: 'tron-1', payload: txHash, key_type: 'Ecdsa' },
-        //     });
-        //     console.log(sigRes);
-        //     const signatureHex = constructTronSignature(sigRes);
-        //     console.log('sig:', signatureHex);
-        //     // await verifySignature(txHash, signatureHex);
-        //     console.log('tron tx: broadcasting');
-        //     const res = await tronBroadcastTx(rawTransaction, signatureHex);
-        //     // TODO check if tron tx was succcessful or not right away
-        //     console.log('Tron broadcast', res);
-        //     await agentCall({
-        //         methodName: 'update_swap_hash',
-        //         args: {
-        //             solver_id,
-        //             swap_hash: txHash,
-        //         },
-        //     });
-        //     intent.nextState = 'CheckSwapComplete';
-        //     return true;
-        // } catch (e) {
-        //     console.log('Error completing swap:', e);
-        // }
-        // return false;
+        return;
     },
     CheckSwapComplete: async (intent, solver_id) => {
         // make sure tron tx is complete, how many confirmations?
@@ -414,7 +331,7 @@ export async function cron(prevIntent) {
     }
 
     // get the current intent
-    const intent = await getIntent(solver_id);
+    let intent = await getIntent(solver_id);
 
     // if no current intent, claim one
     if (!intent) {
@@ -426,7 +343,26 @@ export async function cron(prevIntent) {
         }
     }
 
+    const intentDataJson = JSON.parse(intent.data);
+    const userTokenDiffPayload = JSON.parse(intentDataJson.token_diff_payload);
+    const userTokenDiffSignature = intentDataJson.token_diff_signature;
+    const userWithdrawPayload = JSON.parse(intentDataJson.withdraw_payload);
+    const userWithdrawSignature = intentDataJson.withdraw_signature;
+    const diffDetails = getIntentDiffDetails(userTokenDiffPayload.intents[0]);
+    intent = {
+        ...intent,
+        ...diffDetails,
+        userTokenDiffPayload,
+        userTokenDiffSignature,
+        userWithdrawPayload,
+        userWithdrawSignature,
+    };
+
     console.log('Cron running for solver_id, intent:', solver_id, intent);
+
+    stateFuncs.CompleteSwap(intent, solver_id);
+
+    return;
 
     // we are on the current intent and state, so use state functions to do next move
     const stateFuncResult = await stateFuncs[intent.state](intent, solver_id);

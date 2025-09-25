@@ -16,6 +16,7 @@ import { agentCall, agentView, agentAccountId } from '@neardefi/shade-agent-js';
 import { checkTronTx } from './tron.js';
 
 import {
+    getRecentDeposits,
     getDepositAddress,
     getIntentDiffDetails,
     createSignedErc191Intent,
@@ -82,6 +83,10 @@ export async function updateState(solver_id, state) {
     }
 }
 
+function parseAmount(amount) {
+    return Math.max(5000000, Math.abs(parseInt(amount, 10)));
+}
+
 // main state transition functions after intent is claimed
 
 const stateFuncs = {
@@ -90,7 +95,7 @@ const stateFuncs = {
             const to = await getNearDepositAddress();
             const { payload, transaction } = await requestLiquidityUnsigned({
                 to,
-                amount: intent.amount,
+                amount: parseAmount(intent.destAmount).toString(),
             });
 
             const liqRes = await callWithAgent({
@@ -122,7 +127,7 @@ const stateFuncs = {
     LiquidityProvided: async (intent, solver_id) => {
         try {
             const res = await checkBitfinexMoves({
-                amount: intent.amount,
+                amount: parseAmount(intent.destAmount),
                 start: nanoToMs(intent.created), // convert to ms from nanos
                 receiver: await getNearDepositAddress(),
                 method: 'near',
@@ -148,13 +153,19 @@ const stateFuncs = {
             address,
             INTENTS_CHAIN_ID_TRON,
         );
-        const res = await withdrawToTron(intent.amount, depositAddress);
 
-        if (!res) {
-            return false;
-        }
-        intent.nextState = 'WithdrawRequested';
-        return true;
+        console.log('TRON depositAddress', depositAddress);
+
+        const res = await withdrawToTron(
+            parseAmount(intent.destAmount),
+            depositAddress,
+        );
+
+        // if (!res) {
+        //     return false;
+        // }
+        // intent.nextState = 'WithdrawRequested';
+        // return true;
     },
     WithdrawRequested: async (intent, solver_id) => {
         // get an EVM address to use as implicit-eth address for the solver agent
@@ -166,7 +177,7 @@ const stateFuncs = {
         );
         // TODO finish this check to see if withdrawal requested is completed, e.g. put in arguments of withdrawal
         const res = await checkBitfinexMoves({
-            amount: parseInt(intent.amount) * -1, // negative for withdrawals
+            amount: parseAmount(intent.destAmount) * -1, // negative for withdrawals
             start: nanoToMs(intent.created), // convert to ms from nanos
             receiver: depositAddress,
             method: 'tron',
@@ -176,9 +187,8 @@ const stateFuncs = {
             return false;
         }
         intent.nextState = 'CompleteSwap';
-        return true;
 
-        // TODO update intent state in contract with txHash of tron withdrawal
+        return true;
     },
     CompleteSwap: async (intent, solver_id) => {
         // get an EVM address to use as implicit-eth address for the solver agent
@@ -188,34 +198,84 @@ const stateFuncs = {
             address,
             INTENTS_CHAIN_ID_TRON,
         );
+
         const { srcToken, srcAmount, destToken, destAmount } = intent;
 
         const tokenDiffIntent = await createSignedErc191Intent(address, [
             {
                 intent: 'token_diff',
                 diff: {
-                    // !!! these are reveresed on purpose for the solver to swap with the user
-                    [srcToken]: destAmount,
-                    [destToken]: srcAmount,
+                    // !!! reverse parity TODO clean this up and make more secure
+                    [srcToken]: srcAmount.substring(1),
+                    [destToken]: (parseInt(destAmount, 10) * -1).toString(),
                 },
             },
         ]);
 
         console.log('tokenDiffIntent:', tokenDiffIntent);
 
-        const tronWithdrawTokenId =
-            'tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near';
+        const ethWithdrawTokenId =
+            'eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near';
+        const ethWithdrawAddress = `0x525521d79134822a342d330bd91DA67976569aF1`;
         const withdrawIntent = await createSignedErc191Intent(address, [
             {
                 intent: 'ft_withdraw',
-                token: tronWithdrawTokenId,
-                receiver_id: tronWithdrawTokenId,
+                token: ethWithdrawTokenId,
+                receiver_id: ethWithdrawTokenId,
                 amount: srcAmount,
-                memo: `WITHDRAW_TO:${depositAddress}`,
+                memo: `WITHDRAW_TO:${ethWithdrawAddress}`,
             },
         ]);
 
         console.log('withdrawIntent:', withdrawIntent);
+
+        const standard = 'erc191';
+
+        const args = {
+            signed: [
+                tokenDiffIntent,
+                {
+                    standard,
+                    payload: JSON.stringify(intent.userTokenDiffPayload),
+                    signature: intent.userTokenDiffSignature,
+                },
+            ],
+        };
+
+        console.log('calling with args', args);
+
+        const res = await callWithAgent({
+            contractId: 'intents.near',
+            methodName: 'execute_intents',
+            args,
+            gas: '300000000000000',
+            deposit: '0',
+        });
+
+        console.log(res);
+
+        const args2 = {
+            signed: [
+                withdrawIntent,
+                {
+                    standard,
+                    payload: JSON.stringify(intent.userWithdrawPayload),
+                    signature: intent.userWithdrawSignature,
+                },
+            ],
+        };
+
+        console.log('second call with args', args2);
+
+        const res2 = await callWithAgent({
+            contractId: 'intents.near',
+            methodName: 'execute_intents',
+            args: args2,
+            gas: '300000000000000',
+            deposit: '0',
+        });
+
+        console.log(res2);
 
         // TODO combine with user intent and verify intent
 

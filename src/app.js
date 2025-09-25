@@ -42,14 +42,23 @@ import {
 const PORT = 3000;
 
 // helper
-export const callWithAgent = async ({ methodName, args }) => {
+export const callWithAgent = async ({
+    contractId,
+    methodName,
+    args,
+    gas,
+    deposit,
+}) => {
     console.log(methodName);
 
     let res;
     try {
         res = await agentCall({
+            contractId,
             methodName,
             args,
+            gas,
+            deposit,
         });
     } catch (e) {
         console.log('Error from fetch call to agent', e);
@@ -208,7 +217,7 @@ app.get('/api/cron', async (c) => {
 
 app.get('/api/state', async (c) => {
     const solver_id = (await agentAccountId()).accountId;
-    const res = await updateState(solver_id, 'Claimed');
+    const res = await updateState(solver_id, 'LiquidityCredited');
     return c.json({ res });
 });
 
@@ -225,12 +234,6 @@ serve({
  * Deprecated
  *
  */
-
-app.get('/api/state', async (c) => {
-    const solver_id = (await agentAccountId()).accountId;
-    const res = await updateState(solver_id, 'LiquidityCredited');
-    return c.json({ res });
-});
 
 app.get('/api/return-near', async (c) => {
     try {

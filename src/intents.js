@@ -91,16 +91,16 @@ export async function createSignedErc191Intent(address, intents) {
     const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
     const verifying_contract = 'intents.near';
 
-    const payload = {
+    const payload = JSON.stringify({
         signer_id: address,
         nonce,
         verifying_contract,
         deadline,
         intents,
-    };
+    });
 
     // sign payload with evm key using chain signatures
-    const payloadBuffer = Buffer.from(JSON.stringify(payload));
+    const payloadBuffer = Buffer.from(payload);
     const prefixBuffer = Buffer.from('\x19Ethereum Signed Message:\n');
     const lengthBuffer = Buffer.from(payloadBuffer.length.toString());
 

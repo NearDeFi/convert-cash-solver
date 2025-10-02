@@ -18,6 +18,8 @@ async function demoSolver(): Promise<void> {
     console.log('2. Subscribe to quote requests');
     console.log('3. Listen for USDT ETH → TRON swap requests (min $5)');
     console.log('4. Ignore all other swap requests');
+    console.log('5. Send signed quote responses');
+    console.log('6. Compete against solver inc. with EVM signature');
     console.log('============================================================');
     console.log('Token pairs handled:');
     console.log(
@@ -75,8 +77,10 @@ process.on('SIGINT', async () => {
     process.exit(0);
 });
 
-// Run the demo
-demoSolver().catch((error) => {
-    console.error(`Fatal error: ${error}`);
-    process.exit(1);
-});
+if(process.env.RUN_BUS === 'true') {
+        
+    demoSolver().catch((error) => {
+        console.error(`Fatal error: ${error}`);
+        process.exit(1);
+    });
+}

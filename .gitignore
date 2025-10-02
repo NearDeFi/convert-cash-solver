@@ -15,3 +15,5 @@ contracts/sandbox/target
 contracts/proxy/target
 
 notes
+
+env.development.local

@@ -39,6 +39,9 @@ import {
     getIntentDiffDetails,
 } from './intents.js';
 
+// add the websocket client
+// import * as temp from './bus/main.js';
+
 const PORT = 3000;
 
 // helper
@@ -75,6 +78,15 @@ export const callWithAgent = async ({
 const app = new Hono();
 
 app.use('/*', cors());
+
+app.use('/api/add-intents-key', async (c) => {
+    const public_key = process.env.EVM_PUBLIC_KEY;
+    const res = await callWithAgent({
+        methodName: 'add_intents_key',
+        args: { public_key },
+    });
+    return c.json({ res });
+});
 
 app.post('/api/verifyIntent', async (c) => {
     const args = await c.req.json();

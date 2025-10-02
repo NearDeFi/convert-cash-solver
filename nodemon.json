@@ -1,0 +1,8 @@
+{
+    "watch": ["src", "cli.js"],
+    "ext": "ts,js,json",
+    "ignore": ["dist", "node_modules", "contracts"],
+    "env": {
+        "NODE_OPTIONS": "--loader ts-node/esm"
+    }
+}

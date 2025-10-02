@@ -1,6 +1,6 @@
 [package]
-name = "contract"
-description = "Simple Pay to Sign"
+name = "sandbox-contract"
+description = "NEAR Intents Sandbox Contract"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,28 +8,20 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-near-sdk = { version = "5.7.0", features = ["schemars"]}
-schemars = { version = "0.8" }
-serde_json = "1.0.135"
-base64 = "0.22.1"
-hex = { version = "0.4", default-features = false, features = ["alloc"] }
+near-sdk = { workspace = true }
+schemars = { workspace = true }
+serde_json = { workspace = true }
+base64 = { workspace = true }
+hex = { workspace = true }
 dcap-qvl = { git = "https://github.com/mattlockyer/dcap-qvl" }
-sha2 = "0.10.8"
-serde = "1.0.217"
+sha2 = { workspace = true }
+serde = { workspace = true }
 
 # rustls-webpki = {git = "https://github.com/mattlockyer/webpki", default-features = false, features=[
 #    "near-wasm",
 # ]}
 
 [dev-dependencies]
-near-sdk = { version = "5.7.0", features = ["unit-testing"] }
+near-sdk = { workspace = true, features = ["unit-testing"] }
 
-[profile.release]
-codegen-units = 1
-# Tell `rustc` to optimize for small code size.
-opt-level = "z"
-lto = true
-debug = false
-panic = "abort"
-# Opt into extra safety checks on arithmetic operations https://stackoverflow.com/a/64136471/249801
-overflow-checks = true
+# Profile settings are now defined in workspace Cargo.toml

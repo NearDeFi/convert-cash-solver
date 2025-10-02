@@ -6,6 +6,7 @@ use near_sdk::{
 
 mod chainsig;
 mod intents;
+mod near_intents;
 mod solvers;
 
 use intents::State;
@@ -77,6 +78,12 @@ impl Contract {
         // self.require_approved_codehash();
 
         chainsig::internal_request_signature(path, payload, key_type)
+    }
+
+    pub fn add_intents_key(&mut self, public_key: String) -> Promise {
+        // self.require_approved_codehash();
+
+        near_intents::internal_add_public_key(public_key)
     }
 
     // views

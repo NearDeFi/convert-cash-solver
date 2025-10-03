@@ -10,33 +10,25 @@ import bs58 from 'bs58';
 import {
     QuoteRequest,
     WebSocketMessage,
-    QuoteResponse,
     SignedData,
     IntentMessage,
-    NearConfig,
 } from './types.js';
 
-dotenv.config();
+dotenv.config({ path: './env.development.local' });
 
 export class NearIntentsClient {
     private websocket: WebSocket | null = null;
     private quoteSubscriptionId: string | null = null;
     private messageId: number = 1;
-    private nearConfig: NearConfig;
 
     // Fee configuration
-    private readonly FEE_PERCENTAGE = 0.1; // 10% bridge fee (paid by user)
+    private readonly FEE_PERCENTAGE = 0.000001; // 10% bridge fee (paid by user)
     private readonly PROTOCOL_FEE_RATE = 0.00000112; // 0.000111% NEAR Intents protocol fee (paid by solver)
 
     constructor(
         websocketUrl: string = 'wss://solver-relay-v2.chaindefuser.com/ws',
     ) {
         this.websocketUrl = websocketUrl;
-        this.nearConfig = {
-            contract_id: process.env.CONTRACT_ID,
-            account_id: process.env.ACCOUNT_ID,
-            private_key: process.env.PRIVATE_KEY,
-        };
     }
 
     private websocketUrl: string;
@@ -253,6 +245,9 @@ export class NearIntentsClient {
             quoteRequest.defuse_asset_identifier_in === tokenIdUsdtOnEth &&
             quoteRequest.defuse_asset_identifier_out === tokenIdUsdtOnTron;
 
+        // if (isEthToTronSwap) {
+        //     console.log('Amount in: ', quoteRequest.exact_amount_in);
+        // }
         // Check if exact_amount_in is provided and meets minimum
 
         // debugging to see all amounts in case we don't have the right amount in (minus fees)
@@ -318,7 +313,7 @@ export class NearIntentsClient {
                 ).toFixed(2)})`,
             );
 
-            // Send the quote response
+            // Send the REAL quote response (requires actual funds)
             const success = await this.sendQuoteResponse(
                 quoteRequest,
                 amountOut.toString(),
@@ -337,7 +332,7 @@ export class NearIntentsClient {
     async sendQuoteResponse(
         quoteRequest: QuoteRequest,
         amountOut: string,
-        solverAccount: string = 'hasselalcala.near',
+        solverAccount: string = '0xa48c13854fa61720c652e2674Cfa82a5F8514036'.toLowerCase(),
     ): Promise<boolean> {
         if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
             console.error('Not connected to WebSocket');

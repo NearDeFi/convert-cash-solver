@@ -50,8 +50,3 @@ export interface IntentMessage {
     }>;
 }
 
-export interface NearConfig {
-    contract_id?: string;
-    account_id?: string;
-    private_key?: string;
-}

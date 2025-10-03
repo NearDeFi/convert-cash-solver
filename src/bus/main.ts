@@ -18,6 +18,8 @@ async function demoSolver(): Promise<void> {
     console.log('2. Subscribe to quote requests');
     console.log('3. Listen for USDT ETH → TRON swap requests (min $5)');
     console.log('4. Ignore all other swap requests');
+    console.log('5. Send signed quote responses');
+    console.log('6. Compete against solver inc. with EVM signature');
     console.log('============================================================');
     console.log('Token pairs handled:');
     console.log(

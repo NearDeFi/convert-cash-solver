@@ -244,7 +244,9 @@ export class NearIntentsClient {
             'nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near';
         const tokenIdUsdtOnTron =
             'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near';
-        const defineAmountIn = 4685840; // After deducting fees
+
+        // TODO add fee calculation here
+        const defineAmountIn = 4685835; // After deducting fees
 
         // Check if this is the swap we want to handle
         const isEthToTronSwap =
@@ -252,9 +254,15 @@ export class NearIntentsClient {
             quoteRequest.defuse_asset_identifier_out === tokenIdUsdtOnTron;
 
         // Check if exact_amount_in is provided and meets minimum
+
+        // debugging to see all amounts in case we don't have the right amount in (minus fees)
+        // if (isEthToTronSwap) {
+        //     console.log(parseInt(quoteRequest.exact_amount_in!));
+        // }
+
         const hasValidAmount =
             quoteRequest.exact_amount_in !== undefined &&
-            parseInt(quoteRequest.exact_amount_in) >= defineAmountIn;
+            parseInt(quoteRequest.exact_amount_in) == defineAmountIn;
 
         if (isEthToTronSwap && hasValidAmount) {
             console.log(

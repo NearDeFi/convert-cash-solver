@@ -75,8 +75,10 @@ process.on('SIGINT', async () => {
     process.exit(0);
 });
 
-// Run the demo
-demoSolver().catch((error) => {
-    console.error(`Fatal error: ${error}`);
-    process.exit(1);
-});
+if (process.env.RUN_BUS === 'true') {
+    // Run the demo
+    demoSolver().catch((error) => {
+        console.error(`Fatal error: ${error}`);
+        process.exit(1);
+    });
+}

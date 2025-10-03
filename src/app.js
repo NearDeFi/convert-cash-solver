@@ -40,7 +40,7 @@ import {
 } from './intents.js';
 
 // add the websocket client
-// import * as temp from './bus/main.js';
+import * as temp from './bus/main.js';
 
 const PORT = 3000;
 

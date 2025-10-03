@@ -19,7 +19,8 @@
         "dev:ts": "nodemon --exec \"node --loader ts-node/esm\" ./src/app.ts",
         "cli": "node --loader ts-node/esm ./cli.js",
         "cli:proxy": "yarn build:proxy && node --loader ts-node/esm ./cli.js ./contracts/proxy/target/near/contract.wasm",
-        "type-check": "tsc --noEmit"
+        "type-check": "tsc --noEmit",
+        "user-quote": "node --loader ts-node/esm ./scripts/user-quote.js"
     },
     "dependencies": {
         "@hono/node-server": "^1.14.2",

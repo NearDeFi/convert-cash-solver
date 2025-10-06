@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import dotenv from 'dotenv';
 
-dotenv.config({ path: '.env.development.local' });
+dotenv.config({ path: './env.development.local' });
 
 const ASSET_IN =
     'nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near';

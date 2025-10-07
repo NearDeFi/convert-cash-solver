@@ -1,5 +1,7 @@
 import { ethers } from 'ethers';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
+import bs58 from 'bs58';
 
 dotenv.config({ path: './env.development.local' });
 
@@ -81,7 +83,7 @@ async function main() {
         console.log('---');
 
         // Verify the signature
-        const recoveredAddress = ethers.verifyMessage(message, signature);
+        const recoveredAddress = ethers.verifyMessage(message, signature).toLowerCase();
         console.log('Recovered Address:', recoveredAddress);
         console.log(
             'Signature Valid:',
@@ -103,6 +105,180 @@ async function main() {
             min_deadline_ms: DEADLINE_MS, // OPTIONAL. default 60_000ms / 1min
         });
         console.log('Quote:', quoteRes);
+
+        // Select best option - chooses the one with HIGHEST amount_out (best for user)
+        const selectBestOption = (options) => {
+            if (!options || options.length === 0) {
+                return null;
+            }
+            
+            let bestOption = null;
+            for (const option of options) {
+                if (!bestOption || parseInt(option.amount_out) > parseInt(bestOption.amount_out)) {
+                    bestOption = option;
+                }
+            }
+            return bestOption;
+        };
+
+        // Create token_diff_quote equivalent to Python create_token_diff_quote
+        const createTokenDiffQuote = (evm_account, token_in, amount_in, token_out, amount_out) => {
+            // Generate random nonce (equivalent to Python's base64.b64encode(random.getrandbits(256).to_bytes(32, byteorder='big')))
+            const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64');
+            
+            // Create the quote object (equivalent to Python's Quote TypedDict)
+            const quote = {
+                signer_id: evm_account.toLowerCase(), // Convert to lowercase for NEAR compatibility
+                nonce: nonce,
+                verifying_contract: "intents.near",
+                deadline: "2025-12-31T11:59:59.000Z",
+                intents: [
+                    {
+                        intent: "token_diff",
+                        diff: {
+                            [token_in]: "-" + amount_in,  // Negative for input token
+                            [token_out]: amount_out       // Positive for output token
+                        }
+                    }
+                ]
+            };
+            
+            return JSON.stringify(quote);
+        };
+
+        // Publish intent to the solver bus
+        const publishIntent = async (signed_intent) => {
+            const rpc_request = {
+                id: "dontcare",
+                jsonrpc: "2.0",
+                method: "publish_intent",
+                params: [signed_intent]
+            };
+            
+            try {
+                const response = await fetch('https://solver-relay-v2.chaindefuser.com/rpc', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(rpc_request)
+                });
+                
+                const result = await response.json();
+                return result;
+            } catch (error) {
+                console.error('Error publishing intent:', error);
+                return null;
+            }
+        };
+
+        // Sign quote using EVM account with secp256k1 algorithm (ERC191 standard)
+        const signQuoteSecp256k1FromEvm = async (evm_account, quote) => {
+            console.log(`->>>>>>> Signing quote: ${quote}`);
+            
+            // Convert quote to JSON string if it's an object, otherwise use as string
+            let quote_json;
+            if (typeof quote === 'object') {
+                quote_json = JSON.stringify(quote, null, 0); // Compact JSON without spaces
+            } else {
+                quote_json = quote;
+            }
+            
+            // Create the message hash using Ethereum's personal message format (ERC-191)
+            const message_hash = ethers.hashMessage(quote_json);
+            
+            // Sign the message using the connected wallet
+            const signature = await connectedWallet.signMessage(quote_json);
+            
+            // Extract signature components (remove 0x prefix)
+            const sig = signature.slice(2);
+            const r = sig.slice(0, 64);
+            const s = sig.slice(64, 128);
+            const v = sig.slice(128, 130);
+            
+            // Convert v from hex to number
+            let v_num = parseInt(v, 16);
+            
+            // Convert v from Ethereum format (27/28) to modern format (0-3)
+            if (v_num === 27) {
+                v_num = 0;
+            } else if (v_num === 28) {
+                v_num = 1;
+            } else {
+                v_num = v_num - 27; // Convert other values
+            }
+            
+            // Ensure v is in valid range (0-3)
+            v_num = v_num % 4;
+            
+            // Combine R, S, V
+            const r_buffer = Buffer.from(r, 'hex');
+            const s_buffer = Buffer.from(s, 'hex');
+            const v_buffer = Buffer.from([v_num]);
+            const rsv_signature = Buffer.concat([r_buffer, s_buffer, v_buffer]);
+            
+            // Encode as base58
+            const signature_b58 = bs58.encode(rsv_signature);
+            const signature_formatted = `secp256k1:${signature_b58}`;
+            
+            // Return Commitment object
+            return {
+                standard: "erc191",
+                payload: quote_json,
+                signature: signature_formatted
+            };
+        };
+
+        // Select and display the best option
+        if (quoteRes && quoteRes.result && Array.isArray(quoteRes.result)) {
+            const bestOption = selectBestOption(quoteRes.result);
+            if (bestOption) {
+                console.log('---');
+                console.log('Best Quote Option:');
+                console.log('Quote Hash:', bestOption.quote_hash);
+                console.log('Amount In:', bestOption.amount_in);
+                console.log('Amount Out:', bestOption.amount_out);
+                console.log('Expiration:', bestOption.expiration_time);
+                console.log('asset in:', ASSET_IN);
+                console.log('asset out:', ASSET_OUT);
+                console.log('---');
+                
+                // Create token_diff_quote using the best option
+                const tokenDiffQuote = createTokenDiffQuote(
+                    wallet.address,
+                    ASSET_IN,
+                    bestOption.amount_in,
+                    ASSET_OUT,
+                    bestOption.amount_out
+                );
+                
+                console.log('Generated Token Diff Quote:');
+                console.log(tokenDiffQuote);
+                console.log('---');
+                
+                // Sign the quote
+                const signedCommitment = await signQuoteSecp256k1FromEvm(wallet.address, tokenDiffQuote);
+                console.log('Signed Commitment:');
+                console.log(JSON.stringify(signedCommitment, null, 2));
+                console.log('---');
+                
+                // Create PublishIntent object
+                const publishIntentData = {
+                    signed_data: signedCommitment,
+                    quote_hashes: [bestOption.quote_hash]
+                };
+                
+                console.log('Publishing Intent:');
+                console.log(JSON.stringify(publishIntentData, null, 2));
+                console.log('---');
+                
+                // Publish the intent to the solver bus
+                const publishResult = await publishIntent(publishIntentData);
+                console.log('Publish Intent Result:');
+                console.log(JSON.stringify(publishResult, null, 2));
+                console.log('---');
+            }
+        }
+
+        // Verify the quotes 
 
         const depositRes = await nearIntentsFetch(
             'deposit_address',

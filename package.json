@@ -23,7 +23,8 @@
         "bus": "RUN_BUS=true node --loader ts-node/esm ./src/bus/main.ts",
         "bus:dev": "RUN_BUS=true nodemon --exec \"node --loader ts-node/esm\" ./src/bus/main.ts",
         "user-quote": "node --loader ts-node/esm ./scripts/user-quote.js",
-        "user-quote-ws": "node --loader ts-node/esm ./src/bus/quoteGenerator.ts"
+        "user-quote-ws": "node --loader ts-node/esm ./src/bus/quoteGenerator.ts",
+        "test-quote-selection": "node scripts/test-quote-selection.js"
     },
     "dependencies": {
         "@hono/node-server": "^1.14.2",

@@ -85,6 +85,79 @@ export function getIntentDiffDetails(tokenDiffIntent) {
     };
 }
 
+export async function createLocallySignedNep413Intent(
+    address,
+    privateKey,
+    intents,
+) {
+    // TODO update this to use the correct payload
+    // "payload": {
+    //     "message": "{\"signer_id\":\"alice.near\",\"deadline\":\"2025-05-21T10:34:04.254392Z\",\"intents\":[{\"intent\":\"transfer\",\"receiver_id\":\"bob.near\",\"tokens\":{\"nep141:usdc.near\":\"10\"}}]}",
+    //     "nonce": "Op47m39Q/NzWWi8jYe4umk96OTSnY4Ao0FB/B9aPB98=",
+    //     "recipient": "intents.near"
+    // },
+
+    const standard = 'erc191';
+    const nonce = Buffer.from(randomBytes(32)).toString('base64');
+    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
+    const verifying_contract = 'intents.near';
+
+    const payload = JSON.stringify({
+        signer_id: address,
+        nonce,
+        verifying_contract,
+        deadline,
+        intents,
+    });
+
+    const wallet = new ethers.Wallet(privateKey);
+    const hexSignature = await wallet.signMessage(sample.payload);
+    const signature =
+        'secp256k1:' + baseEncode(Buffer.from(hexSignature, 'hex'));
+
+    // final intent
+    const nearIntent = {
+        standard,
+        payload,
+        signature,
+    };
+
+    return nearIntent;
+}
+
+export async function createLocallySignedErc191Intent(
+    address,
+    privateKey,
+    intents,
+) {
+    const standard = 'erc191';
+    const nonce = Buffer.from(randomBytes(32)).toString('base64');
+    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
+    const verifying_contract = 'intents.near';
+
+    const payload = JSON.stringify({
+        signer_id: address,
+        nonce,
+        verifying_contract,
+        deadline,
+        intents,
+    });
+
+    const wallet = new ethers.Wallet(privateKey);
+    const hexSignature = await wallet.signMessage(sample.payload);
+    const signature =
+        'secp256k1:' + baseEncode(Buffer.from(hexSignature, 'hex'));
+
+    // final intent
+    const nearIntent = {
+        standard,
+        payload,
+        signature,
+    };
+
+    return nearIntent;
+}
+
 export async function createSignedErc191Intent(address, intents) {
     const standard = 'erc191';
     const nonce = Buffer.from(randomBytes(32)).toString('base64');

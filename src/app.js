@@ -29,6 +29,7 @@ import {
     signAndVerifyNEAR,
     requestLiquidityUnsigned,
     requestLiquidityBroadcast,
+    contractCall,
 } from './near.js';
 import { cron, updateState } from './cron.js';
 
@@ -37,6 +38,7 @@ import {
     getDepositAddress,
     getRecentDeposits,
     getIntentDiffDetails,
+    createLocallySignedErc191Intent,
 } from './intents.js';
 
 // add the websocket client
@@ -79,12 +81,51 @@ const app = new Hono();
 
 app.use('/*', cors());
 
-app.use('/api/add-intents-key', async (c) => {
+app.use('/api/test-intents-key', async (c) => {
     const public_key = process.env.EVM_PUBLIC_KEY;
-    const res = await callWithAgent({
-        methodName: 'add_intents_key',
-        args: { public_key },
+
+    const intentAddKey = await createLocallySignedErc191Intent(
+        process.env.EVM_ADDRESS,
+        process.env.EVM_PRIVATE_KEY,
+        [
+            {
+                intent: 'remove_public_key',
+                public_key: process.env.EVM_PUBLIC_KEY,
+            },
+        ],
+    );
+
+    // TODO test this
+    const resAddKey = await contractCall({
+        accountId: process.env.NEAR_CONTRACT_ID,
+        contractId: 'intents.near',
+        methodName: 'execute_intents',
+        args: { signed: [intentAddKey] },
     });
+
+    console.log('resAddKey:', resAddKey);
+
+    const intentRemoveKey = await createLocallySignedErc191Intent(
+        process.env.EVM_ADDRESS,
+        process.env.EVM_PRIVATE_KEY,
+        [
+            {
+                intent: 'remove_public_key',
+                public_key: process.env.EVM_PUBLIC_KEY,
+            },
+        ],
+    );
+
+    // TODO test this
+    const resRemoveKey = await contractCall({
+        accountId: process.env.NEAR_CONTRACT_ID,
+        contractId: 'intents.near',
+        methodName: 'execute_intents',
+        args: { signed: [intentRemoveKey] },
+    });
+
+    console.log('resRemoveKey:', resRemoveKey);
+
     return c.json({ res });
 });
 

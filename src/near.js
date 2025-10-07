@@ -20,6 +20,7 @@ import { baseDecode } from '@near-js/utils';
 import { serialize } from 'borsh';
 import { callWithAgent } from './app.js';
 
+const GAS = BigInt('300000000000000');
 const CHAINSIG_PATH = 'pool-1'; // NEAR derived address path
 
 const contractId = process.env.NEAR_CONTRACT_ID?.replaceAll('"', '');
@@ -160,3 +161,33 @@ export async function requestLiquidityBroadcast({ transaction, signature }) {
         explorerLink: `Explorer: https://nearblocks.io/txns/${result.transaction.hash}`,
     };
 }
+
+export const contractCall = async ({
+    accountId = _accountId,
+    contractId = _contractId,
+    methodName,
+    args,
+    gas = GAS,
+    deposit = BigInt('0'),
+}) => {
+    const account = getAccount(accountId);
+
+    let res;
+    try {
+        res = await account.callFunction({
+            contractId,
+            methodName,
+            args,
+            gas,
+            deposit,
+            waitUntil: 'EXECUTED',
+        });
+    } catch (e) {
+        console.log(e);
+        if (/deserialize/gi.test(JSON.stringify(e))) {
+            return console.log(`Bad arguments to ${methodName} method`);
+        }
+        throw e;
+    }
+    return res;
+};

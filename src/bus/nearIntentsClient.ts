@@ -14,6 +14,8 @@ import {
     IntentMessage,
 } from './types.js';
 
+import { erc191SignMessage } from '../erc191Key.js';
+
 dotenv.config({ path: './env.development.local' });
 
 export class NearIntentsClient {
@@ -332,7 +334,9 @@ export class NearIntentsClient {
     async sendQuoteResponse(
         quoteRequest: QuoteRequest,
         amountOut: string,
-        solverAccount: string = '0xa48c13854fa61720c652e2674Cfa82a5F8514036'.toLowerCase(),
+        solverAccount: string = process.env.LOCAL_TESTING === 'true'
+            ? process.env.NEAR_CONTRACT_ID!
+            : '0xa48c13854fa61720c652e2674Cfa82a5F8514036'.toLowerCase(),
     ): Promise<boolean> {
         if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
             console.error('Not connected to WebSocket');
@@ -465,10 +469,13 @@ export class NearIntentsClient {
         console.log(`->>>>>>> Signing quote: ${quote}`);
 
         // Sign the message directly using EVM (like Matt's testSignAndRecover)
-        const signature = await evmAccount.signMessage(quote);
+        const signature =
+            process.env.LOCAL_TESTING === 'true'
+                ? await erc191SignMessage(quote)
+                : await evmAccount.signMessage(quote);
 
         // Parse signature to extract R, S, V components
-        const signatureBytes = Buffer.from(signature.slice(2), 'hex'); // Remove 0x prefix
+        const signatureBytes = Buffer.from(signature!.slice(2), 'hex'); // Remove 0x prefix
         const r = signatureBytes.slice(0, 32);
         const s = signatureBytes.slice(32, 64);
         let v = signatureBytes[64];

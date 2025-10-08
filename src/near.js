@@ -162,6 +162,20 @@ export async function requestLiquidityBroadcast({ transaction, signature }) {
     };
 }
 
+export const contractView = async ({
+    contractId = _contractId,
+    methodName,
+    args = {},
+}) => {
+    let res;
+    try {
+        res = await provider.callFunction(contractId, methodName, args);
+    } catch (e) {
+        console.log('contractView error:', e);
+    }
+    return res;
+};
+
 export const contractCall = async ({
     accountId = _accountId,
     contractId = _contractId,

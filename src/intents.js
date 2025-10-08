@@ -7,74 +7,6 @@ import crypto from 'crypto';
 import { parseSeedPhrase } from 'near-seed-phrase';
 const { NEAR_CONTRACT_ID, NEAR_SEED_PHRASE } = process.env;
 
-import { BorshSchema, borshSerialize } from 'borsher';
-
-const nep413PayloadSchema = BorshSchema.Struct({
-    message: BorshSchema.String,
-    nonce: BorshSchema.Array(BorshSchema.u8, 32),
-    recipient: BorshSchema.String,
-    callback_url: BorshSchema.Option(BorshSchema.String),
-});
-
-export async function createLocallySignedNep413Intent(intents) {
-    const { secretKey } = parseSeedPhrase(NEAR_SEED_PHRASE.replaceAll('"', ''));
-    const keyPair = KeyPair.fromString(secretKey);
-    const public_key = keyPair.getPublicKey().toString();
-
-    const standard = 'nep413';
-    const nonce = Buffer.from(randomBytes(32));
-    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
-    const verifying_contract = 'intents.near';
-
-    const message = JSON.stringify({
-        signer_id: NEAR_CONTRACT_ID,
-        deadline,
-        intents,
-    });
-
-    const payload = {
-        message,
-        nonce,
-        recipient: 'intents.near',
-    };
-
-    const schema = {
-        struct: {
-            message: 'string',
-            nonce: 'string',
-            recipient: 'string',
-        },
-    };
-
-    const payloadToSign = new Uint8Array(
-        crypto
-            .createHash('sha256')
-            .update(
-                Buffer.concat([
-                    borshSerialize(BorshSchema.u32, 2147484061),
-                    borshSerialize(nep413PayloadSchema, payload),
-                ]),
-            )
-            .digest(),
-    );
-
-    const { publicKey, signature } = await keyPair.sign(payloadToSign);
-
-    payload.nonce = payload.nonce.toString('base64');
-
-    // final intent
-    const nearIntent = {
-        standard,
-        payload,
-        public_key,
-        signature: 'ed25519:' + baseEncode(signature),
-    };
-
-    console.log('createLocallySignedNep413Intent:', nearIntent);
-
-    return nearIntent;
-}
-
 const nearIntentsFetch = async (method, params) => {
     try {
         const res = await fetch('https://bridge.chaindefuser.com/rpc', {
@@ -243,6 +175,73 @@ export async function createLocallySignedErc191Intent(privateKey, intents) {
     };
 
     console.log('createLocallySignedErc191Intent:', nearIntent);
+
+    return nearIntent;
+}
+
+import { BorshSchema, borshSerialize } from 'borsher';
+
+const nep413PayloadSchema = BorshSchema.Struct({
+    message: BorshSchema.String,
+    nonce: BorshSchema.Array(BorshSchema.u8, 32),
+    recipient: BorshSchema.String,
+    callback_url: BorshSchema.Option(BorshSchema.String),
+});
+export async function createLocallySignedNep413Intent(intents) {
+    const { secretKey } = parseSeedPhrase(NEAR_SEED_PHRASE.replaceAll('"', ''));
+    const keyPair = KeyPair.fromString(secretKey);
+    const public_key = keyPair.getPublicKey().toString();
+
+    const standard = 'nep413';
+    const nonce = Buffer.from(randomBytes(32));
+    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
+    const verifying_contract = 'intents.near';
+
+    const message = JSON.stringify({
+        signer_id: NEAR_CONTRACT_ID,
+        deadline,
+        intents,
+    });
+
+    const payload = {
+        message,
+        nonce,
+        recipient: 'intents.near',
+    };
+
+    const schema = {
+        struct: {
+            message: 'string',
+            nonce: 'string',
+            recipient: 'string',
+        },
+    };
+
+    const payloadToSign = new Uint8Array(
+        crypto
+            .createHash('sha256')
+            .update(
+                Buffer.concat([
+                    borshSerialize(BorshSchema.u32, 2147484061),
+                    borshSerialize(nep413PayloadSchema, payload),
+                ]),
+            )
+            .digest(),
+    );
+
+    const { publicKey, signature } = await keyPair.sign(payloadToSign);
+
+    payload.nonce = payload.nonce.toString('base64');
+
+    // final intent
+    const nearIntent = {
+        standard,
+        payload,
+        public_key,
+        signature: 'ed25519:' + baseEncode(signature),
+    };
+
+    console.log('createLocallySignedNep413Intent:', nearIntent);
 
     return nearIntent;
 }

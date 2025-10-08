@@ -43,19 +43,25 @@ import {
     createLocallySignedNep413Intent,
 } from './intents.js';
 
+import { addErc191Key } from './erc191Key.js';
+
 // add the websocket client
 import * as temp from './bus/main.js';
 
 const PORT = 3000;
 
-// helper
-export const callWithAgent = async ({
+/**
+ * Helpers used by other modules
+ *
+ */
+
+export async function callWithAgent({
     contractId,
     methodName,
     args,
     gas,
     deposit,
-}) => {
+}) {
     console.log(methodName);
 
     let res;
@@ -77,11 +83,33 @@ export const callWithAgent = async ({
     }
 
     return res;
-};
+}
 
 const app = new Hono();
 
 app.use('/*', cors());
+
+// for local testing
+
+if (process.env.LOCAL_TESTING) {
+    addErc191Key();
+}
+
+console.log('Server listening on port: ', PORT);
+
+serve({
+    fetch: app.fetch,
+    port: PORT,
+    hostname: '0.0.0.0',
+});
+
+/**
+ *
+ * Deprecated
+ *
+ * Left for reference
+ *
+ */
 
 app.use('/api/test-intents-key', async (c) => {
     // debugging, make sure key exists to sign
@@ -265,20 +293,6 @@ app.get('/api/state', async (c) => {
     const res = await updateState(solver_id, 'LiquidityCredited');
     return c.json({ res });
 });
-
-console.log('Server listening on port: ', PORT);
-
-serve({
-    fetch: app.fetch,
-    port: PORT,
-    hostname: '0.0.0.0',
-});
-
-/**
- *
- * Deprecated
- *
- */
 
 app.get('/api/return-near', async (c) => {
     try {

@@ -2,6 +2,78 @@ import { ethers } from 'ethers';
 import { randomBytes } from 'crypto';
 import { baseDecode, baseEncode } from '@near-js/utils';
 import { callWithAgent } from './app.js';
+import { KeyPair } from '@near-js/crypto';
+import crypto from 'crypto';
+import { parseSeedPhrase } from 'near-seed-phrase';
+const { NEAR_CONTRACT_ID, NEAR_SEED_PHRASE } = process.env;
+
+import { BorshSchema, borshSerialize } from 'borsher';
+
+const nep413PayloadSchema = BorshSchema.Struct({
+    message: BorshSchema.String,
+    nonce: BorshSchema.Array(BorshSchema.u8, 32),
+    recipient: BorshSchema.String,
+    callback_url: BorshSchema.Option(BorshSchema.String),
+});
+
+export async function createLocallySignedNep413Intent(intents) {
+    const { secretKey } = parseSeedPhrase(NEAR_SEED_PHRASE.replaceAll('"', ''));
+    const keyPair = KeyPair.fromString(secretKey);
+    const public_key = keyPair.getPublicKey().toString();
+
+    const standard = 'nep413';
+    const nonce = Buffer.from(randomBytes(32));
+    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
+    const verifying_contract = 'intents.near';
+
+    const message = JSON.stringify({
+        signer_id: NEAR_CONTRACT_ID,
+        deadline,
+        intents,
+    });
+
+    const payload = {
+        message,
+        nonce,
+        recipient: 'intents.near',
+    };
+
+    const schema = {
+        struct: {
+            message: 'string',
+            nonce: 'string',
+            recipient: 'string',
+        },
+    };
+
+    const payloadToSign = new Uint8Array(
+        crypto
+            .createHash('sha256')
+            .update(
+                Buffer.concat([
+                    borshSerialize(BorshSchema.u32, 2147484061),
+                    borshSerialize(nep413PayloadSchema, payload),
+                ]),
+            )
+            .digest(),
+    );
+
+    const { publicKey, signature } = await keyPair.sign(payloadToSign);
+
+    payload.nonce = payload.nonce.toString('base64');
+
+    // final intent
+    const nearIntent = {
+        standard,
+        payload,
+        public_key,
+        signature: 'ed25519:' + baseEncode(signature),
+    };
+
+    console.log('createLocallySignedNep413Intent:', nearIntent);
+
+    return nearIntent;
+}
 
 const nearIntentsFetch = async (method, params) => {
     try {
@@ -85,79 +157,6 @@ export function getIntentDiffDetails(tokenDiffIntent) {
     };
 }
 
-export async function createLocallySignedNep413Intent(
-    address,
-    privateKey,
-    intents,
-) {
-    // TODO update this to use the correct payload
-    // "payload": {
-    //     "message": "{\"signer_id\":\"alice.near\",\"deadline\":\"2025-05-21T10:34:04.254392Z\",\"intents\":[{\"intent\":\"transfer\",\"receiver_id\":\"bob.near\",\"tokens\":{\"nep141:usdc.near\":\"10\"}}]}",
-    //     "nonce": "Op47m39Q/NzWWi8jYe4umk96OTSnY4Ao0FB/B9aPB98=",
-    //     "recipient": "intents.near"
-    // },
-
-    const standard = 'erc191';
-    const nonce = Buffer.from(randomBytes(32)).toString('base64');
-    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
-    const verifying_contract = 'intents.near';
-
-    const payload = JSON.stringify({
-        signer_id: address,
-        nonce,
-        verifying_contract,
-        deadline,
-        intents,
-    });
-
-    const wallet = new ethers.Wallet(privateKey);
-    const hexSignature = await wallet.signMessage(sample.payload);
-    const signature =
-        'secp256k1:' + baseEncode(Buffer.from(hexSignature, 'hex'));
-
-    // final intent
-    const nearIntent = {
-        standard,
-        payload,
-        signature,
-    };
-
-    return nearIntent;
-}
-
-export async function createLocallySignedErc191Intent(
-    address,
-    privateKey,
-    intents,
-) {
-    const standard = 'erc191';
-    const nonce = Buffer.from(randomBytes(32)).toString('base64');
-    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
-    const verifying_contract = 'intents.near';
-
-    const payload = JSON.stringify({
-        signer_id: address,
-        nonce,
-        verifying_contract,
-        deadline,
-        intents,
-    });
-
-    const wallet = new ethers.Wallet(privateKey);
-    const hexSignature = await wallet.signMessage(sample.payload);
-    const signature =
-        'secp256k1:' + baseEncode(Buffer.from(hexSignature, 'hex'));
-
-    // final intent
-    const nearIntent = {
-        standard,
-        payload,
-        signature,
-    };
-
-    return nearIntent;
-}
-
 export async function createSignedErc191Intent(address, intents) {
     const standard = 'erc191';
     const nonce = Buffer.from(randomBytes(32)).toString('base64');
@@ -206,6 +205,44 @@ export async function createSignedErc191Intent(address, intents) {
         payload,
         signature,
     };
+
+    return nearIntent;
+}
+
+export async function createLocallySignedErc191Intent(privateKey, intents) {
+    const wallet = new ethers.Wallet(privateKey);
+
+    const standard = 'erc191';
+    const nonce = Buffer.from(randomBytes(32)).toString('base64');
+    const deadline = new Date(Date.now() + 3600 * 24 * 60 * 1000).toISOString(); // 24 hours from now
+    const verifying_contract = 'intents.near';
+
+    const payload = JSON.stringify({
+        signer_id: process.env.NEAR_CONTRACT_ID,
+        nonce,
+        verifying_contract,
+        deadline,
+        intents,
+    });
+    const hexSignature = await wallet.signMessage(payload);
+    const hash = ethers.hashMessage(payload);
+    const recoveredAddress = ethers.recoverAddress(hash, hexSignature);
+    //0xdB8e334b75A3368ED02d9f8380D31667B524619c
+    console.log('Addresses', recoveredAddress, wallet.address);
+
+    const signatureBuffer = Buffer.from(hexSignature.slice(2), 'hex');
+    console.log('v', signatureBuffer[64]);
+    signatureBuffer.set([signatureBuffer[64] - 27], 64);
+    const signature = 'secp256k1:' + baseEncode(signatureBuffer);
+
+    // final intent
+    const nearIntent = {
+        standard,
+        payload,
+        signature,
+    };
+
+    console.log('createLocallySignedErc191Intent:', nearIntent);
 
     return nearIntent;
 }

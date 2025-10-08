@@ -25,6 +25,7 @@ import { agentAccountId, agentCall, agentView } from '@neardefi/shade-agent-js';
 import { getEvmAddress, signAndVerifyEVM } from './evm.js';
 import { getTronAddress, signAndVerifyTRON } from './tron.js';
 import {
+    getAccount,
     getNearAddress,
     signAndVerifyNEAR,
     requestLiquidityUnsigned,
@@ -39,6 +40,7 @@ import {
     getRecentDeposits,
     getIntentDiffDetails,
     createLocallySignedErc191Intent,
+    createLocallySignedNep413Intent,
 } from './intents.js';
 
 // add the websocket client
@@ -82,31 +84,21 @@ const app = new Hono();
 app.use('/*', cors());
 
 app.use('/api/test-intents-key', async (c) => {
-    const public_key = process.env.EVM_PUBLIC_KEY;
+    // debugging, make sure key exists to sign
+    // const account = await getAccount(process.env.NEAR_CONTRACT_ID);
+    // console.log('keys', await account.getAccessKeyList());
 
-    const intentAddKey = await createLocallySignedErc191Intent(
-        process.env.EVM_ADDRESS,
-        process.env.EVM_PRIVATE_KEY,
-        [
-            {
-                intent: 'remove_public_key',
-                public_key: process.env.EVM_PUBLIC_KEY,
-            },
-        ],
-    );
-
-    // TODO test this
     const resAddKey = await contractCall({
         accountId: process.env.NEAR_CONTRACT_ID,
         contractId: 'intents.near',
-        methodName: 'execute_intents',
-        args: { signed: [intentAddKey] },
+        methodName: 'add_public_key',
+        args: { public_key: process.env.EVM_PUBLIC_KEY },
+        deposit: '1',
     });
 
     console.log('resAddKey:', resAddKey);
 
     const intentRemoveKey = await createLocallySignedErc191Intent(
-        process.env.EVM_ADDRESS,
         process.env.EVM_PRIVATE_KEY,
         [
             {
@@ -126,7 +118,7 @@ app.use('/api/test-intents-key', async (c) => {
 
     console.log('resRemoveKey:', resRemoveKey);
 
-    return c.json({ res });
+    return c.json({ resRemoveKey });
 });
 
 app.post('/api/verifyIntent', async (c) => {

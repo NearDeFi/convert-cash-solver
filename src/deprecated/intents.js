@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { randomBytes } from 'crypto';
 import { baseDecode, baseEncode } from '@near-js/utils';
-import { callWithAgent } from './app.js';
+
 import { KeyPair } from '@near-js/crypto';
 import crypto from 'crypto';
 import { parseSeedPhrase } from 'near-seed-phrase';
@@ -112,7 +112,7 @@ export async function createSignedErc191Intent(address, intents) {
         Buffer.concat([prefixBuffer, lengthBuffer, payloadBuffer]),
     );
 
-    const sigRes = await callWithAgent({
+    const sigRes = await agentCall({
         methodName: 'request_signature',
         args: {
             path: 'evm-1',

@@ -14,7 +14,7 @@ import {
     IntentMessage,
 } from './types.js';
 
-import { erc191SignMessage } from '../erc191Key.js';
+import { erc191SignMessage } from '../key/erc191.js';
 
 dotenv.config({ path: './env.development.local' });
 

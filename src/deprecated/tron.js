@@ -3,7 +3,6 @@ import { TronWeb } from 'tronweb';
 import keccak from 'keccak';
 import { viewFunction } from './near.js';
 import { baseDecode } from '@near-js/utils';
-import { callWithAgent } from './app.js';
 
 const CHAINSIG_PATH = 'tron-1';
 
@@ -23,7 +22,7 @@ export async function signAndVerifyTRON() {
     const { address: tronAddress } = await getTronAddress();
     const payload =
         '74ce137697637a6181681d3210f66fbe6516a4c4d1234471e38986a1d2ae77e5'; // dummy payload
-    const sigRes = await callWithAgent({
+    const sigRes = await agentCall({
         methodName: 'request_signature',
         args: { path: CHAINSIG_PATH, payload, key_type: 'Ecdsa' },
     });

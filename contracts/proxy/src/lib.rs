@@ -1,15 +1,13 @@
 use near_sdk::{
     env, near, require,
-    store::{IterableMap, IterableSet, Vector},
+    store::{IterableMap, IterableSet},
     AccountId, Gas, NearToken, PanicOnDefault, Promise,
 };
 
 mod chainsig;
 mod intents;
 mod near_intents;
-mod solvers;
-
-use intents::State;
+use intents::Intent;
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone)]
@@ -24,8 +22,9 @@ pub struct Contract {
     pub approved_codehashes: IterableSet<String>,
     pub approved_solvers: IterableSet<AccountId>,
     pub worker_by_account_id: IterableMap<AccountId, Worker>,
-    pub solver_id_to_intent_index: IterableMap<AccountId, u32>,
-    pub intents: Vector<intents::Intent>,
+    pub solver_id_to_indices: IterableMap<AccountId, Vec<u128>>,
+    pub index_to_intent: IterableMap<u128, Intent>,
+    pub intent_nonce: u128,
 }
 
 #[near]
@@ -38,8 +37,9 @@ impl Contract {
             approved_codehashes: IterableSet::new(b"a"),
             approved_solvers: IterableSet::new(b"b"),
             worker_by_account_id: IterableMap::new(b"c"),
-            solver_id_to_intent_index: IterableMap::new(b"d"),
-            intents: Vector::new(b"e"),
+            solver_id_to_indices: IterableMap::new(b"d"),
+            index_to_intent: IterableMap::new(b"e"),
+            intent_nonce: 0,
         }
     }
 
@@ -80,11 +80,21 @@ impl Contract {
         chainsig::internal_request_signature(path, payload, key_type)
     }
 
-    pub fn add_intents_key(&mut self, public_key: String) -> Promise {
+    // TODO limit keys added by solvers to one per solver?
+
+    pub fn add_public_key(&mut self, public_key: String) -> Promise {
         // self.require_approved_codehash();
 
         near_intents::internal_add_public_key(public_key)
     }
+
+    pub fn remove_public_key(&mut self, public_key: String) -> Promise {
+        // self.require_approved_codehash();
+
+        near_intents::internal_remove_public_key(public_key)
+    }
+
+    // TODO remove_public_key
 
     // views
 

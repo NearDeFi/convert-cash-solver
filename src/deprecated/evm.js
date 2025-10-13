@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { requestSignature } from '@neardefi/shade-agent-js';
 import { viewFunction } from './near.js';
-import { callWithAgent } from './app.js';
+
 import keccak from 'keccak';
 import { baseDecode } from '@near-js/utils';
 
@@ -47,7 +47,7 @@ export async function signAndVerifyEVM() {
     const { address: evmAddress } = await getEvmAddress();
     const payload =
         '74ce137697637a6181681d3210f66fbe6516a4c4d1234471e38986a1d2ae77e5'; // dummy payload
-    const sigRes = await callWithAgent({
+    const sigRes = await agentCall({
         methodName: 'request_signature',
         args: { path: CHAINSIG_PATH, payload, key_type: 'Ecdsa' },
     });
@@ -79,7 +79,7 @@ export async function sendEVMTokens({
         chainId,
     });
 
-    const sigRes = await callWithAgent({
+    const sigRes = await agentCall({
         methodName: 'request_signature',
         args: { path: CHAINSIG_PATH, payload: txHash, key_type: 'Ecdsa' },
     });

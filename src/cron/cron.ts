@@ -4,66 +4,78 @@ import {
     withdrawToTron,
     withdrawToNear,
     checkBitfinexMoves,
-} from './bitfinex.js';
+} from '../cex/bitfinex.js';
 import {
     requestLiquidityUnsigned,
     requestLiquidityBroadcast,
     getNearAddress,
-} from './near.js';
+} from '../deprecated/near.js';
 
 import { agentCall, agentView, agentAccountId } from '@neardefi/shade-agent-js';
-
-import { checkTronTx } from './tron.js';
 
 import {
     getRecentDeposits,
     getDepositAddress,
     getIntentDiffDetails,
     createSignedErc191Intent,
-} from './intents.js';
+} from '../deprecated/intents.js';
 
-import { getEvmAddress, parseSignature, sendEVMTokens } from './evm.js';
+import {
+    getEvmAddress,
+    parseSignature,
+    sendEVMTokens,
+} from '../deprecated/evm.js';
 
-import { callWithAgent } from './app.js';
+// --- types -----------------------------------------------------------------
+
+type IntentState =
+    | 'StpLiquidityBorrowed'
+    | 'StpLiquidityDeposited'
+    | 'StpLiquidityWithdrawn'
+    | 'StpIntentAccountCredited'
+    | 'IntentsExecuted'
+    | 'SwapCompleted'
+    | 'UserLiquidityDeposited'
+    | 'UserLiquidityWithdrawn'
+    | 'StpLiquidityReturned';
+
+interface Intent {
+    solver_id: string;
+    created: number;
+    state: IntentState;
+    data: string;
+    user_deposit_hash: string;
+    nextState?: IntentState;
+    destAmount?: string;
+    srcToken?: string;
+    srcAmount?: string;
+    destToken?: string;
+    amount?: string;
+    swap_hash?: string;
+    userTokenDiffPayload?: any;
+    userTokenDiffSignature?: string;
+    userWithdrawPayload?: any;
+    userWithdrawSignature?: string;
+    error?: string;
+}
+
+type StateFunction = (
+    intent: Intent,
+    solver_id: string,
+) => Promise<boolean | void>;
+
+// --- constants -------------------------------------------------------------
 
 const INTENTS_CHAIN_ID_TRON = 'tron:mainnet';
 
-const nanoToMs = (nanos) => Math.floor(nanos / 1e6) - 1000;
+// --- helper functions ------------------------------------------------------
 
-async function getIntent(solver_id) {
-    try {
-        const intent = await agentView({
-            methodName: 'get_intent_by_solver',
-            args: {
-                solver_id,
-            },
-        });
-        if (intent.error) {
-            return null;
-        }
-        return intent;
-    } catch (e) {
-        console.log(e);
-        return null;
-    }
-}
+const nanoToMs = (nanos: number): number => Math.floor(nanos / 1e6) - 1000;
 
-async function claimIntent() {
-    try {
-        const res = await callWithAgent({
-            methodName: 'claim_intent',
-            args: {
-                index: 0,
-            },
-        });
-        return res.success;
-    } catch (e) {
-        console.log(e);
-        return false;
-    }
-}
-
-export async function updateState(solver_id, state) {
+export async function updateState(
+    solver_id: string,
+    state: IntentState,
+): Promise<boolean> {
     try {
         const res = await agentCall({
             methodName: 'update_intent_state',
@@ -72,8 +84,8 @@ export async function updateState(solver_id, state) {
                 state,
             },
         });
-        if (res.error) {
-            throw new Error(res.error);
+        if ((res as any).error) {
+            throw new Error((res as any).error);
         }
         console.log(`State updated to ${state} for solver_id ${solver_id}`);
         return true;
@@ -83,32 +95,32 @@ export async function updateState(solver_id, state) {
     }
 }
 
-function parseAmount(amount) {
-    return Math.max(5000000, Math.abs(parseInt(amount, 10)));
+function parseAmount(amount: string | undefined): number {
+    return Math.max(5000000, Math.abs(parseInt(amount || '0', 10)));
 }
 
 // main state transition functions after intent is claimed
 
-const stateFuncs = {
-    Claimed: async (intent, solver_id) => {
+const stateFuncs: Record<IntentState, StateFunction> = {
+    StpLiquidityBorrowed: async (intent: Intent, solver_id: string) => {
         try {
             const to = await getNearDepositAddress();
             const { payload, transaction } = await requestLiquidityUnsigned({
-                to,
+                to: to!,
                 amount: parseAmount(intent.destAmount).toString(),
             });
 
-            const liqRes = await callWithAgent({
+            const liqRes = await (agentCall as any)({
                 methodName: 'request_signature',
                 args: { path: 'pool-1', payload, key_type: 'Eddsa' },
             });
 
             const broadcastRes = await requestLiquidityBroadcast({
                 transaction,
-                signature: liqRes.signature,
+                signature: (liqRes as any).signature,
             });
 
-            if (!broadcastRes?.txHash) {
+            if (!(broadcastRes as any)?.txHash) {
                 console.log(
                     'Error broadcasting liquidity request:',
                     broadcastRes,
@@ -117,19 +129,19 @@ const stateFuncs = {
             }
 
             // every state transition needs to add "nextState" to the intent and return true
-            intent.nextState = 'LiquidityProvided';
+            intent.nextState = 'StpLiquidityDeposited';
             return true;
         } catch (e) {
             console.log('Error requesting liquidity:', e);
         }
         return false;
     },
-    LiquidityProvided: async (intent, solver_id) => {
+    StpLiquidityDeposited: async (intent: Intent, solver_id: string) => {
         try {
             const res = await checkBitfinexMoves({
                 amount: parseAmount(intent.destAmount),
                 start: nanoToMs(intent.created), // convert to ms from nanos
-                receiver: await getNearDepositAddress(),
+                receiver: (await getNearDepositAddress())!,
                 method: 'near',
             });
             console.log('Bitfinex moves check result:', res);
@@ -138,14 +150,14 @@ const stateFuncs = {
                 return false;
             }
 
-            intent.nextState = 'LiquidityCredited';
+            intent.nextState = 'StpLiquidityWithdrawn';
             return true;
         } catch (e) {
             console.log('Error checking Bitfinex moves:', e);
         }
         return false;
     },
-    LiquidityCredited: async (intent, solver_id) => {
+    StpLiquidityWithdrawn: async (intent: Intent, solver_id: string) => {
         // get an EVM address to use as implicit-eth address for the solver agent
         const { address } = await getEvmAddress();
         // get a deposit address for that EVM address on Tron
@@ -164,10 +176,10 @@ const stateFuncs = {
         // if (!res) {
         //     return false;
         // }
-        // intent.nextState = 'WithdrawRequested';
+        // intent.nextState = 'StpIntentAccountCredited';
         // return true;
     },
-    WithdrawRequested: async (intent, solver_id) => {
+    StpIntentAccountCredited: async (intent: Intent, solver_id: string) => {
         // get an EVM address to use as implicit-eth address for the solver agent
         const { address } = await getEvmAddress();
         // get a deposit address for that EVM address on Tron
@@ -186,11 +198,11 @@ const stateFuncs = {
         if (!res) {
             return false;
         }
-        intent.nextState = 'CompleteSwap';
+        intent.nextState = 'IntentsExecuted';
 
         return true;
     },
-    CompleteSwap: async (intent, solver_id) => {
+    IntentsExecuted: async (intent: Intent, solver_id: string) => {
         // get an EVM address to use as implicit-eth address for the solver agent
         const { address } = await getEvmAddress();
         // get a deposit address for that EVM address on Tron
@@ -206,8 +218,8 @@ const stateFuncs = {
                 intent: 'token_diff',
                 diff: {
                     // !!! reverse parity TODO clean this up and make more secure
-                    [srcToken]: srcAmount.substring(1),
-                    [destToken]: (parseInt(destAmount, 10) * -1).toString(),
+                    [srcToken!]: srcAmount!.substring(1),
+                    [destToken!]: (parseInt(destAmount!, 10) * -1).toString(),
                 },
             },
         ]);
@@ -222,7 +234,7 @@ const stateFuncs = {
                 intent: 'ft_withdraw',
                 token: ethWithdrawTokenId,
                 receiver_id: ethWithdrawTokenId,
-                amount: srcAmount,
+                amount: srcAmount!,
                 memo: `WITHDRAW_TO:${ethWithdrawAddress}`,
             },
         ]);
@@ -244,7 +256,7 @@ const stateFuncs = {
 
         console.log('calling with args', args);
 
-        const res = await callWithAgent({
+        const res = await agentCall({
             contractId: 'intents.near',
             methodName: 'execute_intents',
             args,
@@ -267,7 +279,7 @@ const stateFuncs = {
 
         console.log('second call with args', args2);
 
-        const res2 = await callWithAgent({
+        const res2 = await agentCall({
             contractId: 'intents.near',
             methodName: 'execute_intents',
             args: args2,
@@ -281,82 +293,62 @@ const stateFuncs = {
 
         return;
     },
-    CheckSwapComplete: async (intent, solver_id) => {
-        // make sure tron tx is complete, how many confirmations?
-
-        // let's research confirmations for large amounts
-
-        const txHash = intent.swap_hash;
-
-        try {
-            const complete = await checkTronTx(txHash);
-            if (!complete) {
-                console.log('Tron transaction not complete:', txHash);
-                return false;
-            }
-            intent.nextState = 'SwapComplete';
-            return true;
-        } catch (e) {
-            console.log('Error checking Tron tx:', e);
-            return false;
-        }
-    },
-    SwapComplete: async (intent, solver_id) => {
+    SwapCompleted: async (intent: Intent, solver_id: string) => {
         const receiver = await getEvmDepositAddress();
 
         // tokenAddress defaults to USDT on ETH mainnet
         const res = await sendEVMTokens({
-            receiver,
-            amount: intent.amount,
+            receiver: receiver!,
+            amount: BigInt(intent.amount!),
             chainId: 1,
         });
 
-        if (!res.success) {
+        if (!(res as any).success) {
             console.log('Error sending EVMTokens:', res);
             return false;
         }
 
-        intent.nextState = 'UserLiquidityProvided';
+        intent.nextState = 'UserLiquidityDeposited';
         return true;
     },
-    UserLiquidityProvided: async (intent, solver_id) => {
+    UserLiquidityDeposited: async (intent: Intent, solver_id: string) => {
         // TODO finish this check to see if withdrawal requested is completed, e.g. put in arguments of withdrawal
         const res = await checkBitfinexMoves({
             method: 'evm',
-            amount: parseInt(intent.amount) * -1,
+            amount: parseInt(intent.amount!) * -1,
             start: nanoToMs(intent.created),
-            receiver: await getEvmDepositAddress(),
+            receiver: (await getEvmDepositAddress())!,
         });
         if (!res) {
             return false;
         }
-        intent.nextState = 'ReturnLiquidity';
+        intent.nextState = 'UserLiquidityWithdrawn';
         return true;
     },
-    ReturnLiquidity: async (intent, solver_id) => {
-        const res = await withdrawToNear(intent.amount);
+    UserLiquidityWithdrawn: async (intent: Intent, solver_id: string) => {
+        const res = await withdrawToNear(intent.amount!);
 
         if (!res) {
             return false;
         }
-        intent.nextState = 'LiquidityReturned';
+        intent.nextState = 'StpLiquidityReturned';
         return true;
     },
     // TODO is this check needed?
 
-    LiquidityReturned: async (intent, solver_id) => {
+    StpLiquidityReturned: async (intent: Intent, solver_id: string) => {
         // check this solvers bitfinex moves
         const res = await checkBitfinexMoves({
-            amount: parseInt(intent.amount) * -1, // negative for withdrawals
+            amount: parseInt(intent.amount!) * -1, // negative for withdrawals
             start: nanoToMs(intent.created), // convert to ms from nanos
-            receiver: await getNearAddress(),
+            receiver: (await getNearAddress()).address!,
             method: 'near',
         });
 
         if (!res) {
             return false;
         }
-        intent.nextState = 'IntentComplete';
+        // Final state - intent is complete
         return true;
 
         // check contract to see if liquidity was returned
@@ -365,78 +357,94 @@ const stateFuncs = {
 
 // the cron runner
 
-const cronTimeout = (prevIntent) => {
+async function getIntents(solver_id: string): Promise<Intent[]> {
+    try {
+        const intents = await agentView({
+            methodName: 'get_intents_by_solver',
+            args: {
+                solver_id,
+            },
+        });
+        if ((intents as any).error) {
+            return [];
+        }
+        return intents as Intent[];
+    } catch (e) {
+        console.log(e);
+        return [];
+    }
+}
+
+const cronTimeout = (): void => {
     if (process.env.MANUAL_CRON) return;
-    setTimeout(() => cron(prevIntent), 10000); // 10s
+    setTimeout(() => cron(), 10000); // 10s
 };
 
-export async function cron(prevIntent) {
+let stateUpdateFailed: Intent[] = [];
+
+export async function cron(): Promise<void> {
     const solver_id = (await agentAccountId()).accountId;
 
-    // check if we have a previous intent whose state was not updated successfully
-    if (prevIntent) {
-        // update to the next state (this should eventually resolve)
+    // get intents for solver
+    let intents = await getIntents(solver_id);
+
+    // Remove intents that are already in stateUpdateFailed (to avoid processing twice)
+    const failedUpdateHashes = new Set(
+        stateUpdateFailed.map((intent) => intent.user_deposit_hash),
+    );
+    intents = intents.filter(
+        (intent) => !failedUpdateHashes.has(intent.user_deposit_hash),
+    );
+
+    // retry state updates
+    const stillFailedUpdates: Intent[] = [];
+
+    for (const intent of stateUpdateFailed) {
         const updateStateResult = await updateState(
             solver_id,
-            prevIntent.nextState,
+            intent.nextState!,
         );
         if (!updateStateResult) {
             console.log(
-                `prevIntent: Failed to update state to ${intent.nextState}`,
+                `prevIntent: Failed to update state for intent ${intent.user_deposit_hash} to ${intent.nextState}`,
             );
-            return cronTimeout(prevIntent);
+            stillFailedUpdates.push(intent);
+        } else {
+            console.log(
+                `Successfully updated failed intent ${intent.user_deposit_hash} to ${intent.nextState}`,
+            );
         }
-        // state was updated, continue with cron and get intent at next state
-        return cronTimeout();
     }
 
-    // get the current intent
-    let intent = await getIntent(solver_id);
+    // Update stateUpdateFailed to only include those that still failed
+    stateUpdateFailed = stillFailedUpdates;
 
     // if no current intent, claim one
-    if (!intent) {
-        console.log('Claiming new intent for solver_id', solver_id);
-        const claimed = await claimIntent();
-        if (!claimed) {
-            console.log('Error claiming new intent', solver_id);
-            return cronTimeout();
-        }
-    }
-
-    const intentDataJson = JSON.parse(intent.data);
-    const userTokenDiffPayload = JSON.parse(intentDataJson.token_diff_payload);
-    const userTokenDiffSignature = intentDataJson.token_diff_signature;
-    const userWithdrawPayload = JSON.parse(intentDataJson.withdraw_payload);
-    const userWithdrawSignature = intentDataJson.withdraw_signature;
-    const diffDetails = getIntentDiffDetails(userTokenDiffPayload.intents[0]);
-    intent = {
-        ...intent,
-        ...diffDetails,
-        userTokenDiffPayload,
-        userTokenDiffSignature,
-        userWithdrawPayload,
-        userWithdrawSignature,
-    };
-
-    console.log('Cron running for solver_id, intent:', solver_id, intent);
-
-    stateFuncs.CompleteSwap(intent, solver_id);
-
-    return;
-
-    // we are on the current intent and state, so use state functions to do next move
-    const stateFuncResult = await stateFuncs[intent.state](intent, solver_id);
-
-    if (!stateFuncResult || !intent.nextState) {
-        console.log(`State function for ${intent.state} failed`);
+    if (!intents.length) {
+        console.log('No intents for solver_id', solver_id);
         return cronTimeout();
     }
 
-    // update to next state
-    const updateStateResult = await updateState(solver_id, intent.nextState);
-    if (!updateStateResult) {
-        console.log(`Failed to update state to ${intent.nextState}`);
-        return cronTimeout(intent);
+    for (const intent of intents) {
+        const stateFuncResult = await stateFuncs[intent.state](
+            intent,
+            solver_id,
+        );
+
+        if (!stateFuncResult || !intent.nextState) {
+            console.log(
+                `State function for ${intent.user_deposit_hash} failed. Will retry state function logic next cron cycle.`,
+            );
+        } else {
+            const updateStateResult = await updateState(
+                solver_id,
+                intent.nextState,
+            );
+            if (!updateStateResult) {
+                console.log(`Failed to update state to ${intent.nextState}`);
+                stateUpdateFailed.push(intent);
+            }
+        }
     }
 
     return cronTimeout();

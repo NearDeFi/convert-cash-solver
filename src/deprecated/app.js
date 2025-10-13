@@ -1,108 +1,3 @@
-/** 
-
-TRON Bitfinex Deposit Address: TC2Xv6gHTKczLnvXC2PWv8X44rWUYFwjEw
-ETH Bitfinex Deposit Address: 0xdeD214b52CFc4BeDEDEAD938a82A9D2012e13d8f
-NEAR Bitfinex Deposit Address: f4fed98a87edbef955c28e1a4d9a1b547343f05df9882db134447d89d318177e
-
-EVM Derived Address, ac-proxy.shadeagent.near, evm-1: 0x5f6e67c54bef46bdac466b8c357005105e8f4ed9
-Tron Derived Address ac-proxy.shadeagent.near, tron-1: TQ4Jo6cNH4hsdqKpkAYH4HZvj7ng1HcQm3
-NEAR Derived Address, ac-proxy.shadeagent.near, pool-1: cfbdf6e7462659d18926d14b942c6e320a75f59b811a7f7e52c154750e059f84
-Tron Test Wallet: TXrv6zHfFuCvRetZcEq2k6f7SQ8LnsgD8X
-
-Next steps tron to eth
-
-**/
-
-import { serve } from '@hono/node-server';
-import { cors } from 'hono/cors';
-import { Hono } from 'hono';
-import {
-    getBitfinexMoves,
-    getNearDepositAddress,
-    getEvmDepositAddress,
-} from './bitfinex.js';
-import { agentAccountId, agentCall, agentView } from '@neardefi/shade-agent-js';
-import { getEvmAddress, signAndVerifyEVM } from './evm.js';
-import { getTronAddress, signAndVerifyTRON } from './tron.js';
-import {
-    getAccount,
-    getNearAddress,
-    signAndVerifyNEAR,
-    requestLiquidityUnsigned,
-    requestLiquidityBroadcast,
-    contractCall,
-} from './near.js';
-import { cron, updateState } from './cron.js';
-
-import {
-    erc191Verify,
-    getDepositAddress,
-    getRecentDeposits,
-    getIntentDiffDetails,
-    createLocallySignedErc191Intent,
-    createLocallySignedNep413Intent,
-} from './intents.js';
-
-import { addErc191Key } from './erc191Key.js';
-
-// add the websocket client
-import * as temp from './bus/main.js';
-
-const PORT = 3000;
-
-/**
- * Helpers used by other modules
- *
- */
-
-export async function callWithAgent({
-    contractId,
-    methodName,
-    args,
-    gas,
-    deposit,
-}) {
-    console.log(methodName);
-
-    let res;
-    try {
-        res = await agentCall({
-            contractId,
-            methodName,
-            args,
-            gas,
-            deposit,
-        });
-    } catch (e) {
-        console.log('Error from fetch call to agent', e);
-    }
-
-    if (res.error) {
-        console.log('Error from fetch call to agent:', res.error);
-        return { success: false };
-    }
-
-    return res;
-}
-
-const app = new Hono();
-
-app.use('/*', cors());
-
-// for local testing
-
-if (process.env.LOCAL_TESTING) {
-    addErc191Key();
-}
-
-console.log('Server listening on port: ', PORT);
-
-serve({
-    fetch: app.fetch,
-    port: PORT,
-    hostname: '0.0.0.0',
-});
-
 /**
  *
  * Deprecated
@@ -220,7 +115,7 @@ app.post('/api/verifyIntent', async (c) => {
         args: {},
     });
 
-    if (getIntentsRes.find((i) => i.deposit_hash === deposit.tx_hash)) {
+    if (getIntentsRes.find((i) => i.user_deposit_hash === deposit.tx_hash)) {
         return c.json({
             intentValidity,
             error: 'intent already exists in contract',
@@ -234,7 +129,7 @@ app.post('/api/verifyIntent', async (c) => {
         await agentCall({
             methodName: 'new_intent',
             args: {
-                deposit_hash: deposit.tx_hash,
+                user_deposit_hash: deposit.tx_hash,
                 data: JSON.stringify(args), // stringified args of what the user passed in and we verified
             },
         });
@@ -252,7 +147,7 @@ app.post('/api/verifyIntent', async (c) => {
         args: {},
     });
 
-    if (getIntentsRes2.find((i) => i.deposit_hash === deposit.tx_hash)) {
+    if (getIntentsRes2.find((i) => i.user_deposit_hash === deposit.tx_hash)) {
         return c.json({
             intentValidity,
             error: 'intent already exists in contract',
@@ -301,7 +196,7 @@ app.get('/api/return-near', async (c) => {
             amount: '5000000000',
         });
 
-        const liqRes = await callWithAgent({
+        const liqRes = await agentCall({
             methodName: 'request_signature',
             args: { path: 'pool-1', payload, key_type: 'Eddsa' },
         });
@@ -325,11 +220,11 @@ app.get('/api/return-near', async (c) => {
 
 app.get('/api/test-deposit', async (c) => {
     try {
-        const intentRes = await callWithAgent({
+        const intentRes = await agentCall({
             methodName: 'new_intent',
             args: {
                 amount: '5000000',
-                deposit_hash:
+                user_deposit_hash:
                     '0x6b572d796b7da99f3f647bbe78a9a39cbf7560a4c182ac1f7765001a98c338fa',
                 src_chain_id: 1,
                 dest_chain_id: 728126428,

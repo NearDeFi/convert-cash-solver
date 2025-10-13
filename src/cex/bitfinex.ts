@@ -1,16 +1,75 @@
 /**
- * near-to-solana-bitfinex.js
+ * near-to-solana-bitfinex.ts
  *
  * Deposit USDT (NEAR) → Bitfinex → Withdraw USDT (Solana)
  */
 
-import fetch from 'node-fetch'; // v2 – CommonJS compatible
+import fetch from 'node-fetch';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 const dir = process.cwd();
 dotenv.config({ path: `${dir}/.env.development.local` });
 
-import { getNearAddress } from './near.js';
+import { getNearAddress } from '../deprecated/near.js';
+
+// --- types -----------------------------------------------------------------
+
+interface SignedPayload {
+    payload: string;
+    signature: string;
+    nonce: string;
+}
+
+interface CheckBitfinexMovesParams {
+    amount: string | number;
+    start: number;
+    receiver: string;
+    method?: 'near' | 'tron' | 'evm';
+}
+
+// Bitfinex movement array structure (based on API response)
+type BitfinexMovement = [
+    number, // 0: movement ID
+    string, // 1: currency
+    string, // 2: method
+    null | unknown, // 3
+    null | unknown, // 4
+    number, // 5: timestamp start
+    number, // 6: timestamp complete
+    null | unknown, // 7
+    null | unknown, // 8
+    string, // 9: status (e.g., 'COMPLETED')
+    null | unknown, // 10
+    null | unknown, // 11
+    number, // 12: amount
+    number, // 13: fee
+    null | unknown, // 14
+    null | unknown, // 15
+    string, // 16: address/receiver
+    null | unknown, // 17
+    null | unknown, // 18
+    null | unknown, // 19
+    string, // 20: transaction hash
+    null | unknown, // 21
+];
+
+interface BitfinexDepositAddressResponse {
+    [key: number]: unknown;
+    4: [unknown, unknown, unknown, unknown, string]; // address is at index 4
+}
+
+interface BitfinexWithdrawResponse {
+    [key: number]: unknown;
+    6: string; // status is at index 6
+}
+
+type BitfinexErrorResponse = ['error', number, string];
+
+type BitfinexResponse =
+    | BitfinexDepositAddressResponse
+    | BitfinexWithdrawResponse
+    | BitfinexMovement[]
+    | BitfinexErrorResponse;
 
 // --- constants -------------------------------------------------------------
 
@@ -23,32 +82,35 @@ const YOCTO_NEAR = '1'; // min deposit for FT calls
 const BITFINEX_REST = 'https://api.bitfinex.com';
 const METHOD_NEAR = 'tetherusdtnear'; // NEAR transport string
 const METHOD_SOL = 'tetherusdtsol'; // Solana transport string
-const METHOD_TRON = 'tetherusx'; // Solana transport string
-const METHOD_EVM = 'tetheruse';
+const METHOD_TRON = 'tetherusx'; // Tron transport string
+const METHOD_EVM = 'tetheruse'; // EVM transport string
 
-const BITFINEX_METHODS = {
+const BITFINEX_METHODS: Record<string, string> = {
     near: 'TETHERUSDTNEAR',
     tron: 'TETHERUSX',
     evm: 'TETHERUSE',
 };
 
-const BITFINEX_KEY = process.env.BITFINEX_KEY;
-const BITFINEX_SECRET = process.env.BITFINEX_SECRET;
+const BITFINEX_KEY = process.env.BITFINEX_KEY!;
+const BITFINEX_SECRET = process.env.BITFINEX_SECRET!;
 
 export const NEAR_DERIVED_ADDRESS =
     'cfbdf6e7462659d18926d14b942c6e320a75f59b811a7f7e52c154750e059f84';
 
 // --- helpers ---------------------------------------------------------------
 
-export function usdtToSingle(amount) {
+export function usdtToSingle(amount: string | number): string {
     return Math.floor(Number(amount) / 1000000).toString();
 }
 
-function nonce() {
+function nonce(): string {
     return `${Date.now() * 1000}`;
 }
 
-function signV2Payload(path, body) {
+function signV2Payload(
+    path: string,
+    body: Record<string, unknown>,
+): SignedPayload {
     const n = nonce();
     const raw = `/api/${path}${n}${JSON.stringify(body)}`;
     const sig = crypto
@@ -59,7 +121,10 @@ function signV2Payload(path, body) {
     return { payload: raw, signature: sig, nonce: n };
 }
 
-async function bitfinexRequest(path, body) {
+async function bitfinexRequest(
+    path: string,
+    body: Record<string, unknown>,
+): Promise<any> {
     const { signature, nonce: n } = signV2Payload(path, body);
 
     const res = await fetch(`${BITFINEX_REST}/${path}`, {
@@ -75,8 +140,8 @@ async function bitfinexRequest(path, body) {
 
     const data = await res.json();
 
-    // “write” endpoints come back with ["MTS", "SUCCESS", …] or ["error", code, msg].
-    // “read” endpoints (like /movements/…) are just plain arrays.
+    // "write" endpoints come back with ["MTS", "SUCCESS", …] or ["error", code, msg].
+    // "read" endpoints (like /movements/…) are just plain arrays.
     // Only treat the explicit 'error' tuple as fatal.
     if (Array.isArray(data) && data[0] === 'error') {
         throw new Error(`Bitfinex error: ${data[2]}`);
@@ -86,16 +151,16 @@ async function bitfinexRequest(path, body) {
 }
 
 // scale human amount → smallest-unit string
-function toSubunits(amount) {
+function toSubunits(amount: number): string {
     return BigInt(Math.round(amount * 10 ** USDT_DECIMALS)).toString();
 }
 
-export async function getNearDepositAddress() {
+export async function getNearDepositAddress(): Promise<string | null> {
     const path = 'v2/auth/w/deposit/address';
     const body = { wallet: 'exchange', method: METHOD_NEAR, op_renew: 0 };
     const res = await bitfinexRequest(path, body);
 
-    const address = res[4][4]; // address field
+    let address: string | null = res[4]?.[4]; // address field
     if (address?.length !== 64) {
         address = null;
     }
@@ -103,12 +168,12 @@ export async function getNearDepositAddress() {
     return address;
 }
 
-export async function getEvmDepositAddress() {
+export async function getEvmDepositAddress(): Promise<string | null> {
     const path = 'v2/auth/w/deposit/address';
     const body = { wallet: 'exchange', method: METHOD_EVM, op_renew: 0 };
     const res = await bitfinexRequest(path, body);
 
-    let address = res[4][4]; // address field
+    let address: string | null = res[4]?.[4]; // address field
 
     if (address?.length !== 42) {
         address = null;
@@ -117,13 +182,15 @@ export async function getEvmDepositAddress() {
     return address;
 }
 
-export async function getBitfinexMoves(start = 0) {
+export async function getBitfinexMoves(
+    start: number = 0,
+): Promise<BitfinexMovement[]> {
     const moves = await bitfinexRequest('v2/auth/r/movements/UST/hist', {
         limit: 20,
         start,
     });
 
-    return moves;
+    return moves as BitfinexMovement[];
 }
 
 export async function checkBitfinexMoves({
@@ -131,7 +198,7 @@ export async function checkBitfinexMoves({
     start,
     receiver,
     method = 'near',
-}) {
+}: CheckBitfinexMovesParams): Promise<boolean> {
     const moves = await getBitfinexMoves(start);
 
     // console.log(amount, start, receiver, method);
@@ -143,14 +210,17 @@ export async function checkBitfinexMoves({
             m[2] === BITFINEX_METHODS[method] && // method
             // Number(m[5]) >= start && // received after start
             m[9] === 'COMPLETED' && // status
-            Number(m[12]) >= usdtToSingle(amount) && // amount
-            m[16] == receiver, // amount
+            Number(m[12]) >= Number(usdtToSingle(amount)) && // amount
+            m[16] == receiver, // address
     );
 
     return !!credited;
 }
 
-export async function withdrawToTron(amount, address) {
+export async function withdrawToTron(
+    amount: string | number,
+    address: string,
+): Promise<boolean> {
     console.log('Withdrawing liquidity to Tron derived address', address);
     const body = {
         wallet: 'exchange',
@@ -170,7 +240,9 @@ export async function withdrawToTron(amount, address) {
     return true;
 }
 
-export async function withdrawToNear(amount) {
+export async function withdrawToNear(
+    amount: string | number,
+): Promise<boolean> {
     const { address } = await getNearAddress();
     const body = {
         wallet: 'exchange',
@@ -309,7 +381,7 @@ export async function withdrawToNear(amount) {
         null,
         null,
         null,
-        '4XVfw9XdZu5h3j9GUS9fs7fcM5MZr56TTZPPT2jAJDyocg6w3NdKxuUR6Nf96qkR1qzaG2L9GHeCEy4v4TUaRs2M',
+        '4XVfw9XdZu5h3j9GUS9fs7fcM5MZr56TZZPPT2jAJDyocg6w3NdKxuUR6Nf96qkR1qzaG2L9GHeCEy4v4TUaRs2M',
         null,
     ],
     [

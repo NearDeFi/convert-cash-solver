@@ -7,10 +7,9 @@ pub enum State {
     StpLiquidityDeposited,
     StpLiquidityWithdrawn,
     StpIntentAccountCredited,
-    IntentsExecuted,
     SwapCompleted,
+    UserLiquidityBorrowed,
     UserLiquidityDeposited,
-    UserLiquidityWithdrawn,
     StpLiquidityReturned,
 }
 
@@ -25,8 +24,14 @@ pub struct Intent {
 
 #[near]
 impl Contract {
-    pub fn new_intent(&mut self, data: String, user_deposit_hash: String) {
+    pub fn new_intent(
+        &mut self,
+        data: String,
+        solver_deposit_address: AccountId,
+        user_deposit_hash: String,
+    ) {
         // TODO require intent agent
+        // TODO move liquidity and create new intent with callback after liquidity is transferred to deposit address successfully
 
         // Check if intent with this hash already exists
         for (_, intent) in self.index_to_intent.iter() {

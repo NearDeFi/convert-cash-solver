@@ -18,7 +18,7 @@ pub enum State {
 pub struct Intent {
     pub created: u64,
     pub state: State,
-    pub data: String,
+    pub intent_data: String,
     pub user_deposit_hash: String,
 }
 
@@ -26,12 +26,16 @@ pub struct Intent {
 impl Contract {
     pub fn new_intent(
         &mut self,
-        data: String,
+        intent_data: String,
         solver_deposit_address: AccountId,
         user_deposit_hash: String,
     ) {
+        // update user_deposit_hash to the request_id for intent
+
+        // TODO check intent / quote for solver and make sure it's valid
         // TODO require intent agent
         // TODO move liquidity and create new intent with callback after liquidity is transferred to deposit address successfully
+        // ft_transfer with a callback to create new intent with callback after liquidity is transferred to deposit address successfully
 
         // Check if intent with this hash already exists
         for (_, intent) in self.index_to_intent.iter() {
@@ -57,7 +61,7 @@ impl Contract {
             Intent {
                 created: env::block_timestamp(),
                 state: State::StpLiquidityBorrowed,
-                data,
+                intent_data,
                 user_deposit_hash,
             },
         );

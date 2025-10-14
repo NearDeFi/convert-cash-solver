@@ -82,6 +82,8 @@ export async function createIntent(
     const solver_deposit_address = await getNearDepositAddress();
 
     try {
+        // update args
+
         const res = await agentCall({
             methodName: 'new_intent',
             args: {
@@ -169,17 +171,20 @@ const stateFuncs: Record<IntentState, StateFunction> = {
     },
     StpIntentAccountCredited: async (intent: Intent, solver_id: string) => {
         // TODO something here to execute intents
+
         intent.nextState = 'SwapCompleted';
         return true;
     },
+
+    // Potentially check status of intent here?
+
     SwapCompleted: async (intent: Intent, solver_id: string) => {
-        //TODO ftWithdraw intent for solver to bitfinex deposit address
+        // TODO ftWithdraw intent for solver to bitfinex deposit address
 
         intent.nextState = 'UserLiquidityDeposited';
         return true;
     },
     UserLiquidityBorrowed: async (intent: Intent, solver_id: string) => {
-        // TODO finish this check to see if withdrawal requested is completed, e.g. put in arguments of withdrawal
         const res = await checkBitfinexMoves({
             method: 'evm',
             amount: parseInt(intent.amount!) * -1,

@@ -9,8 +9,8 @@ const ATTACHED_DEPOSIT: NearToken = NearToken::from_yoctonear(1);
 #[allow(dead_code)]
 #[ext_contract(intents_contract)]
 trait IntentsContract {
-    fn add_public_key(&self, public_key: String) -> Promise;
-    fn remove_public_key(&self, public_key: String) -> Promise;
+    fn add_public_key(public_key: String) -> Promise;
+    fn remove_public_key(public_key: String) -> Promise;
 }
 
 pub fn internal_add_public_key(public_key: String) -> Promise {

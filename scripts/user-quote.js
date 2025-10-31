@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import bs58 from 'bs58';
+import { NearClient } from '../src/bus/nearClient.js';
 
 dotenv.config({ path: './env.development.local' });
 
@@ -127,6 +128,7 @@ async function main() {
             const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64');
             
             // Create the quote object (equivalent to Python's Quote TypedDict)
+            // For ERC191/NEP413, ALL fields including nonce and verifying_contract are signed
             const quote = {
                 signer_id: evm_account.toLowerCase(), // Convert to lowercase for NEAR compatibility
                 nonce: nonce,
@@ -143,7 +145,7 @@ async function main() {
                 ]
             };
             
-            return JSON.stringify(quote);
+            return quote;
         };
 
         // Publish intent to the solver bus
@@ -242,39 +244,79 @@ async function main() {
                 console.log('---');
                 
                 // Create token_diff_quote using the best option
+                // Ensure amounts are strings (contract expects string values for amounts)
                 const tokenDiffQuote = createTokenDiffQuote(
                     wallet.address,
                     ASSET_IN,
-                    bestOption.amount_in,
+                    String(bestOption.amount_in),
                     ASSET_OUT,
-                    bestOption.amount_out
+                    String(bestOption.amount_out)
                 );
                 
                 console.log('Generated Token Diff Quote:');
-                console.log(tokenDiffQuote);
+                console.log(JSON.stringify(tokenDiffQuote, null, 2));
                 console.log('---');
-                
-                // Sign the quote
+
+                // Sign the quote (all fields including nonce and verifying_contract)
+                // This returns { standard: "erc191", payload: "<JSON string>", signature: "..." }
+                // where payload is the signed message itself
                 const signedCommitment = await signQuoteSecp256k1FromEvm(wallet.address, tokenDiffQuote);
                 console.log('Signed Commitment:');
                 console.log(JSON.stringify(signedCommitment, null, 2));
                 console.log('---');
                 
-                // Create PublishIntent object
-                const publishIntentData = {
-                    signed_data: signedCommitment,
-                    quote_hashes: [bestOption.quote_hash]
+                // // Create PublishIntent object
+                // const publishIntentData = {
+                //     signed_data: signedCommitment,
+                //     quote_hashes: [bestOption.quote_hash]
+                // };
+                
+                // console.log('Publishing Intent:');
+                // console.log(JSON.stringify(publishIntentData, null, 2));
+                // console.log('---');
+                
+                // // Publish the intent to the solver bus
+                // const publishResult = await publishIntent(publishIntentData);
+                // console.log('Publish Intent Result:');
+                // console.log(JSON.stringify(publishResult, null, 2));
+                // console.log('---');
+
+                // For execute_intents with ERC191, the payload structure might be different
+                // Let's try with just the message directly as payload (no nested structure)
+                const executeIntentsArgs = {
+                    signed: [{
+                        standard: "erc191",
+                        payload: signedCommitment.payload,  // Just the JSON string message
+                        signature: signedCommitment.signature
+                    }]
                 };
                 
-                console.log('Publishing Intent:');
-                console.log(JSON.stringify(publishIntentData, null, 2));
-                console.log('---');
+                console.log('->>>>>>> Arguments for execute_intents:');
+                console.log(JSON.stringify(executeIntentsArgs, null, 2));
+
+                //Once user have the signed quote, they can publish it to the contract using the execute_intents method.
+                // To make this call, use the near-js API
+                console.log('\n📤 Publishing intent to NEAR contract...');
                 
-                // Publish the intent to the solver bus
-                const publishResult = await publishIntent(publishIntentData);
-                console.log('Publish Intent Result:');
-                console.log(JSON.stringify(publishResult, null, 2));
-                console.log('---');
+                try {
+                    // Initialize NEAR client
+                    const nearClient = new NearClient();
+                    
+                    // Call the execute_intents method on intents.near contract
+                    // Pass the args object directly - NEAR API will serialize it correctly
+                    const result = await nearClient.callFunction(
+                        'intents.near',  // Contract ID
+                        'execute_intents',  // Method name
+                        executeIntentsArgs,  // Arguments: { signed: [...] }
+                        '0',  // No deposit
+                        '100000000000000'  // 100 TGas for safety
+                    );
+                    
+                    console.log('✅ Intent successfully published to NEAR contract!');
+                    console.log('Transaction result:', result);
+                } catch (error) {
+                    console.error('❌ Failed to publish intent to NEAR contract:', error);
+                }
             }
         }
 

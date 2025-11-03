@@ -2,13 +2,10 @@ use near_contract_standards::fungible_token::{receiver::FungibleTokenReceiver, F
 use near_sdk::{json_types::U128, AccountId, PromiseOrValue};
 use uint::construct_uint;
 
-pub mod events;
-
 construct_uint! {
     pub struct U256(4);
 }
 
-// Core trait for the vault contract
 #[allow(unused)]
 pub trait VaultCore: FungibleTokenCore + FungibleTokenReceiver {
     fn asset(&self) -> AccountId;

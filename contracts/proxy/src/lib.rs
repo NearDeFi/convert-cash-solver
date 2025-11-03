@@ -1,18 +1,42 @@
 use near_sdk::{
-    env, near, require,
+    assert_one_yocto,
+    borsh::{self, BorshDeserialize, BorshSerialize},
+    env,
+    json_types::U128,
+    near, require,
+    serde::Deserialize,
     store::{IterableMap, IterableSet},
-    AccountId, Gas, NearToken, PanicOnDefault, Promise,
+    AccountId, BorshStorageKey, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue,
 };
+
+use near_contract_standards::fungible_token::{
+    core::FungibleTokenCore,
+    core_impl::FungibleToken,
+    events::FtMint,
+    metadata::{FungibleTokenMetadata, FungibleTokenMetadataProvider},
+    receiver::FungibleTokenReceiver,
+    FungibleTokenResolver,
+};
+use near_contract_standards::storage_management::StorageManagement;
 
 mod chainsig;
 mod intents;
 mod near_intents;
+mod vault;
+mod vault_standards;
+
 use intents::Intent;
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone)]
 pub struct Worker {
     codehash: String,
+}
+
+// vault
+#[derive(BorshSerialize, BorshDeserialize, BorshStorageKey)]
+pub enum StorageKey {
+    FungibleToken,
 }
 
 #[near(contract_state)]
@@ -25,13 +49,25 @@ pub struct Contract {
     pub solver_id_to_indices: IterableMap<AccountId, Vec<u128>>,
     pub index_to_intent: IterableMap<u128, Intent>,
     pub intent_nonce: u128,
+    // vault
+    pub token: FungibleToken,            // Vault shares (NEP-141)
+    pub metadata: FungibleTokenMetadata, // Metadata for shares
+    pub asset: AccountId,                // Underlying asset (NEP-141 or NEP-245)
+    pub total_assets: u128,              // Total managed assets
+    pub owner: AccountId,                // Vault owner
+    pub extra_decimals: u8,              // Extra decimals for shares (if any)
 }
 
 #[near]
 impl Contract {
     #[init]
     #[private]
-    pub fn init(owner_id: AccountId) -> Self {
+    pub fn init(
+        owner_id: AccountId,
+        asset: AccountId,
+        metadata: FungibleTokenMetadata,
+        extra_decimals: u8,
+    ) -> Self {
         Self {
             owner_id,
             approved_codehashes: IterableSet::new(b"a"),
@@ -40,6 +76,13 @@ impl Contract {
             solver_id_to_indices: IterableMap::new(b"d"),
             index_to_intent: IterableMap::new(b"e"),
             intent_nonce: 0,
+            // vault
+            token: FungibleToken::new(StorageKey::FungibleToken),
+            metadata,
+            asset,
+            total_assets: 0,
+            owner: env::predecessor_account_id(),
+            extra_decimals,
         }
     }
 

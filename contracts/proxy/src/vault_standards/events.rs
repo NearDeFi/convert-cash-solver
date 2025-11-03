@@ -2,8 +2,6 @@ use near_sdk::json_types::U128;
 use near_sdk::serde::Serialize;
 use near_sdk::{env, AccountIdRef};
 
-//According to standard a vault must emit events for deposits and when shares are redeemed
-
 #[derive(Serialize, Debug)]
 #[serde(crate = "near_sdk::serde")]
 #[serde(tag = "standard")]

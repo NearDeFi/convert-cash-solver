@@ -1,27 +1,8 @@
-mod vault_standards;
-
-use near_contract_standards::fungible_token::{
-    core::FungibleTokenCore,
-    core_impl::FungibleToken,
-    events::FtMint,
-    metadata::{FungibleTokenMetadata, FungibleTokenMetadataProvider},
-    receiver::FungibleTokenReceiver,
-    FungibleTokenResolver,
-};
-use near_contract_standards::storage_management::StorageManagement;
-use near_sdk::{
-    assert_one_yocto,
-    borsh::{self, BorshDeserialize, BorshSerialize},
-    serde::Deserialize,
-};
-use near_sdk::{env, near_bindgen, AccountId, Gas, NearToken, PanicOnDefault, PromiseOrValue};
-use near_sdk::{json_types::U128, BorshStorageKey};
+use crate::*;
 
 use crate::vault_standards::events::{VaultDeposit, VaultWithdraw};
-use crate::vault_standards::core::VaultCore;
-use crate::vault_standards::rounding::Rounding;
-
-const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(30);
+use crate::vault_standards::mul_div::Rounding;
+use crate::vault_standards::VaultCore;
 
 #[derive(Deserialize)]
 #[serde(crate = "near_sdk::serde")]
@@ -33,36 +14,8 @@ pub struct DepositMessage {
     donate: Option<bool>,
 }
 
-#[near_bindgen]
-#[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
-pub struct TokenizedVault {
-    pub token: FungibleToken,        // Vault shares (NEP-141)
-    metadata: FungibleTokenMetadata, // Metadata for shares
-    asset: AccountId,                // Underlying asset (NEP-141 or NEP-245)
-    total_assets: u128,              // Total managed assets
-    owner: AccountId,                // Vault owner
-    extra_decimals: u8,              // Extra decimals for shares (if any)
-}
-
-#[derive(BorshSerialize, BorshDeserialize, BorshStorageKey)]
-pub enum StorageKey {
-    FungibleToken,
-}
-
-#[near_bindgen]
-impl TokenizedVault {
-    #[init]
-    pub fn new(asset: AccountId, metadata: FungibleTokenMetadata, extra_decimals: u8) -> Self {
-        Self {
-            token: FungibleToken::new(StorageKey::FungibleToken),
-            metadata,
-            asset,
-            total_assets: 0,
-            owner: env::predecessor_account_id(),
-            extra_decimals,
-        }
-    }
-
+#[near]
+impl Contract {
     #[private]
     pub fn resolve_withdraw(
         &mut self,
@@ -113,8 +66,8 @@ impl TokenizedVault {
 }
 
 // ===== Implement FungibleTokenVaultCore Trait =====
-#[near_bindgen]
-impl VaultCore for TokenizedVault {
+#[near]
+impl VaultCore for Contract {
     fn asset(&self) -> AccountId {
         self.asset.clone()
     }
@@ -150,7 +103,6 @@ impl VaultCore for TokenizedVault {
         ))
     }
 
-    // "User wants this amount of assets, then calculte the number of shares they will burn, and then execute the withdrawal"
     #[payable]
     fn withdraw(
         &mut self,
@@ -190,10 +142,8 @@ impl VaultCore for TokenizedVault {
     }
 }
 
-#[near_bindgen]
-impl FungibleTokenReceiver for TokenizedVault {
-
-    // When user deposit assets, we need to convert them to shares and deposit them to the vault, this happens when call ft_transfer_call on the underlying asset
+#[near]
+impl FungibleTokenReceiver for Contract {
     fn ft_on_transfer(
         &mut self,
         sender_id: AccountId,
@@ -206,7 +156,6 @@ impl FungibleTokenReceiver for TokenizedVault {
             "Only the underlying asset can be deposited"
         );
 
-        // Parse the message to get the min_shares, max_shares, receiver_id, and memo 
         let parsed_msg: DepositMessage = serde_json::from_str(&msg).unwrap_or_else(|_| {
             // Return all tokens if message parsing fails
             env::panic_str("Failed to parse deposit message");
@@ -283,8 +232,8 @@ impl FungibleTokenReceiver for TokenizedVault {
 }
 
 // ===== Implement Fungible Token Traits for Vault Shares =====
-#[near_bindgen]
-impl FungibleTokenCore for TokenizedVault {
+#[near]
+impl FungibleTokenCore for Contract {
     #[payable]
     fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>) {
         self.token.ft_transfer(receiver_id, amount, memo)
@@ -310,8 +259,8 @@ impl FungibleTokenCore for TokenizedVault {
     }
 }
 
-#[near_bindgen]
-impl FungibleTokenResolver for TokenizedVault {
+#[near]
+impl FungibleTokenResolver for Contract {
     #[private]
     fn ft_resolve_transfer(
         &mut self,
@@ -324,8 +273,8 @@ impl FungibleTokenResolver for TokenizedVault {
     }
 }
 
-#[near_bindgen]
-impl StorageManagement for TokenizedVault {
+#[near]
+impl StorageManagement for Contract {
     #[payable]
     fn storage_deposit(
         &mut self,
@@ -362,8 +311,8 @@ impl StorageManagement for TokenizedVault {
     }
 }
 
-#[near_bindgen]
-impl FungibleTokenMetadataProvider for TokenizedVault {
+#[near]
+impl FungibleTokenMetadataProvider for Contract {
     fn ft_metadata(&self) -> FungibleTokenMetadata {
         self.metadata.clone()
     }

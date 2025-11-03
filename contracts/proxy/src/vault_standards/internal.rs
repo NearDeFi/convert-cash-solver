@@ -3,10 +3,11 @@ use near_contract_standards::fungible_token::{
 };
 use near_sdk::{env, ext_contract, json_types::U128, AccountId, Gas, NearToken, Promise};
 
-use crate::{
-    rounding::{mul_div, Rounding},
-    TokenizedVault, GAS_FOR_FT_TRANSFER,
-};
+use super::mul_div::{mul_div, Rounding};
+
+pub const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(30);
+
+use crate::Contract;
 
 #[ext_contract(ext_self)]
 pub trait _ExtSelf {
@@ -20,7 +21,7 @@ pub trait _ExtSelf {
     );
 }
 
-impl TokenizedVault {
+impl Contract {
     pub fn internal_transfer_assets_with_callback(
         &self,
         receiver_id: AccountId,
@@ -62,7 +63,7 @@ impl TokenizedVault {
         );
 
         // Effects - CEI Pattern: Update state before external call
-        // Burn shares immediately (prevents reuse) 
+        // Burn shares immediately (prevents reuse)
         self.token.internal_withdraw(&owner, shares_to_burn);
         self.total_assets = self
             .total_assets
@@ -74,7 +75,7 @@ impl TokenizedVault {
             amount: U128(shares_to_burn),
             memo: Some("Withdrawal"),
         }
-        .emit(); //emit event for shares redeemed
+        .emit();
 
         // Interactions - External call
         self.internal_transfer_assets_with_callback(

@@ -10,7 +10,7 @@ const ASSET_IN =
     'nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near';
 const ASSET_OUT =
     'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near';
-const AMOUNT_IN = '4685840';
+const AMOUNT_IN = '5000000'//'4685840';
 const DEADLINE_MS = 600000; // 10 minutes
 
 const nearIntentsFetch = async (method, params, bridgeUrl = false) => {

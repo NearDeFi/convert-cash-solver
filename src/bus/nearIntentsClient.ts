@@ -591,7 +591,7 @@ export class NearIntentsClient {
             throw new Error('Invalid user intent payload');
         }
 
-        // Validación simple del par que manejas (ajústalo si quieres)
+        // Validate the swap pair
         const tokenIdUsdtOnEth =
             'nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near';
         const tokenIdUsdtOnTron =

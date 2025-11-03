@@ -2,7 +2,6 @@ import { ethers } from 'ethers';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import bs58 from 'bs58';
-import { NearClient } from '../src/bus/nearClient.js';
 
 dotenv.config({ path: './env.development.local' });
 

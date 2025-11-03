@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import bs58 from 'bs58';
-import { NearClient } from '../src/bus/nearClient.js';
+
 
 dotenv.config({ path: './env.development.local' });
 
@@ -10,7 +10,7 @@ const ASSET_IN =
     'nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near';
 const ASSET_OUT =
     'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near';
-const AMOUNT_IN = '4685840';
+const AMOUNT_IN = '5000000'//'4685840';
 const DEADLINE_MS = 600000; // 10 minutes
 
 const nearIntentsFetch = async (method, params, bridgeUrl = false) => {
@@ -40,6 +40,22 @@ const nearIntentsFetch = async (method, params, bridgeUrl = false) => {
         return null;
     }
 };
+
+async function sendToAccessPoint(signedCommitment, quoteHash) {
+    const res = await fetch('http://localhost:3001/submit-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            signed_data: signedCommitment,
+            quote_hash: quoteHash
+        })
+    });
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`AccessPoint error ${res.status}: ${text}`);
+    }
+    return res.json();
+}
 
 async function main() {
     try {
@@ -297,26 +313,29 @@ async function main() {
                 //Once user have the signed quote, they can publish it to the contract using the execute_intents method.
                 // To make this call, use the near-js API
                 console.log('\n📤 Publishing intent to NEAR contract...');
+                console.log('\n📤 Sending signed intent to Access Point...');
+                const apResponse = await sendToAccessPoint(signedCommitment, bestOption.quote_hash);
+                console.log('🎉 Access Point response:', JSON.stringify(apResponse, null, 2));
                 
-                try {
-                    // Initialize NEAR client
-                    const nearClient = new NearClient();
+                // try {
+                //     // Initialize NEAR client
+                //     const nearClient = new NearClient();
                     
-                    // Call the execute_intents method on intents.near contract
-                    // Pass the args object directly - NEAR API will serialize it correctly
-                    const result = await nearClient.callFunction(
-                        'intents.near',  // Contract ID
-                        'execute_intents',  // Method name
-                        executeIntentsArgs,  // Arguments: { signed: [...] }
-                        '0',  // No deposit
-                        '100000000000000'  // 100 TGas for safety
-                    );
+                //     // Call the execute_intents method on intents.near contract
+                //     // Pass the args object directly - NEAR API will serialize it correctly
+                //     const result = await nearClient.callFunction(
+                //         'intents.near',  // Contract ID
+                //         'execute_intents',  // Method name
+                //         executeIntentsArgs,  // Arguments: { signed: [...] }
+                //         '0',  // No deposit
+                //         '100000000000000'  // 100 TGas for safety
+                //     );
                     
-                    console.log('✅ Intent successfully published to NEAR contract!');
-                    console.log('Transaction result:', result);
-                } catch (error) {
-                    console.error('❌ Failed to publish intent to NEAR contract:', error);
-                }
+                //     console.log('✅ Intent successfully published to NEAR contract!');
+                //     console.log('Transaction result:', result);
+                // } catch (error) {
+                //     console.error('❌ Failed to publish intent to NEAR contract:', error);
+                // }
             }
         }
 

@@ -13,7 +13,7 @@ import {
     SignedData,
     IntentMessage,
 } from './types.js';
-
+import { NearClient } from './nearClient.js';
 import { erc191SignMessage } from '../key/erc191.js';
 
 dotenv.config({ path: './env.development.local' });
@@ -273,7 +273,7 @@ export class NearIntentsClient {
         //const defineAmountIn = 4685835; // After deducting fees
         const hasValidAmount =
             quoteRequest.exact_amount_in !== undefined &&
-            parseInt(quoteRequest.exact_amount_in) === 4685835;
+            parseInt(quoteRequest.exact_amount_in) === 4999995;//4685835;
 
         // Only process and log USDT ETH -> USDT TRON swaps with exact amount
         if (isEthToTronSwap && hasValidAmount) {
@@ -548,5 +548,113 @@ export class NearIntentsClient {
         const signatureFormatted = `secp256k1:${signatureB58}`;
 
         return signatureFormatted;
+    }
+
+    // async createBalancedSolverIntent(userSignedIntent: SignedData): Promise<SignedData> {
+    //     const userIntentData: IntentMessage = JSON.parse(userSignedIntent.payload);
+    //     const userDiff = userIntentData.intents[0].diff;
+
+    //     const solverDiff: Record<string, string> = {};
+    //     for (const [token, amount] of Object.entries(userDiff)) {
+    //         const amountStr = amount as string;
+    //         solverDiff[token] = amountStr.startsWith('-') ? amountStr.substring(1) : `-${amountStr}`;
+    //     }
+
+    //     const solverAccount =
+    //         process.env.LOCAL_TESTING === 'true'
+    //             ? process.env.NEAR_CONTRACT_ID!
+    //             : '0xa48c13854fa61720c652e2674Cfa82a5F8514036'.toLowerCase();
+
+    //     const solverIntentData: IntentMessage = {
+    //         signer_id: solverAccount,
+    //         deadline: userIntentData.deadline,
+    //         verifying_contract: userIntentData.verifying_contract,
+    //         nonce: await this.generateNonce(),
+    //         intents: [{ intent: 'token_diff', diff: solverDiff }],
+    //     };
+
+    //     const messageJson = JSON.stringify(solverIntentData);
+    //     const erc191Signature = await this.signQuoteSecp256k1FromEvm(messageJson);
+
+    //     return { standard: 'erc191', payload: messageJson, signature: erc191Signature };
+    // }
+
+    async createBalancedSolverIntent(userSignedIntent: SignedData): Promise<SignedData> {
+        const userIntentData: IntentMessage = JSON.parse(userSignedIntent.payload);
+        const userDiff = userIntentData.intents[0].diff;
+
+        const FEE_PPM = parseInt(process.env.PROTOCOL_FEE_PPM || '1', 10);
+        const feeFor = (amount: number) => Math.ceil((amount * FEE_PPM) / 1_000_000);
+
+        const solverDiff: Record<string, string> = {};
+        for (const [token, amountStr] of Object.entries(userDiff)) {
+            const isUserNegative = amountStr.startsWith('-');
+            const absAmount = Math.abs(parseInt(amountStr, 10));
+            const fee = feeFor(absAmount);
+
+            if (isUserNegative) {
+                // User pays this token -> solver receives with fee deducted
+                const recv = Math.max(absAmount - fee, 0);
+                solverDiff[token] = recv.toString(); // positive
+            } else {
+                // User receives this token -> solver pays with fee added
+                const pay = absAmount + fee;
+                solverDiff[token] = `-${pay}`; // negative
+            }
+        }
+
+        const solverAccount =
+            process.env.LOCAL_TESTING === 'true'
+                ? process.env.NEAR_CONTRACT_ID!
+                : '0xa48c13854fa61720c652e2674Cfa82a5F8514036'.toLowerCase();
+
+        const solverIntentData: IntentMessage = {
+            signer_id: solverAccount,
+            deadline: userIntentData.deadline,
+            verifying_contract: userIntentData.verifying_contract,
+            nonce: await this.generateNonce(),
+            intents: [{ intent: 'token_diff', diff: solverDiff }],
+        };
+
+        const messageJson = JSON.stringify(solverIntentData);
+        const erc191Signature = await this.signQuoteSecp256k1FromEvm(messageJson);
+
+        return { standard: 'erc191', payload: messageJson, signature: erc191Signature };
+    }
+    
+    async processUserIntent(userSignedIntent: SignedData): Promise<any> {
+        if (userSignedIntent.standard !== 'erc191') {
+            throw new Error('Only erc191 is supported');
+        }
+
+        let userIntentData: IntentMessage;
+        try {
+            userIntentData = JSON.parse(userSignedIntent.payload);
+        } catch {
+            throw new Error('Invalid user intent payload');
+        }
+
+        // Validate the swap pair
+        const tokenIdUsdtOnEth =
+            'nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near';
+        const tokenIdUsdtOnTron =
+            'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near';
+        const diff = userIntentData.intents[0].diff;
+
+        if (!(tokenIdUsdtOnEth in diff) || !(tokenIdUsdtOnTron in diff)) {
+            throw new Error('Unsupported swap pair for this solver');
+        }
+
+        const solverSignedIntent = await this.createBalancedSolverIntent(userSignedIntent);
+        const executeArgs = { signed: [userSignedIntent, solverSignedIntent] };
+
+        const nearClient = new NearClient();
+        return await nearClient.callFunction(
+            'intents.near',
+            'execute_intents',
+            executeArgs,
+            '0',
+            '100000000000000'
+        );
     }
 }

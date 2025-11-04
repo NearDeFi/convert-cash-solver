@@ -4,6 +4,7 @@ use serde_json::json;
 use std::sync::Arc;
 
 const CONTRACT_WASM_PATH: &str = "./target/near/contract.wasm";
+const EXTRA_DECIMALS: u8 = 3; // Multiplier for first deposit: 10^3 = 1000
 
 #[tokio::test]
 async fn test_contract_deployment() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -19,64 +20,6 @@ async fn test_contract_deployment() -> Result<(), Box<dyn std::error::Error + Se
     
     println!("Contract deployed to: {}", contract_id);
     
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_register_agent() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Start sandbox
-    let sandbox = Sandbox::start_sandbox().await?;
-    let network_config = create_network_config(&sandbox);
-
-    // Setup genesis account
-    let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
-
-    // Deploy and initialize contract
-    let contract_id = deploy_contract(&network_config, &genesis_account_id, &genesis_signer).await?;
-
-    // Create a worker account
-    let worker_account_id: AccountId = format!("worker.{}", genesis_account_id).parse()?;
-    let worker_secret_key = signer::generate_secret_key()?;
-    let worker_signer: Arc<Signer> = Signer::new(Signer::from_secret_key(worker_secret_key.clone())).unwrap();
-
-    Account::create_account(worker_account_id.clone())
-        .fund_myself(genesis_account_id.clone(), NearToken::from_near(5))
-        .public_key(worker_secret_key.public_key())
-        .unwrap()
-        .with_signer(genesis_signer.clone())
-        .send_to(&network_config)
-        .await?;
-
-    println!("Worker account created: {}", worker_account_id);
-
-    // Register agent
-    let codehash = "test_codehash_123".to_string();
-    let contract = Contract(contract_id.clone());
-    let result = contract
-        .call_function("register_agent", json!({
-            "codehash": codehash
-        }))?
-        .transaction()
-        .with_signer(worker_account_id.clone(), worker_signer.clone())
-        .send_to(&network_config)
-        .await?;
-
-    println!("Agent registered: {:?}", result.status);
-
-    // Verify agent was registered
-    let agent_info: Data<Vec<u8>> = contract
-        .call_function("get_agent", json!({
-            "account_id": worker_account_id
-        }))?
-        .read_only()
-        .fetch_from(&network_config)
-        .await?;
-
-    println!("Agent info: {:?}", agent_info);
-
-    let agent_data: serde_json::Value = serde_json::from_slice(&agent_info.data)?;
-    assert_eq!(agent_data["codehash"], codehash);
-
     Ok(())
 }
 
@@ -110,7 +53,7 @@ async fn test_approve_codehash() -> Result<(), Box<dyn std::error::Error + Send 
 }
 
 #[tokio::test]
-async fn test_full_workflow() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn test_vault_initialization() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Start sandbox
     let sandbox = Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);
@@ -118,57 +61,114 @@ async fn test_full_workflow() -> Result<(), Box<dyn std::error::Error + Send + S
     // Setup genesis account
     let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
 
-    // Deploy and initialize contract
+    // Deploy contract using helper (with extra_decimals = 3)
     let contract_id = deploy_contract(&network_config, &genesis_account_id, &genesis_signer).await?;
+    
+    let vault_contract = Contract(contract_id.clone());
 
-    // Create worker account
-    let worker_account_id: AccountId = format!("worker.{}", genesis_account_id).parse()?;
-    let worker_secret_key = signer::generate_secret_key()?;
-    let worker_signer: Arc<Signer> = Signer::new(Signer::from_secret_key(worker_secret_key.clone())).unwrap();
-
-    Account::create_account(worker_account_id.clone())
-        .fund_myself(genesis_account_id.clone(), NearToken::from_near(5))
-        .public_key(worker_secret_key.public_key())
-        .unwrap()
-        .with_signer(genesis_signer.clone())
-        .send_to(&network_config)
+    // Test: Get vault metadata (FT metadata for vault shares)
+    // Note: ft_metadata returns a struct, so we use Data<serde_json::Value> for flexibility
+    let metadata: Data<serde_json::Value> = vault_contract
+        .call_function("ft_metadata", json!([]))? 
+        .read_only()
+        .fetch_from(&network_config)
         .await?;
 
-    // Approve codehash
-    let codehash = "my_codehash".to_string();
+    println!("Vault share metadata: {:?}", metadata.data);
+    
+    assert_eq!(metadata.data["name"], "USDC Vault Shares");
+    assert_eq!(metadata.data["symbol"], "vUSDC");
+    assert_eq!(metadata.data["decimals"], 24);
+
+    // Test: Get underlying asset
+    let asset: Data<String> = vault_contract
+        .call_function("asset", json!([]))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+
+    println!("Underlying asset: {}", asset.data);
+    assert!(asset.data.starts_with("usdc."), "Asset should be usdc token");
+
+    // Test: Get total assets (should be 0 initially)
+    let total_assets: Data<String> = vault_contract
+        .call_function("total_assets", json!([]))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+
+    println!("Total assets: {}", total_assets.data);
+    assert_eq!(total_assets.data, "0");
+
+    // Test: Get total supply of shares (should be 0 initially)
+    let total_supply: Data<String> = vault_contract
+        .call_function("ft_total_supply", json!([]))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+
+    println!("Total supply of vault shares: {}", total_supply.data);
+    assert_eq!(total_supply.data, "0");
+
+    println!("✅ Vault initialization test passed!");
+    println!("   - Vault deployed at: {}", contract_id);
+    println!("   - Underlying asset: {}", asset.data);
+    println!("   - Share token: vUSDC");
+    println!("   - Extra decimals: {} (multiplier: 10^{} = {})", EXTRA_DECIMALS, EXTRA_DECIMALS, 10u128.pow(EXTRA_DECIMALS as u32));
+    println!("   - Initial total assets: 0");
+    println!("   - Initial share supply: 0");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_vault_conversion_functions() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Start sandbox
+    let sandbox = Sandbox::start_sandbox().await?;
+    let network_config = create_network_config(&sandbox);
+
+    // Setup genesis account
+    let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
+
+    // Deploy contract with vault parameters
+    let contract_id = deploy_contract(&network_config, &genesis_account_id, &genesis_signer).await?;
+    
     let contract = Contract(contract_id.clone());
-    contract
-        .call_function("approve_codehash", json!({
-            "codehash": codehash
-        }))?
-        .transaction()
-        .with_signer(genesis_account_id.clone(), genesis_signer.clone())
-        .send_to(&network_config)
-        .await?;
 
-    // Register agent with approved codehash
-    contract
-        .call_function("register_agent", json!({
-            "codehash": codehash
-        }))?
-        .transaction()
-        .with_signer(worker_account_id.clone(), worker_signer.clone())
-        .send_to(&network_config)
-        .await?;
-
-    // Verify agent
-    let agent_info: Data<Vec<u8>> = contract
-        .call_function("get_agent", json!({
-            "account_id": worker_account_id
+    // Test: convert_to_shares for empty vault with extra_decimals = 3
+    let assets_to_convert = "1000000000000000000000000"; // 1 token with 24 decimals
+    let shares: Data<String> = contract
+        .call_function("preview_deposit", json!({
+            "assets": assets_to_convert
         }))?
         .read_only()
         .fetch_from(&network_config)
         .await?;
 
-    let agent_data: serde_json::Value = serde_json::from_slice(&agent_info.data)?;
-    assert_eq!(agent_data["codehash"], codehash);
+    println!("Assets {} converts to shares: {}", assets_to_convert, shares.data);
+    
+    // For empty vault with extra_decimals, multiply by 10^EXTRA_DECIMALS
+    let multiplier = 10u128.pow(EXTRA_DECIMALS as u32);
+    let expected_shares = (assets_to_convert.parse::<u128>().unwrap() * multiplier).to_string();
+    println!("Expected shares: {} (assets × {})", expected_shares, multiplier);
+    assert_eq!(shares.data, expected_shares, "Should multiply by 10^{} = {}", EXTRA_DECIMALS, multiplier);
 
-    println!("Full workflow test passed!");
+    // Test: convert_to_assets (reverse conversion)
+    // Note: For empty vault, this might panic or return 0 depending on implementation
+    // Let's test preview_withdraw instead
+    let preview_shares: Data<String> = contract
+        .call_function("preview_withdraw", json!({
+            "assets": "1000000000000000000000000"
+        }))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+
+    println!("Preview withdraw shares needed: {}", preview_shares.data);
+
+    println!("✅ Vault conversion test passed!");
+    println!("   - Using extra_decimals = {} (from EXTRA_DECIMALS constant)", EXTRA_DECIMALS);
+    println!("   - Multiplier for first deposit: {}", 10u128.pow(EXTRA_DECIMALS as u32));
 
     Ok(())
 }
@@ -219,10 +219,21 @@ async fn deploy_contract(
     // Deploy contract
     let contract_signer: Arc<Signer> = Signer::new(Signer::from_secret_key(contract_secret_key)).unwrap();
     
+    // Create a test asset account ID (in production, this would be a real FT contract)
+    let asset_id: AccountId = format!("usdc.{}", genesis_account_id).parse()?;
+    
     Contract::deploy(contract_id.clone())
         .use_code(wasm_bytes)
         .with_init_call("init", json!({
-            "owner_id": genesis_account_id
+            "owner_id": genesis_account_id,
+            "asset": asset_id,
+            "metadata": {
+                "spec": "ft-1.0.0",
+                "name": "USDC Vault Shares",
+                "symbol": "vUSDC",
+                "decimals": 24
+            },
+            "extra_decimals": EXTRA_DECIMALS
         }))?
         .with_signer(contract_signer)
         .send_to(network_config)

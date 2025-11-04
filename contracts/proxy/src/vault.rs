@@ -137,6 +137,10 @@ impl VaultCore for Contract {
         U128(self.internal_convert_to_assets(shares.0, Rounding::Down))
     }
 
+    fn preview_deposit(&self, assets: U128) -> U128 {
+        U128(self.internal_convert_to_shares(assets.0, Rounding::Down))
+    }
+
     fn preview_withdraw(&self, assets: U128) -> U128 {
         U128(self.internal_convert_to_shares(assets.0, Rounding::Up))
     }

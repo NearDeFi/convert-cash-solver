@@ -27,7 +27,7 @@ impl Contract {
     pub fn new_intent(
         &mut self,
         intent_data: String,
-        solver_deposit_address: AccountId,
+        _solver_deposit_address: AccountId,
         user_deposit_hash: String,
     ) {
         // update user_deposit_hash to the request_id for intent

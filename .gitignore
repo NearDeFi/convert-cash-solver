@@ -13,6 +13,8 @@ cli.js
 contracts/sandbox/target
 # contract
 contracts/proxy/target
+# contract
+contracts/mock_ft/target
 
 notes
 

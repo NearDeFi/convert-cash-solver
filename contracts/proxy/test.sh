@@ -58,10 +58,10 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Build the contract
+# Build the contracts
 if [ "$SKIP_BUILD" == false ]; then
     echo "========================================="
-    echo "Building NEAR Smart Contract"
+    echo "Building NEAR Smart Contracts"
     echo "========================================="
 
     # Check if cargo-near is installed
@@ -70,9 +70,22 @@ if [ "$SKIP_BUILD" == false ]; then
         cargo install cargo-near
     fi
 
-    # Build the contract
-    echo "Building contract WASM..."
-    cargo near build
+    # Build the main proxy contract
+    echo "Building proxy contract WASM..."
+    cargo near build non-reproducible-wasm
+    
+    echo ""
+    
+    # Build the mock FT contract
+    if [ -d "../mock_ft" ]; then
+        echo "Building mock_ft contract WASM..."
+        cd ../mock_ft
+        cargo near build non-reproducible-wasm
+        cd ../proxy
+        echo "✅ mock_ft contract built successfully"
+    else
+        echo "⚠️  mock_ft contract not found at ../mock_ft (skipping)"
+    fi
     
     echo ""
 fi

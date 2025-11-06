@@ -221,7 +221,7 @@ app.get('/api/return-near', async (c) => {
 app.get('/api/test-deposit', async (c) => {
     try {
         const intentRes = await agentCall({
-            methodName: 'new_intent',
+            methodName: 'borrow_liquidity',
             args: {
                 amount: '5000000',
                 user_deposit_hash:

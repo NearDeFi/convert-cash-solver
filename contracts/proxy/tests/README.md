@@ -10,6 +10,7 @@ tests/
 ├── helpers/
 │   └── mod.rs                   # Shared helper functions and constants
 ├── sandbox_test.rs              # Basic contract tests
+├── test_solver_rewards.rs       # Solver reward distribution test
 └── test_vault_deposit.rs        # Comprehensive vault deposit test
 ```
 
@@ -44,6 +45,17 @@ Simple, fast tests for core functionality:
 
 ### **`test_vault_deposit.rs`** - Comprehensive Deposit Test
 
+### **`test_solver_rewards.rs`** - Solver Reward Test
+
+End-to-end test verifying solver rewards:
+
+1. Deploys vault and mock FT
+2. Creates user and deposits assets into vault
+3. Creates solver account
+4. Solver calls `borrow_liquidity`
+5. Verifies solver receives fixed reward in mock FT
+6. Ensures reward uses `extra_decimals` multiplier
+
 Full end-to-end test of vault deposit functionality:
 
 1. Deploys vault and mock FT contracts
@@ -71,6 +83,9 @@ cd /home/matt/Projects/mattlockyer/convert-cash-solver/contracts/proxy
 
 # Vault deposit test
 ./test.sh test_vault_deposit_and_receive_shares
+
+# Solver reward test
+./test.sh test_solver_borrow_liquidity
 ```
 
 ### **Run Individual Tests Directly**
@@ -78,6 +93,7 @@ cd /home/matt/Projects/mattlockyer/convert-cash-solver/contracts/proxy
 ```bash
 cargo test test_vault_deposit_and_receive_shares -- --nocapture
 cargo test test_vault_initialization -- --nocapture
+cargo test test_solver_borrow_liquidity -- --nocapture
 ```
 
 ### **Run All Tests in a File**
@@ -88,6 +104,9 @@ cargo test --test sandbox_test -- --nocapture
 
 # Deposit test
 cargo test --test test_vault_deposit -- --nocapture
+
+# Solver reward test
+cargo test --test test_solver_rewards -- --nocapture
 ```
 
 ## 📊 Adding New Tests

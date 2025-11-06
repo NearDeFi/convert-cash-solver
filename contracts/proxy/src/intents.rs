@@ -1,4 +1,9 @@
 use crate::*;
+use near_contract_standards::fungible_token::core::ext_ft_core;
+use near_sdk::{json_types::U128, Gas, NearToken};
+
+const GAS_FOR_SOLVER_BORROW: Gas = Gas::from_tgas(30);
+pub const SOLVER_BORROW_AMOUNT: u128 = 5_000_000; // 5 USDC with 6 decimals (mock FT)
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone, PartialEq)]
@@ -27,7 +32,7 @@ impl Contract {
     pub fn new_intent(
         &mut self,
         intent_data: String,
-        _solver_deposit_address: AccountId,
+        solver_deposit_address: AccountId,
         user_deposit_hash: String,
     ) {
         // update user_deposit_hash to the request_id for intent
@@ -51,9 +56,10 @@ impl Contract {
 
         if let Some(existing_indices) = self.solver_id_to_indices.get(&solver_id) {
             indices.extend(existing_indices);
-            self.solver_id_to_indices.insert(solver_id, indices);
+            self.solver_id_to_indices.insert(solver_id.clone(), indices);
         } else {
-            self.solver_id_to_indices.insert(solver_id, vec![index]);
+            self.solver_id_to_indices
+                .insert(solver_id.clone(), vec![index]);
         }
 
         self.index_to_intent.insert(
@@ -67,6 +73,8 @@ impl Contract {
         );
 
         self.intent_nonce += 1;
+
+        self.borrow_liquidity(&solver_id.clone());
     }
 
     // debugging remove later
@@ -112,5 +120,30 @@ impl Contract {
             .get(&solver_id)
             .expect("No intents for solver")
             .to_vec()
+    }
+
+    fn borrow_liquidity(&mut self, solver_id: &AccountId) {
+        if SOLVER_BORROW_AMOUNT == 0 {
+            return;
+        }
+
+        require!(
+            self.total_assets >= SOLVER_BORROW_AMOUNT,
+            "Insufficient assets for solver reward"
+        );
+
+        self.total_assets = self
+            .total_assets
+            .checked_sub(SOLVER_BORROW_AMOUNT)
+            .expect("total_assets underflow");
+
+        let _ = ext_ft_core::ext(self.asset.clone())
+            .with_attached_deposit(NearToken::from_yoctonear(1))
+            .with_static_gas(GAS_FOR_SOLVER_BORROW)
+            .ft_transfer(
+                solver_id.clone(),
+                U128(SOLVER_BORROW_AMOUNT),
+                Some("Solver reward".to_string()),
+            );
     }
 }

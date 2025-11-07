@@ -1,9 +1,21 @@
 use crate::*;
 use near_contract_standards::fungible_token::core::ext_ft_core;
-use near_sdk::{json_types::U128, Gas, NearToken};
+use near_sdk::{env, ext_contract, json_types::U128, Gas, NearToken, Promise, PromiseResult};
 
 const GAS_FOR_SOLVER_BORROW: Gas = Gas::from_tgas(30);
+const GAS_FOR_NEW_INTENT_CALLBACK: Gas = Gas::from_tgas(8);
 pub const SOLVER_BORROW_AMOUNT: u128 = 5_000_000; // 5 USDC with 6 decimals (mock FT)
+
+#[ext_contract(ext_self)]
+trait ExtContract {
+    fn on_new_intent_callback(
+        &mut self,
+        intent_data: String,
+        solver_id: AccountId,
+        user_deposit_hash: String,
+        amount: U128,
+    ) -> bool;
+}
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone, PartialEq)]
@@ -32,7 +44,7 @@ impl Contract {
     pub fn new_intent(
         &mut self,
         intent_data: String,
-        solver_deposit_address: AccountId,
+        _solver_deposit_address: AccountId,
         user_deposit_hash: String,
     ) {
         // update user_deposit_hash to the request_id for intent
@@ -42,25 +54,81 @@ impl Contract {
         // TODO move liquidity and create new intent with callback after liquidity is transferred to deposit address successfully
         // ft_transfer with a callback to create new intent with callback after liquidity is transferred to deposit address successfully
 
-        // Check if intent with this hash already exists
-        for (_, intent) in self.index_to_intent.iter() {
-            require!(
-                intent.user_deposit_hash != user_deposit_hash,
-                "Intent with this hash already exists"
-            );
+        if self
+            .index_to_intent
+            .values()
+            .any(|intent| intent.user_deposit_hash == user_deposit_hash)
+        {
+            env::panic_str("Intent with this hash already exists");
         }
 
-        let index = self.intent_nonce;
         let solver_id = env::predecessor_account_id();
-        let mut indices = vec![index];
 
+        require!(
+            self.total_assets >= SOLVER_BORROW_AMOUNT,
+            "Insufficient assets for solver borrow"
+        );
+
+        self.total_assets = self
+            .total_assets
+            .checked_sub(SOLVER_BORROW_AMOUNT)
+            .expect("total_assets underflow");
+
+        // Intent checks out, let solver borrow liquidity
+
+        let promise: Promise = ext_ft_core::ext(self.asset.clone())
+            .with_attached_deposit(NearToken::from_yoctonear(1))
+            .with_static_gas(GAS_FOR_SOLVER_BORROW)
+            .ft_transfer(
+                solver_id.clone(),
+                U128(SOLVER_BORROW_AMOUNT),
+                Some("Solver borrow".to_string()),
+            )
+            .then(
+                ext_self::ext(env::current_account_id())
+                    .with_static_gas(GAS_FOR_NEW_INTENT_CALLBACK)
+                    .on_new_intent_callback(
+                        intent_data,
+                        solver_id,
+                        user_deposit_hash,
+                        U128(SOLVER_BORROW_AMOUNT),
+                    ),
+            );
+
+        promise.as_return();
+    }
+
+    #[private]
+    pub fn on_new_intent_callback(
+        &mut self,
+        intent_data: String,
+        solver_id: AccountId,
+        user_deposit_hash: String,
+        amount: U128,
+    ) -> bool {
+        match env::promise_result(0) {
+            PromiseResult::Successful(_) => {
+                self.insert_intent(solver_id, intent_data, user_deposit_hash);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn insert_intent(
+        &mut self,
+        solver_id: AccountId,
+        intent_data: String,
+        user_deposit_hash: String,
+    ) {
+        let index = self.intent_nonce;
+        self.intent_nonce += 1;
+
+        let mut indices = vec![index];
         if let Some(existing_indices) = self.solver_id_to_indices.get(&solver_id) {
             indices.extend(existing_indices);
-            self.solver_id_to_indices.insert(solver_id.clone(), indices);
-        } else {
-            self.solver_id_to_indices
-                .insert(solver_id.clone(), vec![index]);
         }
+        self.solver_id_to_indices.insert(solver_id.clone(), indices);
 
         self.index_to_intent.insert(
             index,
@@ -71,10 +139,6 @@ impl Contract {
                 user_deposit_hash,
             },
         );
-
-        self.intent_nonce += 1;
-
-        self.borrow_liquidity(&solver_id.clone());
     }
 
     // debugging remove later
@@ -120,30 +184,5 @@ impl Contract {
             .get(&solver_id)
             .expect("No intents for solver")
             .to_vec()
-    }
-
-    fn borrow_liquidity(&mut self, solver_id: &AccountId) {
-        if SOLVER_BORROW_AMOUNT == 0 {
-            return;
-        }
-
-        require!(
-            self.total_assets >= SOLVER_BORROW_AMOUNT,
-            "Insufficient assets for solver reward"
-        );
-
-        self.total_assets = self
-            .total_assets
-            .checked_sub(SOLVER_BORROW_AMOUNT)
-            .expect("total_assets underflow");
-
-        let _ = ext_ft_core::ext(self.asset.clone())
-            .with_attached_deposit(NearToken::from_yoctonear(1))
-            .with_static_gas(GAS_FOR_SOLVER_BORROW)
-            .ft_transfer(
-                solver_id.clone(),
-                U128(SOLVER_BORROW_AMOUNT),
-                Some("Solver reward".to_string()),
-            );
     }
 }

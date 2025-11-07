@@ -106,7 +106,7 @@ async fn test_solver_borrow_liquidity() -> Result<(), Box<dyn std::error::Error 
     let new_intent_result = vault_contract
         .call_function("new_intent", json!({
             "intent_data": "test-intent",
-            "solver_deposit_address": solver_id,
+            "_solver_deposit_address": solver_id,
             "user_deposit_hash": "hash-123"
         }))?
         .transaction()
@@ -135,6 +135,39 @@ async fn test_solver_borrow_liquidity() -> Result<(), Box<dyn std::error::Error 
         expected_amount
     );
     assert_eq!(solver_balance_after, expected_amount);
+
+    // Fetch intents stored for the solver and ensure the new intent was recorded
+    let intents: Data<Vec<serde_json::Value>> = vault_contract
+        .call_function(
+            "get_intents_by_solver",
+            json!({
+                "solver_id": solver_id
+            }),
+        )?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+
+    println!("Solver intents: {:?}", intents.data);
+    assert!(
+        !intents.data.is_empty(),
+        "Solver should have at least one intent stored"
+    );
+
+    let latest_intent = intents
+        .data
+        .first()
+        .expect("intent list should contain the new intent");
+    assert_eq!(
+        latest_intent["user_deposit_hash"],
+        "hash-123",
+        "Intent should store the provided user deposit hash"
+    );
+    assert_eq!(
+        latest_intent["intent_data"],
+        "test-intent",
+        "Intent should store the provided intent data"
+    );
 
     println!("✅ Solver received mock FT tokens when creating a new intent");
     Ok(())

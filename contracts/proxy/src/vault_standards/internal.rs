@@ -109,9 +109,21 @@ impl Contract {
             return shares / 10u128.pow(self.extra_decimals as u32);
         }
 
-        let supply_adj = total_supply;
-        let assets_adj = self.total_assets + 1;
+        // When the vault holds no assets but still has outstanding shares,
+        // treat the available assets as zero to avoid overestimating redemptions.
+        if self.total_assets == 0 {
+            return 0;
+        }
 
-        mul_div(shares, assets_adj, supply_adj, rounding)
+        let supply_adj = total_supply;
+        let assets_adj = self.total_assets;
+        let result = mul_div(shares, assets_adj, supply_adj, rounding);
+
+        env::log_str(&format!(
+            "convert_to_assets: shares={} total_supply={} total_assets={} result={}",
+            shares, supply_adj, assets_adj, result
+        ));
+
+        result
     }
 }

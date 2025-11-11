@@ -6,6 +6,7 @@ const GAS_FOR_SOLVER_BORROW: Gas = Gas::from_tgas(30);
 const GAS_FOR_NEW_INTENT_CALLBACK: Gas = Gas::from_tgas(8);
 pub const SOLVER_BORROW_AMOUNT: u128 = 5_000_000; // 5 USDC with 6 decimals (mock FT)
 
+#[allow(dead_code)]
 #[ext_contract(ext_self)]
 trait ExtContract {
     fn on_new_intent_callback(
@@ -111,7 +112,13 @@ impl Contract {
                 self.insert_intent(solver_id, intent_data, user_deposit_hash);
                 true
             }
-            _ => false,
+            _ => {
+                self.total_assets = self
+                    .total_assets
+                    .checked_add(amount.0)
+                    .expect("total_assets overflow on borrow revert");
+                false
+            }
         }
     }
 

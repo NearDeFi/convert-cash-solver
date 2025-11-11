@@ -1,23 +1,13 @@
 use near_sdk::{
-    assert_one_yocto,
     borsh::{self, BorshDeserialize, BorshSerialize},
-    env,
-    json_types::U128,
-    near, require,
-    serde::Deserialize,
+    env, near, require,
     store::{IterableMap, IterableSet},
-    AccountId, BorshStorageKey, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue,
+    AccountId, BorshStorageKey, Gas, NearToken, PanicOnDefault, Promise,
 };
 
 use near_contract_standards::fungible_token::{
-    core::FungibleTokenCore,
-    core_impl::FungibleToken,
-    events::FtMint,
-    metadata::{FungibleTokenMetadata, FungibleTokenMetadataProvider},
-    receiver::FungibleTokenReceiver,
-    FungibleTokenResolver,
+    core_impl::FungibleToken, metadata::FungibleTokenMetadata,
 };
-use near_contract_standards::storage_management::StorageManagement;
 
 mod chainsig;
 mod intents;

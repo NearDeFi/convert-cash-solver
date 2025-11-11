@@ -1,17 +1,165 @@
-use crate::*;
-
+use crate::intents::State;
 use crate::vault_standards::events::{VaultDeposit, VaultWithdraw};
 use crate::vault_standards::mul_div::Rounding;
 use crate::vault_standards::VaultCore;
+use crate::{Contract, ContractExt};
+use near_contract_standards::fungible_token::metadata::{
+    FungibleTokenMetadata, FungibleTokenMetadataProvider,
+};
+use near_contract_standards::fungible_token::{
+    core::FungibleTokenCore, events::FtMint, receiver::FungibleTokenReceiver, FungibleTokenResolver,
+};
+use near_contract_standards::storage_management::StorageManagement;
+use near_sdk::serde::Deserialize;
+use near_sdk::{
+    assert_one_yocto, env, json_types::U128, near, require, AccountId, NearToken, PromiseOrValue,
+};
+
+#[derive(Deserialize)]
+#[serde(crate = "near_sdk::serde")]
+#[serde(rename_all = "snake_case")]
+pub enum FtTransferAction {
+    Deposit(DepositMessage),
+    Repay(LiquidityRepaymentMessage),
+}
 
 #[derive(Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct DepositMessage {
-    min_shares: Option<U128>,
-    max_shares: Option<U128>,
-    receiver_id: Option<AccountId>,
-    memo: Option<String>,
-    donate: Option<bool>,
+    pub min_shares: Option<U128>,
+    pub max_shares: Option<U128>,
+    pub receiver_id: Option<AccountId>,
+    pub memo: Option<String>,
+    pub donate: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct LiquidityRepaymentMessage {
+    pub intent_index: U128,
+}
+
+impl Contract {
+    fn handle_deposit(
+        &mut self,
+        sender_id: AccountId,
+        amount: U128,
+        parsed_msg: DepositMessage,
+    ) -> PromiseOrValue<U128> {
+        if parsed_msg.donate.unwrap_or(false) {
+            self.total_assets = self
+                .total_assets
+                .checked_add(amount.0)
+                .expect("total_assets overflow");
+
+            return PromiseOrValue::Value(U128(0));
+        }
+
+        let calculated_shares = self.convert_to_shares(amount).0;
+
+        if let Some(min_shares) = parsed_msg.min_shares {
+            if calculated_shares < min_shares.0 {
+                return PromiseOrValue::Value(amount);
+            }
+        }
+
+        let shares = if let Some(max_shares) = parsed_msg.max_shares {
+            if calculated_shares > max_shares.0 {
+                max_shares.0
+            } else {
+                calculated_shares
+            }
+        } else {
+            calculated_shares
+        };
+
+        let used_amount = self.internal_convert_to_assets(shares, Rounding::Up);
+        let unused_amount = amount
+            .0
+            .checked_sub(used_amount)
+            .expect("Overflow in unused amount calculation");
+
+        assert!(
+            used_amount > 0,
+            "No assets to deposit, shares: {}, amount: {}",
+            shares,
+            amount.0
+        );
+
+        let owner_id = parsed_msg.receiver_id.unwrap_or(sender_id.clone());
+        self.token.internal_deposit(&owner_id, shares);
+        self.total_assets = self
+            .total_assets
+            .checked_add(used_amount)
+            .expect("total_assets overflow");
+
+        FtMint {
+            owner_id: &owner_id,
+            amount: U128(shares),
+            memo: Some("Deposit"),
+        }
+        .emit();
+
+        VaultDeposit {
+            sender_id: &sender_id,
+            owner_id: &owner_id,
+            assets: U128(used_amount),
+            shares: U128(shares),
+            memo: parsed_msg.memo.as_deref(),
+        }
+        .emit();
+
+        PromiseOrValue::Value(U128(unused_amount))
+    }
+
+    fn handle_repayment(
+        &mut self,
+        sender_id: AccountId,
+        amount: U128,
+        repay_msg: LiquidityRepaymentMessage,
+    ) -> PromiseOrValue<U128> {
+        require!(amount.0 > 0, "Repayment amount must be positive");
+
+        let intent_index: u128 = repay_msg.intent_index.0;
+        let solver_indices = self
+            .solver_id_to_indices
+            .get(&sender_id)
+            .unwrap_or_else(|| env::panic_str("Solver has no intents"));
+        require!(
+            solver_indices.contains(&intent_index),
+            "Intent not owned by solver"
+        );
+
+        let mut intent = self
+            .index_to_intent
+            .get(&intent_index)
+            .unwrap_or_else(|| env::panic_str("Intent not found"))
+            .clone();
+
+        require!(
+            intent.state == State::StpLiquidityBorrowed,
+            "Intent is not in borrow state"
+        );
+
+        self.total_assets = self
+            .total_assets
+            .checked_add(amount.0)
+            .expect("total_assets overflow");
+
+        intent.state = State::StpLiquidityReturned;
+        self.index_to_intent.insert(intent_index, intent);
+
+        VaultDeposit {
+            sender_id: &sender_id,
+            owner_id: &sender_id,
+            assets: amount,
+            shares: U128(0),
+            memo: Some("Repay"),
+        }
+        .emit();
+
+        PromiseOrValue::Value(U128(0))
+    }
 }
 
 #[near]
@@ -157,81 +305,23 @@ impl FungibleTokenReceiver for Contract {
         assert_eq!(
             env::predecessor_account_id(),
             self.asset.clone(),
-            "Only the underlying asset can be deposited"
+            "Only the underlying asset can call ft_on_transfer"
         );
 
-        let parsed_msg: DepositMessage = serde_json::from_str(&msg).unwrap_or_else(|_| {
-            // Return all tokens if message parsing fails
-            env::panic_str("Failed to parse deposit message");
-        });
-
-        if parsed_msg.donate.unwrap_or(false) {
-            self.total_assets = self
-                .total_assets
-                .checked_add(amount.0)
-                .expect("total_assets overflow");
-
-            return PromiseOrValue::Value(0.into());
-        }
-
-        let calculated_shares = self.convert_to_shares(amount).0;
-
-        // Check slippage protection - if min_shares requirement can't be met, reject the deposit
-        if let Some(min_shares) = parsed_msg.min_shares {
-            if calculated_shares < min_shares.0 {
-                // Return all amount as unused (reject the entire deposit)
-                return PromiseOrValue::Value(amount);
-            }
-        }
-
-        let shares = if let Some(max_shares) = parsed_msg.max_shares {
-            if calculated_shares > max_shares.0 {
-                max_shares.0
-            } else {
-                calculated_shares
+        if let Ok(action) = serde_json::from_str::<FtTransferAction>(&msg) {
+            match action {
+                FtTransferAction::Deposit(deposit) => {
+                    self.handle_deposit(sender_id, amount, deposit)
+                }
+                FtTransferAction::Repay(repay) => self.handle_repayment(sender_id, amount, repay),
             }
         } else {
-            calculated_shares
-        };
-
-        let used_amount = self.internal_convert_to_assets(shares, Rounding::Up);
-        let unused_amount = amount
-            .0
-            .checked_sub(used_amount)
-            .expect("Overflow in unused amount calculation");
-
-        assert!(
-            used_amount > 0,
-            "No assets to deposit, shares: {}, amount: {}",
-            shares,
-            amount.0
-        );
-
-        let owner_id = parsed_msg.receiver_id.unwrap_or(sender_id.clone());
-        self.token.internal_deposit(&owner_id, shares);
-        self.total_assets = self
-            .total_assets
-            .checked_add(used_amount)
-            .expect("total_assets overflow");
-
-        FtMint {
-            owner_id: &owner_id,
-            amount: U128(shares),
-            memo: Some("Deposit"),
+            // can send a default deposit message to match vault standards
+            let deposit: DepositMessage = serde_json::from_str(&msg).unwrap_or_else(|_| {
+                env::panic_str("Invalid ft_on_transfer message");
+            });
+            self.handle_deposit(sender_id, amount, deposit)
         }
-        .emit();
-
-        // Emit VaultDeposit event
-        VaultDeposit {
-            sender_id: &sender_id,
-            owner_id: &owner_id,
-            assets: U128(used_amount),
-            shares: U128(shares),
-            memo: parsed_msg.memo.as_deref(),
-        }
-        .emit();
-
-        PromiseOrValue::Value(U128(unused_amount))
     }
 }
 

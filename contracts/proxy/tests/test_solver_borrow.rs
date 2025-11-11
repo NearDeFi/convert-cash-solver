@@ -102,8 +102,14 @@ async fn test_solver_borrow_liquidity() -> Result<(), Box<dyn std::error::Error 
 
     assert_eq!(solver_balance_before.data, "0");
 
+    let total_shares_before: Data<String> = vault_contract
+        .call_function("ft_total_supply", json!([]))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+
     // Solver creates new intent (should receive mock FT tokens)
-    let new_intent_result = vault_contract
+    let _new_intent_result = vault_contract
         .call_function("new_intent", json!({
             "intent_data": "test-intent",
             "_solver_deposit_address": solver_id,
@@ -148,7 +154,6 @@ async fn test_solver_borrow_liquidity() -> Result<(), Box<dyn std::error::Error 
         .fetch_from(&network_config)
         .await?;
 
-    println!("Solver intents: {:?}", intents.data);
     assert!(
         !intents.data.is_empty(),
         "Solver should have at least one intent stored"
@@ -158,18 +163,83 @@ async fn test_solver_borrow_liquidity() -> Result<(), Box<dyn std::error::Error 
         .data
         .first()
         .expect("intent list should contain the new intent");
-    assert_eq!(
-        latest_intent["user_deposit_hash"],
-        "hash-123",
-        "Intent should store the provided user deposit hash"
-    );
-    assert_eq!(
-        latest_intent["intent_data"],
-        "test-intent",
-        "Intent should store the provided intent data"
-    );
+    assert_eq!(latest_intent["user_deposit_hash"], "hash-123");
+    assert_eq!(latest_intent["intent_data"], "test-intent");
 
-    println!("✅ Solver received mock FT tokens when creating a new intent");
+    // Only intent so far has index 0
+    let intent_index_u128: u128 = 0;
+
+    // Give solver an extra 10% to repay with a premium
+    let premium_amount = (SOLVER_BORROW_AMOUNT * 10) / 100;
+    let total_repayment = SOLVER_BORROW_AMOUNT + premium_amount;
+
+    ft_contract
+        .call_function("ft_transfer", json!({
+            "receiver_id": solver_id,
+            "amount": premium_amount.to_string()
+        }))?
+        .transaction()
+        .deposit(NearToken::from_yoctonear(1))
+        .with_signer(genesis_account_id.clone(), genesis_signer.clone())
+        .send_to(&network_config)
+        .await?;
+
+    let total_assets_before_repay: Data<String> = vault_contract
+        .call_function("total_assets", json!([]))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+
+    // Solver repays borrowed liquidity plus premium
+    ft_contract
+        .call_function("ft_transfer_call", json!({
+            "receiver_id": vault_id,
+            "amount": total_repayment.to_string(),
+            "msg": json!({
+                "repay": {
+                    "intent_index": intent_index_u128.to_string()
+                }
+            }).to_string()
+        }))?
+        .transaction()
+        .deposit(NearToken::from_yoctonear(1))
+        .with_signer(solver_id.clone(), solver_signer.clone())
+        .send_to(&network_config)
+        .await?;
+
+    // Verify solver balance is zero
+    let solver_balance_final: Data<String> = ft_contract
+        .call_function("ft_balance_of", json!({
+            "account_id": solver_id
+        }))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+    assert_eq!(solver_balance_final.data, "0");
+    println!("✅ Solver balance is zero");
+
+    let total_shares_after: Data<String> = vault_contract
+        .call_function("ft_total_supply", json!([]))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+
+    assert_eq!(total_shares_after.data, total_shares_before.data);
+    println!("✅ total shares is the same");
+
+    // Verify contract assets increased by 10%
+    let total_assets_after_repay: Data<String> = vault_contract
+        .call_function("total_assets", json!([]))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+
+    let before = total_assets_before_repay.data.parse::<u128>().unwrap();
+    let after = total_assets_after_repay.data.parse::<u128>().unwrap();
+
+    assert_eq!(after, before + total_repayment);
+
+    println!("✅ Solver repaid liquidity with 10% premium, contract balance increased and solver balance is zero");
     Ok(())
 }
 

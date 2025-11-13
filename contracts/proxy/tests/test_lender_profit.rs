@@ -3,7 +3,6 @@ mod helpers;
 use helpers::*;
 use near_api::{Contract, Data, NearToken};
 use serde_json::json;
-use tokio::time::{sleep, Duration};
 
 #[tokio::test]
 async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -245,8 +244,6 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         }
     }
 
-    sleep(Duration::from_millis(1200)).await;
-
     let lender2_final_balance: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": lender2_id }))?
         .read_only()
@@ -284,3 +281,4 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
 
     Ok(())
 }
+

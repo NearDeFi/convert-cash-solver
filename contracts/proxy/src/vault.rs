@@ -10,10 +10,38 @@ use near_contract_standards::fungible_token::{
     core::FungibleTokenCore, events::FtMint, receiver::FungibleTokenReceiver, FungibleTokenResolver,
 };
 use near_contract_standards::storage_management::StorageManagement;
-use near_sdk::serde::Deserialize;
+use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
+use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
     assert_one_yocto, env, json_types::U128, near, require, AccountId, NearToken, PromiseOrValue,
 };
+use schemars::JsonSchema;
+
+#[derive(BorshSerialize, BorshDeserialize, Clone)]
+pub struct PendingRedemption {
+    pub owner_id: AccountId,
+    pub receiver_id: AccountId,
+    pub shares: u128,
+    pub memo: Option<String>,
+}
+
+#[derive(Serialize, JsonSchema, Clone)]
+#[serde(crate = "near_sdk::serde")]
+pub struct PendingRedemptionView {
+    pub owner_id: String,
+    pub receiver_id: String,
+    pub shares: String,
+}
+
+impl From<PendingRedemption> for PendingRedemptionView {
+    fn from(value: PendingRedemption) -> Self {
+        PendingRedemptionView {
+            owner_id: value.owner_id.to_string(),
+            receiver_id: value.receiver_id.to_string(),
+            shares: value.shares.to_string(),
+        }
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(crate = "near_sdk::serde")]
@@ -40,6 +68,71 @@ pub struct LiquidityRepaymentMessage {
 }
 
 impl Contract {
+    fn enqueue_redemption(
+        &mut self,
+        owner_id: AccountId,
+        receiver_id: AccountId,
+        shares: u128,
+        memo: Option<String>,
+    ) {
+        let entry = PendingRedemption {
+            owner_id: owner_id.clone(),
+            receiver_id: receiver_id.clone(),
+            shares,
+            memo: memo.clone(),
+        };
+        self.pending_redemptions.push(entry);
+
+        env::log_str(&format!(
+            "queued_redemption owner={} receiver={} shares={}",
+            owner_id, receiver_id, shares
+        ));
+    }
+
+    fn process_redemption_queue(&mut self) {
+        loop {
+            if self.pending_redemptions_head >= self.pending_redemptions.len() {
+                break;
+            }
+
+            let index = self.pending_redemptions_head;
+            let Some(entry) = self.pending_redemptions.get(index).cloned() else {
+                break;
+            };
+
+            if entry.shares == 0 {
+                self.pending_redemptions_head += 1;
+                continue;
+            }
+
+            let owner_balance = self.token.ft_balance_of(entry.owner_id.clone()).0;
+            if owner_balance < entry.shares {
+                env::log_str(&format!(
+                    "skipping_queued_redemption owner={} reason=insufficient_shares",
+                    entry.owner_id
+                ));
+                self.pending_redemptions_head += 1;
+                continue;
+            }
+
+            let assets = self.internal_convert_to_assets(entry.shares, Rounding::Down);
+
+            if assets == 0 || assets > self.total_assets {
+                break;
+            }
+
+            self.pending_redemptions_head += 1;
+            let promise = self.internal_execute_withdrawal(
+                entry.owner_id.clone(),
+                Some(entry.receiver_id.clone()),
+                entry.shares,
+                assets,
+                entry.memo.clone(),
+            );
+            let _ = promise;
+        }
+    }
+
     fn handle_deposit(
         &mut self,
         sender_id: AccountId,
@@ -158,6 +251,8 @@ impl Contract {
         }
         .emit();
 
+        self.process_redemption_queue();
+
         PromiseOrValue::Value(U128(0))
     }
 }
@@ -213,6 +308,24 @@ impl Contract {
     }
 }
 
+#[near]
+impl Contract {
+    pub fn get_pending_redemptions(&self) -> Vec<PendingRedemptionView> {
+        let mut result = Vec::new();
+        let len = self.pending_redemptions.len();
+        let mut index = self.pending_redemptions_head;
+
+        while index < len {
+            if let Some(entry) = self.pending_redemptions.get(index).cloned() {
+                result.push(PendingRedemptionView::from(entry));
+            }
+            index += 1;
+        }
+
+        result
+    }
+}
+
 // ===== Implement FungibleTokenVaultCore Trait =====
 #[near]
 impl VaultCore for Contract {
@@ -241,10 +354,16 @@ impl VaultCore for Contract {
         );
 
         let assets = self.internal_convert_to_assets(shares.0, Rounding::Down);
+        let receiver = receiver_id.clone().unwrap_or_else(|| owner.clone());
+
+        if assets == 0 || assets > self.total_assets {
+            self.enqueue_redemption(owner, receiver, shares.0, memo);
+            return PromiseOrValue::Value(U128(0));
+        }
 
         PromiseOrValue::Promise(self.internal_execute_withdrawal(
             owner,
-            receiver_id,
+            Some(receiver),
             shares.0,
             assets,
             memo,

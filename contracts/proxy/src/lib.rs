@@ -1,7 +1,7 @@
 use near_sdk::{
     borsh::{self, BorshDeserialize, BorshSerialize},
     env, near, require,
-    store::{IterableMap, IterableSet},
+    store::{IterableMap, IterableSet, Vector},
     AccountId, BorshStorageKey, Gas, NearToken, PanicOnDefault, Promise,
 };
 
@@ -16,6 +16,7 @@ mod vault;
 mod vault_standards;
 
 use intents::Intent;
+use vault::PendingRedemption;
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone)]
@@ -27,6 +28,7 @@ pub struct Worker {
 #[derive(BorshSerialize, BorshDeserialize, BorshStorageKey)]
 pub enum StorageKey {
     FungibleToken,
+    PendingRedemptions,
 }
 
 #[near(contract_state)]
@@ -46,6 +48,8 @@ pub struct Contract {
     pub total_assets: u128,              // Total managed assets
     pub owner: AccountId,                // Vault owner
     pub extra_decimals: u8,              // Extra decimals for shares (if any)
+    pub pending_redemptions: Vector<PendingRedemption>,
+    pub pending_redemptions_head: u32,
 }
 
 #[near]
@@ -73,6 +77,8 @@ impl Contract {
             total_assets: 0,
             owner: env::predecessor_account_id(),
             extra_decimals,
+            pending_redemptions: Vector::new(StorageKey::PendingRedemptions),
+            pending_redemptions_head: 0,
         }
     }
 

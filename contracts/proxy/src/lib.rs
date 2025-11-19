@@ -45,9 +45,10 @@ pub struct Contract {
     pub token: FungibleToken,            // Vault shares (NEP-141)
     pub metadata: FungibleTokenMetadata, // Metadata for shares
     pub asset: AccountId,                // Underlying asset (NEP-141 or NEP-245)
-    pub total_assets: u128,              // Total managed assets
-    pub owner: AccountId,                // Vault owner
-    pub extra_decimals: u8,              // Extra decimals for shares (if any)
+    pub total_assets: u128, // Currently available assets (deposits - borrows + repayments)
+    pub total_deposits: u128, // Cumulative total of all deposits (for share calculations)
+    pub owner: AccountId,   // Vault owner
+    pub extra_decimals: u8, // Extra decimals for shares (if any)
     pub pending_redemptions: Vector<PendingRedemption>,
     pub pending_redemptions_head: u32,
 }
@@ -75,6 +76,7 @@ impl Contract {
             metadata,
             asset,
             total_assets: 0,
+            total_deposits: 0,
             owner: env::predecessor_account_id(),
             extra_decimals,
             pending_redemptions: Vector::new(StorageKey::PendingRedemptions),

@@ -1,5 +1,5 @@
 use crate::*;
-use near_contract_standards::fungible_token::core::ext_ft_core;
+use near_contract_standards::fungible_token::{core::ext_ft_core, FungibleTokenCore};
 use near_sdk::{env, ext_contract, json_types::U128, Gas, NearToken, Promise, PromiseResult};
 
 const GAS_FOR_SOLVER_BORROW: Gas = Gas::from_tgas(30);
@@ -38,6 +38,10 @@ pub struct Intent {
     pub state: State,
     pub intent_data: String,
     pub user_deposit_hash: String,
+    pub borrow_amount: u128, // Amount borrowed (principal) for this Intent
+    pub borrow_total_deposits: u128, // Total deposits at time of borrow (for premium attribution)
+    pub borrow_total_supply: u128, // Total share supply at time of borrow (for premium attribution)
+    pub repayment_amount: Option<u128>, // Repayment amount (principal + premium) when repaid
 }
 
 #[near]
@@ -47,6 +51,7 @@ impl Contract {
         intent_data: String,
         _solver_deposit_address: AccountId,
         user_deposit_hash: String,
+        amount: Option<U128>,
     ) {
         // update user_deposit_hash to the request_id for intent
 
@@ -65,14 +70,17 @@ impl Contract {
 
         let solver_id = env::predecessor_account_id();
 
+        // Use provided amount or default to SOLVER_BORROW_AMOUNT
+        let borrow_amount = amount.map(|a| a.0).unwrap_or(SOLVER_BORROW_AMOUNT);
+
         require!(
-            self.total_assets >= SOLVER_BORROW_AMOUNT,
+            self.total_assets >= borrow_amount,
             "Insufficient assets for solver borrow"
         );
 
         self.total_assets = self
             .total_assets
-            .checked_sub(SOLVER_BORROW_AMOUNT)
+            .checked_sub(borrow_amount)
             .expect("total_assets underflow");
 
         // Intent checks out, let solver borrow liquidity
@@ -82,7 +90,7 @@ impl Contract {
             .with_static_gas(GAS_FOR_SOLVER_BORROW)
             .ft_transfer(
                 solver_id.clone(),
-                U128(SOLVER_BORROW_AMOUNT),
+                U128(borrow_amount),
                 Some("Solver borrow".to_string()),
             )
             .then(
@@ -92,7 +100,7 @@ impl Contract {
                         intent_data,
                         solver_id,
                         user_deposit_hash,
-                        U128(SOLVER_BORROW_AMOUNT),
+                        U128(borrow_amount),
                     ),
             );
 
@@ -109,7 +117,7 @@ impl Contract {
     ) -> bool {
         match env::promise_result(0) {
             PromiseResult::Successful(_) => {
-                self.insert_intent(solver_id, intent_data, user_deposit_hash);
+                self.insert_intent(solver_id, intent_data, user_deposit_hash, amount);
                 true
             }
             _ => {
@@ -127,6 +135,7 @@ impl Contract {
         solver_id: AccountId,
         intent_data: String,
         user_deposit_hash: String,
+        borrow_amount: U128,
     ) {
         let index = self.intent_nonce;
         self.intent_nonce += 1;
@@ -137,6 +146,10 @@ impl Contract {
         }
         self.solver_id_to_indices.insert(solver_id.clone(), indices);
 
+        // Capture deposit state at borrow time for premium attribution
+        let borrow_total_deposits = self.total_deposits;
+        let borrow_total_supply = self.token.ft_total_supply().0;
+
         self.index_to_intent.insert(
             index,
             Intent {
@@ -144,6 +157,10 @@ impl Contract {
                 state: State::StpLiquidityBorrowed,
                 intent_data,
                 user_deposit_hash,
+                borrow_amount: borrow_amount.0,
+                borrow_total_deposits,
+                borrow_total_supply,
+                repayment_amount: None,
             },
         );
     }

@@ -88,6 +88,29 @@ impl Contract {
     }
 
     pub fn internal_convert_to_shares(&self, assets: u128, rounding: Rounding) -> u128 {
+        // For redemption/withdrawal, use available assets
+        let total_supply = self.token.ft_total_supply().0;
+
+        // Handle empty vault case
+        if total_supply == 0 {
+            return 0;
+        }
+
+        // When the vault holds no assets but still has outstanding shares,
+        // return 0 to avoid overestimating shares.
+        if self.total_assets == 0 {
+            return 0;
+        }
+
+        let supply_adj = total_supply;
+        let assets_adj = self.total_assets;
+
+        mul_div(assets, supply_adj, assets_adj, rounding)
+    }
+
+    /// Convert assets to shares when depositing - uses total_deposits instead of total_assets
+    /// This ensures deposits always receive shares even when all liquidity is borrowed
+    pub fn internal_convert_to_shares_deposit(&self, assets: u128) -> u128 {
         let total_supply = self.token.ft_total_supply().0;
 
         // Handle empty vault case - return 1:1 ratio with extra decimals for first deposit
@@ -95,10 +118,25 @@ impl Contract {
             return assets * 10u128.pow(self.extra_decimals as u32);
         }
 
+        // Use total_deposits for share calculation, not total_assets
+        // This ensures new deposits receive shares based on their proportion of total deposits
+        // even when all liquidity is currently borrowed
         let supply_adj = total_supply;
-        let assets_adj = self.total_assets + 1;
+        let deposits_adj = if self.total_deposits > 0 {
+            self.total_deposits
+        } else {
+            // Fallback to total_assets if total_deposits is somehow 0
+            self.total_assets.max(1)
+        };
 
-        mul_div(assets, supply_adj, assets_adj, rounding)
+        let result = mul_div(assets, supply_adj, deposits_adj, Rounding::Down);
+
+        env::log_str(&format!(
+            "convert_to_shares_deposit: assets={} total_supply={} total_deposits={} deposits_adj={} result={}",
+            assets, supply_adj, self.total_deposits, deposits_adj, result
+        ));
+
+        result
     }
 
     pub fn internal_convert_to_assets(&self, shares: u128, rounding: Rounding) -> u128 {

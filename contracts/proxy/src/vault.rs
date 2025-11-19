@@ -1,6 +1,6 @@
 use crate::intents::State;
 use crate::vault_standards::events::{VaultDeposit, VaultWithdraw};
-use crate::vault_standards::mul_div::Rounding;
+use crate::vault_standards::mul_div::{mul_div, Rounding};
 use crate::vault_standards::VaultCore;
 use crate::{Contract, ContractExt};
 use near_contract_standards::fungible_token::metadata::{
@@ -68,6 +68,54 @@ pub struct LiquidityRepaymentMessage {
 }
 
 impl Contract {
+    /// Calculate what a lender should receive based on their shares and deposit state
+    /// Returns (deposit_value, premium_value, total_value)
+    fn calculate_lender_entitlement(&self, shares: u128) -> (u128, u128, u128) {
+        let total_supply = self.token.ft_total_supply().0;
+        if total_supply == 0 {
+            return (0, 0, 0);
+        }
+
+        // Calculate base deposit value
+        let deposit_value = if self.total_deposits > 0 {
+            mul_div(shares, self.total_deposits, total_supply, Rounding::Down)
+        } else {
+            0
+        };
+
+        // Calculate premium based on Intents where this lender had ownership at borrow time
+        let mut premium_value = 0u128;
+
+        // Iterate through all Intents to find ones where this lender had ownership
+        for (_index, intent) in self.index_to_intent.iter() {
+            if intent.state == crate::intents::State::StpLiquidityReturned {
+                // This Intent has been repaid
+                if let Some(repayment_amount) = intent.repayment_amount {
+                    let principal_borrowed = intent.borrow_amount; // Use the actual borrow amount for this Intent
+
+                    // If lender's shares represent 100% of borrow_total_supply, they get 100% of premium from this Intent
+                    if intent.borrow_total_supply > 0 && shares >= intent.borrow_total_supply {
+                        // Lender had 100% ownership at borrow time - they get full premium from this Intent
+                        let intent_premium = repayment_amount.saturating_sub(principal_borrowed);
+                        premium_value = premium_value.saturating_add(intent_premium);
+                    } else if intent.borrow_total_supply > 0 {
+                        // Lender had partial ownership - they get proportional premium
+                        let lender_share_at_borrow =
+                            mul_div(shares, 1, intent.borrow_total_supply, Rounding::Down);
+                        let intent_premium = repayment_amount.saturating_sub(principal_borrowed);
+                        let lender_premium =
+                            mul_div(lender_share_at_borrow, intent_premium, 1, Rounding::Down);
+                        premium_value = premium_value.saturating_add(lender_premium);
+                    }
+                }
+            }
+        }
+
+        let total_value = deposit_value.saturating_add(premium_value);
+
+        (deposit_value, premium_value, total_value)
+    }
+
     fn enqueue_redemption(
         &mut self,
         owner_id: AccountId,
@@ -115,18 +163,42 @@ impl Contract {
                 continue;
             }
 
+            // Calculate what the shares are worth based on available assets
             let assets = self.internal_convert_to_assets(entry.shares, Rounding::Down);
 
-            if assets == 0 || assets > self.total_assets {
+            // Calculate full redemption value (deposit + premiums based on Intent borrow state)
+            let (_deposit_value, _premium_value, full_redemption_value) =
+                self.calculate_lender_entitlement(entry.shares);
+
+            // Check if we have enough assets for the full redemption value (deposit + premium)
+            // This prevents partial redemptions - user must wait until full amount is available
+            if assets == 0 || full_redemption_value > self.total_assets {
                 break;
             }
 
             self.pending_redemptions_head += 1;
+
+            // Decrement total_deposits by the deposit value being redeemed
+            let total_supply = self.token.ft_total_supply().0;
+            let deposit_value_being_redeemed = if total_supply > 0 && self.total_deposits > 0 {
+                mul_div(
+                    entry.shares,
+                    self.total_deposits,
+                    total_supply,
+                    Rounding::Up,
+                )
+            } else {
+                0
+            };
+            self.total_deposits = self
+                .total_deposits
+                .saturating_sub(deposit_value_being_redeemed);
+
             let promise = self.internal_execute_withdrawal(
                 entry.owner_id.clone(),
                 Some(entry.receiver_id.clone()),
                 entry.shares,
-                assets,
+                full_redemption_value,
                 entry.memo.clone(),
             );
             let _ = promise;
@@ -144,11 +216,12 @@ impl Contract {
                 .total_assets
                 .checked_add(amount.0)
                 .expect("total_assets overflow");
-
+            // Donations don't count as deposits for share calculations
             return PromiseOrValue::Value(U128(0));
         }
 
-        let calculated_shares = self.convert_to_shares(amount).0;
+        // Calculate shares based on total deposits, not available assets
+        let calculated_shares = self.internal_convert_to_shares_deposit(amount.0);
 
         if let Some(min_shares) = parsed_msg.min_shares {
             if calculated_shares < min_shares.0 {
@@ -166,7 +239,24 @@ impl Contract {
             calculated_shares
         };
 
-        let used_amount = self.internal_convert_to_assets(shares, Rounding::Up);
+        // For deposits, used_amount should be based on total_deposits, not total_assets
+        // When total_assets == 0 (all borrowed), we still want to accept the deposit
+        // So we convert shares back to assets using total_deposits instead
+        let used_amount = if self.total_assets == 0 && self.total_deposits > 0 {
+            // When all assets are borrowed, calculate used_amount based on total_deposits
+            // This ensures deposits still work correctly
+            let total_supply = self.token.ft_total_supply().0;
+            if total_supply == 0 {
+                amount.0
+            } else {
+                // Convert shares to assets using total_deposits
+                mul_div(shares, self.total_deposits, total_supply, Rounding::Up)
+            }
+        } else {
+            // Normal case: use total_assets for conversion
+            self.internal_convert_to_assets(shares, Rounding::Up)
+        };
+
         let unused_amount = amount
             .0
             .checked_sub(used_amount)
@@ -174,13 +264,20 @@ impl Contract {
 
         assert!(
             used_amount > 0,
-            "No assets to deposit, shares: {}, amount: {}",
+            "No assets to deposit, shares: {}, amount: {}, total_assets: {}, total_deposits: {}",
             shares,
-            amount.0
+            amount.0,
+            self.total_assets,
+            self.total_deposits
         );
 
         let owner_id = parsed_msg.receiver_id.unwrap_or(sender_id.clone());
         self.token.internal_deposit(&owner_id, shares);
+        // Track both deposits and available assets
+        self.total_deposits = self
+            .total_deposits
+            .checked_add(used_amount)
+            .expect("total_deposits overflow");
         self.total_assets = self
             .total_assets
             .checked_add(used_amount)
@@ -240,6 +337,7 @@ impl Contract {
             .expect("total_assets overflow");
 
         intent.state = State::StpLiquidityReturned;
+        intent.repayment_amount = Some(amount.0); // Track repayment amount for premium attribution
         self.index_to_intent.insert(intent_index, intent);
 
         VaultDeposit {
@@ -353,19 +451,53 @@ impl VaultCore for Contract {
             "Exceeds max redeem"
         );
 
-        let assets = self.internal_convert_to_assets(shares.0, Rounding::Down);
         let receiver = receiver_id.clone().unwrap_or_else(|| owner.clone());
 
-        if assets == 0 || assets > self.total_assets {
+        // Calculate what the shares are worth based on available assets
+        let assets = self.internal_convert_to_assets(shares.0, Rounding::Down);
+
+        // Calculate full redemption value (deposit + premiums based on Intent borrow state)
+        let (_deposit_value, _premium_value, full_redemption_value) =
+            self.calculate_lender_entitlement(shares.0);
+
+        // Calculate base deposit value for queuing logic
+        let total_supply = self.token.ft_total_supply().0;
+        let deposit_based_assets = if total_supply == 0 {
+            0
+        } else if self.total_deposits > 0 {
+            mul_div(shares.0, self.total_deposits, total_supply, Rounding::Down)
+        } else {
+            assets
+        };
+
+        // Queue redemption if:
+        // 1. No assets to redeem
+        // 2. Available assets are insufficient for the full redemption value (deposit + premium)
+        // This prevents partial redemptions - user must wait until full amount is available
+        if assets == 0
+            || deposit_based_assets > self.total_assets
+            || full_redemption_value > self.total_assets
+        {
             self.enqueue_redemption(owner, receiver, shares.0, memo);
             return PromiseOrValue::Value(U128(0));
         }
 
+        // Decrement total_deposits by the deposit value being redeemed
+        let deposit_value_being_redeemed = if total_supply > 0 && self.total_deposits > 0 {
+            mul_div(shares.0, self.total_deposits, total_supply, Rounding::Up)
+        } else {
+            0
+        };
+        self.total_deposits = self
+            .total_deposits
+            .saturating_sub(deposit_value_being_redeemed);
+
+        // Use full_redemption_value which includes deposit + premiums based on Intent borrow state
         PromiseOrValue::Promise(self.internal_execute_withdrawal(
             owner,
             Some(receiver),
             shares.0,
-            assets,
+            full_redemption_value,
             memo,
         ))
     }
@@ -397,7 +529,10 @@ impl VaultCore for Contract {
     }
 
     fn convert_to_shares(&self, assets: U128) -> U128 {
-        U128(self.internal_convert_to_shares(assets.0, Rounding::Down))
+        // For deposits, use total_deposits; for other cases use available assets
+        // This is the default implementation for preview_deposit and max_mint
+        // which should show what shares would be received based on deposits
+        U128(self.internal_convert_to_shares_deposit(assets.0))
     }
 
     fn convert_to_assets(&self, shares: U128) -> U128 {
@@ -405,7 +540,8 @@ impl VaultCore for Contract {
     }
 
     fn preview_deposit(&self, assets: U128) -> U128 {
-        U128(self.internal_convert_to_shares(assets.0, Rounding::Down))
+        // Preview should show shares based on total deposits, not available assets
+        U128(self.internal_convert_to_shares_deposit(assets.0))
     }
 
     fn preview_withdraw(&self, assets: U128) -> U128 {

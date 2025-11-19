@@ -14,6 +14,7 @@ mod intents;
 mod near_intents;
 mod vault;
 mod vault_standards;
+mod withdraw;
 
 use intents::Intent;
 use vault::PendingRedemption;

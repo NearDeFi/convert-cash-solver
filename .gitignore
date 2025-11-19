@@ -19,3 +19,5 @@ contracts/mock_ft/target
 notes
 
 env.development.local
+
+justfile

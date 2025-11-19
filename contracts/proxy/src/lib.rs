@@ -16,6 +16,9 @@ mod vault;
 mod vault_standards;
 mod withdraw;
 
+#[cfg(test)]
+pub mod test_utils;
+
 use intents::Intent;
 use vault::PendingRedemption;
 

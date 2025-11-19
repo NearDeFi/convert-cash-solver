@@ -210,3 +210,123 @@ impl Contract {
             .to_vec()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::builders::ContractBuilder;
+    use crate::test_utils::helpers::init_ctx as init_account;
+
+    #[test]
+    #[should_panic(expected = "Insufficient assets for solver borrow")]
+    fn new_intent_fails_when_assets_insufficient() {
+        let mut contract = ContractBuilder::new("owner.test", "usdc.test")
+            .total_assets(1_000_000) // less than default borrow
+            .predecessor("solver.test")
+            .attached(1)
+            .build();
+        contract.new_intent(
+            "intent".to_string(),
+            "solver.deposit".parse().unwrap(),
+            "hash-1".to_string(),
+            None,
+        );
+    }
+
+    #[test]
+    fn new_intent_reduces_total_assets_by_requested_amount() {
+        let mut contract = ContractBuilder::new("owner.test", "usdc.test")
+            .total_assets(10_000_000)
+            .predecessor("solver.test")
+            .attached(1)
+            .build();
+        contract.new_intent(
+            "intent".to_string(),
+            "solver.deposit".parse().unwrap(),
+            "hash-2".to_string(),
+            Some(U128(3_000_000)),
+        );
+        assert_eq!(contract.total_assets, 7_000_000);
+    }
+
+    #[test]
+    fn new_intent_default_amount_uses_solver_borrow_amount() {
+        let mut contract = ContractBuilder::new("owner.test", "usdc.test")
+            .total_assets(SOLVER_BORROW_AMOUNT + 1_000_000)
+            .predecessor("solver.test")
+            .attached(1)
+            .build();
+        contract.new_intent(
+            "intent".to_string(),
+            "solver.deposit".parse().unwrap(),
+            "hash-default".to_string(),
+            None,
+        );
+        assert_eq!(contract.total_assets, 1_000_000);
+    }
+    #[test]
+    #[should_panic(expected = "Intent with this hash already exists")]
+    fn duplicate_user_deposit_hash_panics() {
+        let mut contract = ContractBuilder::new("owner.test", "usdc.test")
+            .total_assets(10_000_000)
+            .predecessor("solver.test")
+            .attached(1)
+            .build();
+        // Insert intent for solver
+        contract.insert_intent(
+            "solver.test".parse().unwrap(),
+            "intent".to_string(),
+            "dup-hash".to_string(),
+            U128(5_000_000),
+        );
+        // Now calling new_intent with same hash should panic
+        contract.new_intent(
+            "intent".to_string(),
+            "solver.deposit".parse().unwrap(),
+            "dup-hash".to_string(),
+            None,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "No intents for solver")]
+    fn update_intent_state_restricted_to_owner_solver() {
+        let mut contract = ContractBuilder::new("owner.test", "usdc.test")
+            .total_assets(10_000_000)
+            .predecessor("solver.test")
+            .attached(1)
+            .build();
+        // Insert intent for solver
+        contract.insert_intent(
+            "solver.test".parse().unwrap(),
+            "intent".to_string(),
+            "hash-x".to_string(),
+            U128(5_000_000),
+        );
+        // Now try to update from a different predecessor
+        init_account("hacker.test", 1);
+        contract.update_intent_state(0, State::SwapCompleted);
+    }
+
+    #[test]
+    fn update_intent_state_by_solver_succeeds() {
+        let mut contract = ContractBuilder::new("owner.test", "usdc.test")
+            .total_assets(10_000_000)
+            .predecessor("solver.test")
+            .attached(1)
+            .build();
+        // Insert intent for solver
+        contract.insert_intent(
+            "solver.test".parse().unwrap(),
+            "intent".to_string(),
+            "hash-y".to_string(),
+            U128(5_000_000),
+        );
+        // Update as same solver
+        init_account("solver.test", 1);
+        contract.update_intent_state(0, State::SwapCompleted);
+        let intents = contract.get_intents();
+        assert_eq!(intents.len(), 1);
+        assert!(matches!(intents[0].state, State::SwapCompleted));
+    }
+}

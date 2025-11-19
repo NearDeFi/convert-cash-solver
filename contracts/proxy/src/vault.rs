@@ -666,3 +666,265 @@ impl FungibleTokenMetadataProvider for Contract {
         self.metadata.clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::test_utils::helpers::{init_contract_ex as init_contract};
+    use near_sdk::test_utils::VMContextBuilder;
+    use near_sdk::testing_env;
+
+    #[test]
+    fn convert_to_shares_first_deposit_uses_extra_decimals() {
+        let owner = "owner.test";
+        let asset = "usdc.test";
+        let contract = init_contract(owner, asset, 3);
+        // total_supply == 0 -> first deposit path
+        let assets = U128(50_000_000); // 50 USDC @ 6 dec
+        let shares = <Contract as VaultCore>::convert_to_shares(&contract, assets).0;
+        assert_eq!(shares, 50_000_000 * 1_000);
+    }
+
+    #[test]
+    fn convert_to_assets_empty_vault_uses_inverse_extra_decimals() {
+        let owner = "owner.test";
+        let asset = "usdc.test";
+        let contract = init_contract(owner, asset, 3);
+        // total_supply == 0 -> shares / 10^extra
+        let shares = U128(1_000); // corresponds to 1 asset unit
+        let assets = <Contract as VaultCore>::convert_to_assets(&contract, shares).0;
+        assert_eq!(assets, 1);
+    }
+
+    #[test]
+    fn convert_to_assets_with_supply_and_assets() {
+        let owner = "owner.test";
+        let asset = "usdc.test";
+        let mut contract = init_contract(owner, asset, 3);
+        // Mint some shares to create supply
+        contract.token.internal_register_account(&owner.parse().unwrap());
+        contract.token.internal_deposit(&owner.parse().unwrap(), 1_000_000);
+        // Set total assets
+        contract.total_assets = 500_000;
+        let assets = <Contract as VaultCore>::convert_to_assets(&contract, U128(1_000_000)).0;
+        assert_eq!(assets, 500_000);
+    }
+
+    #[test]
+    fn convert_to_shares_deposit_with_existing_supply_and_deposits() {
+        let owner = "owner.test";
+        let asset = "usdc.test";
+        let mut contract = init_contract(owner, asset, 3);
+        // existing supply and deposits
+        contract.token.internal_register_account(&owner.parse().unwrap());
+        contract.token.internal_deposit(&owner.parse().unwrap(), 1_000_000); // supply
+        contract.total_deposits = 2_000_000;
+        let out = contract.internal_convert_to_shares_deposit(100);
+        // shares = assets * supply / deposits = 100 * 1_000_000 / 2_000_000 = 50
+        assert_eq!(out, 50);
+    }
+
+    #[test]
+    fn calculate_lender_entitlement_with_premium_full_owner() {
+        let owner = "owner.test";
+        let asset = "usdc.test";
+        let mut contract = init_contract(owner, asset, 3);
+        // Setup supply and deposits
+        contract.token.internal_register_account(&owner.parse().unwrap());
+        contract.token.internal_deposit(&owner.parse().unwrap(), 1_000_000);
+        contract.total_deposits = 1_000_000;
+
+        // Insert a repaid intent with premium: repay 550_000 for borrow 500_000
+        contract.index_to_intent.insert(
+            0,
+            crate::intents::Intent {
+                created: 0,
+                state: crate::intents::State::StpLiquidityReturned,
+                intent_data: "x".to_string(),
+                user_deposit_hash: "h".to_string(),
+                borrow_amount: 500_000,
+                borrow_total_deposits: contract.total_deposits,
+                borrow_total_supply: 1_000_000,
+                repayment_amount: Some(550_000),
+            },
+        );
+
+        let (deposit_value, premium, total) = contract.calculate_lender_entitlement(1_000_000);
+        assert_eq!(deposit_value, 1_000_000);
+        assert_eq!(premium, 50_000);
+        assert_eq!(total, 1_050_000);
+    }
+
+    #[test]
+    fn redemption_queue_breaks_without_liquidity() {
+        let owner = "owner.test";
+        let asset = "usdc.test";
+        let mut contract = init_contract(owner, asset, 3);
+        // User holds shares
+        let user: AccountId = "alice.test".parse().unwrap();
+        contract.token.internal_register_account(&user);
+        contract.token.internal_deposit(&user, 1_000);
+        // No assets available
+        contract.total_assets = 0;
+        // Some deposits to compute deposit_based_assets later
+        contract.total_deposits = 1_000;
+
+        // enqueue redemption
+        contract.enqueue_redemption(user.clone(), user.clone(), 100, None);
+        // attempt to process -> should break and not advance head
+        contract.process_redemption_queue();
+        assert_eq!(contract.pending_redemptions_head, 0);
+    }
+
+    #[test]
+    fn redemption_queue_processes_with_liquidity() {
+        let owner = "owner.test";
+        let asset = "usdc.test";
+        let mut contract = init_contract(owner, asset, 3);
+        // State for deterministic math:
+        let user: AccountId = "alice.test".parse().unwrap();
+        contract.token.internal_register_account(&user);
+        contract.token.internal_deposit(&user, 1_000); // total supply
+        contract.total_assets = 200; // available assets
+        contract.total_deposits = 1_000; // deposits for deposit_value computation
+
+        // enqueue 100 shares redemption
+        contract.enqueue_redemption(user.clone(), user.clone(), 100, None);
+        // process should advance head to 1 (one entry processed)
+        contract.process_redemption_queue();
+        assert_eq!(contract.pending_redemptions_head, 1);
+        // total_deposits should be reduced by proportional deposit value:
+        // 100 * total_deposits / total_supply = 100 * 1000 / 1000 = 100 (rounded up in code)
+        // We can't assert exact value after async effects, but it should be <= original
+        assert!(contract.total_deposits <= 900);
+    }
+
+    #[test]
+    fn handle_deposit_with_donate_true_adds_to_total_assets() {
+        let owner = "owner.test";
+        let asset = "usdc.test";
+        let mut contract = init_contract(owner, asset, 3);
+        let sender: AccountId = "alice.test".parse().unwrap();
+        let before = contract.total_assets;
+        let msg = DepositMessage {
+            min_shares: None,
+            max_shares: None,
+            receiver_id: None,
+            memo: None,
+            donate: Some(true),
+        };
+        let res = contract.handle_deposit(sender, U128(1_000), msg);
+        // donate -> returns Value(U128(0)) and increments total_assets
+        match res {
+            PromiseOrValue::Value(v) => assert_eq!(v.0, 0),
+            _ => panic!("expected Value"),
+        }
+        assert_eq!(contract.total_assets, before + 1_000);
+    }
+
+    #[test]
+    fn preview_functions_match_internal_logic() {
+        let owner = "owner.test";
+        let asset = "usdc.test";
+        let mut contract = init_contract(owner, asset, 3);
+        // create some supply/deposits
+        contract.token.internal_register_account(&owner.parse().unwrap());
+        contract.token.internal_deposit(&owner.parse().unwrap(), 1_000_000);
+        contract.total_deposits = 2_000_000;
+        contract.total_assets = 2_000_000;
+
+        let assets = U128(100);
+        // preview_deposit uses internal_convert_to_shares_deposit
+        let preview_shares = <Contract as VaultCore>::preview_deposit(&contract, assets).0;
+        assert_eq!(preview_shares, contract.internal_convert_to_shares_deposit(100));
+
+        // preview_withdraw uses internal_convert_to_shares with Rounding::Up indirectly
+        let preview_withdraw_shares = <Contract as VaultCore>::preview_withdraw(&contract, U128(100)).0;
+        let expected = contract.internal_convert_to_shares(100, Rounding::Up);
+        assert_eq!(preview_withdraw_shares, expected);
+    }
+
+    #[test]
+    fn ft_on_transfer_routes_deposit_message() {
+        let owner = "owner.test";
+        let asset = "usdc.test";
+        let mut contract = init_contract(owner, asset, 3);
+        let user: AccountId = "alice.test".parse().unwrap();
+        contract.token.internal_register_account(&user);
+        // predecessor must be underlying asset
+        let mut builder = VMContextBuilder::new();
+        builder.predecessor_account_id(asset.parse().unwrap());
+        testing_env!(builder.build());
+        let msg = serde_json::json!({ "deposit": { "receiver_id": user } }).to_string();
+        let amount = U128(1_000);
+        let _ = contract.ft_on_transfer(user.clone(), amount, msg);
+        // user should have received shares
+        let bal = contract.token.ft_balance_of(user).0;
+        assert!(bal > 0);
+        assert!(contract.total_assets >= amount.0);
+    }
+
+    #[test]
+    fn internal_execute_withdrawal_mutates_state_pre_callback() {
+        let owner = "owner.test";
+        let asset = "usdc.test";
+        let mut contract = init_contract(owner, asset, 3);
+        let owner_id: AccountId = owner.parse().unwrap();
+        // owner has shares
+        contract.token.internal_register_account(&owner_id);
+        contract.token.internal_deposit(&owner_id, 1_000);
+        // vault has assets
+        contract.total_assets = 500;
+        // call internal_execute_withdrawal (pre-callback mutations must occur)
+        let _ = contract.internal_execute_withdrawal(
+            owner_id.clone(),
+            Some(owner_id.clone()),
+            200,
+            100,
+            None,
+        );
+        // shares burned
+        assert_eq!(contract.token.ft_balance_of(owner_id.clone()).0, 800);
+        // assets decreased
+        assert_eq!(contract.total_assets, 400);
+    }
+
+    #[test]
+    fn ft_on_transfer_routes_repay_message_and_updates_intent() {
+        let owner = "owner.test";
+        let asset = "usdc.test";
+        let mut contract = init_contract(owner, asset, 3);
+        // Prepare intent owned by solver
+        let solver: AccountId = "solver.test".parse().unwrap();
+        // Insert mapping solver -> [0]
+        contract.solver_id_to_indices.insert(solver.clone(), vec![0]);
+        // Insert intent in borrow state
+        contract.index_to_intent.insert(
+            0,
+            crate::intents::Intent {
+                created: 0,
+                state: crate::intents::State::StpLiquidityBorrowed,
+                intent_data: "x".to_string(),
+                user_deposit_hash: "h".to_string(),
+                borrow_amount: 100,
+                borrow_total_deposits: 0,
+                borrow_total_supply: 0,
+                repayment_amount: None,
+            },
+        );
+        // predecessor must be the asset contract
+        let mut builder = VMContextBuilder::new();
+        builder.predecessor_account_id(asset.parse().unwrap());
+        testing_env!(builder.build());
+        // repay 100
+        let msg = serde_json::json!({ "repay": { "intent_index": "0" } }).to_string();
+        let _ = contract.ft_on_transfer(solver.clone(), U128(100), msg);
+        // total_assets increased by 100
+        assert_eq!(contract.total_assets, 100);
+        // intent updated
+        let intent = contract.index_to_intent.get(&0).unwrap();
+        assert!(matches!(intent.state, crate::intents::State::StpLiquidityReturned));
+        assert_eq!(intent.repayment_amount, Some(100));
+    }
+}

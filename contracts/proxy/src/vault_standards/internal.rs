@@ -19,6 +19,23 @@ pub trait _ExtSelf {
         assets: U128,
         memo: Option<String>,
     );
+
+    fn resolve_repayment(
+        &mut self,
+        sender_id: AccountId,
+        expected_amount: U128,
+        intent_index: U128,
+        previous_balance: U128,
+    );
+
+    fn check_ft_balance_and_resolve_repayment(
+        &mut self,
+        sender_id: AccountId,
+        expected_amount: U128,
+        intent_index: U128,
+        previous_balance: U128,
+        ft_contract: AccountId,
+    );
 }
 
 impl Contract {

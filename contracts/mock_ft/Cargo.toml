@@ -2,6 +2,7 @@
 name = "mock_ft"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/NearDeFi/convert-cash-solver"
 
 [package.metadata.near]
 wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]

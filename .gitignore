@@ -21,3 +21,4 @@ notes
 env.development.local
 
 justfile
+./contracts/proxy/justfile

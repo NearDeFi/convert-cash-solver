@@ -5,6 +5,44 @@ mod helpers;
 use helpers::*;
 use near_api::{Contract, Data};
 use serde_json::json;
+use tokio::time::{sleep, Duration};
+
+#[tokio::test]
+async fn test_mock_ft_deployment_only() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
+    let network_config = create_network_config(&sandbox);
+    let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
+
+    let total_supply = "1000000000000";
+    let ft_id = deploy_mock_ft(
+        &network_config,
+        &genesis_account_id,
+        &genesis_signer,
+        total_supply,
+    )
+    .await?;
+
+    // Give the sandbox a moment to finalize the deploy before issuing view calls.
+    sleep(Duration::from_millis(200)).await;
+
+    let ft_contract = Contract(ft_id.clone());
+    let supply: Data<String> = ft_contract
+        .call_function("ft_total_supply", json!([]))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+    assert_eq!(supply.data, total_supply);
+
+    let metadata: Data<serde_json::Value> = ft_contract
+        .call_function("ft_metadata", json!([]))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+    assert_eq!(metadata.data["symbol"], "USDC");
+    assert_eq!(metadata.data["decimals"], 6);
+
+    Ok(())
+}
 
 #[tokio::test]
 async fn test_contract_deployment() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {

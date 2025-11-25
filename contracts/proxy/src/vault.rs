@@ -803,8 +803,6 @@ mod tests {
     use crate::test_utils::helpers::init_contract_ex as init_contract;
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::testing_env;
-    use near_sdk::test_utils::testing_env_with_promise_results;
-    use near_sdk::PromiseResult;
 
     #[test]
     fn convert_to_shares_first_deposit_uses_extra_decimals() {
@@ -1037,23 +1035,15 @@ mod tests {
         testing_env!(builder.build());
         // repay 100
         let msg = serde_json::json!({ "repay": { "intent_index": "0" } }).to_string();
-        let _ = contract.ft_on_transfer(solver.clone(), U128(100), msg);
+        let result = contract.ft_on_transfer(solver.clone(), U128(100), msg);
 
-        // Simulate the asynchronous resolution of the callback with a successful promise result
-        // ft_balance_of returns a U128 serialized as a JSON string, e.g. "100"
-        let mut cb = VMContextBuilder::new();
-        // The callback #[private] requires that predecessor == current_account_id
-        cb.predecessor_account_id(owner.parse().unwrap());
-        cb.current_account_id(owner.parse().unwrap());
-        testing_env_with_promise_results(cb.build(), PromiseResult::Successful(b"\"100\"".to_vec()));
-        contract.check_ft_balance_and_resolve_repayment(
-            solver.clone(),
-            U128(100),
-            U128(0),
-            U128(0),
-            asset.parse().unwrap(),
-        );
-
+        // handle_repayment now returns PromiseOrValue::Value(U128(0)) synchronously
+        // Verify that the repayment was processed correctly
+        match result {
+            PromiseOrValue::Value(v) => assert_eq!(v.0, 0),
+            _ => panic!("expected PromiseOrValue::Value(U128(0))"),
+        }
+        
         // Now: total_assets increased and the intent updated
         assert_eq!(contract.total_assets, 100);
         let intent = contract.index_to_intent.get(&0).unwrap();

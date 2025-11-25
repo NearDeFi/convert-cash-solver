@@ -140,6 +140,7 @@ run_tests() {
         # integration tests (each file)
         local suites=(
             sandbox_test
+            test_fifo_redemption_queue
             test_lender_profit
             test_lender_redemption_queue
             test_multi_lender_redemption_queue

@@ -173,7 +173,7 @@ async fn test_lender_redemption_queue_processes_after_repay() -> Result<(), Box<
         pending_redemptions.data
     );
 
-    let premium_amount = (SOLVER_BORROW_AMOUNT * 10) / 100;
+    let premium_amount = SOLVER_BORROW_AMOUNT / 100; // 1% premium
     let total_repayment = SOLVER_BORROW_AMOUNT + premium_amount;
 
     ft_contract
@@ -207,8 +207,33 @@ async fn test_lender_redemption_queue_processes_after_repay() -> Result<(), Box<
         solver_id, total_repayment
     );
 
-    println!("Waiting for repayment transfer and queue processing...");
-    sleep(Duration::from_millis(1200)).await;
+    // Wait for tokens to be transferred
+    sleep(Duration::from_millis(2000)).await;
+    
+    // Process the redemption queue - call process_next_redemption until queue is empty
+    loop {
+        let queue_length: Data<String> = vault_contract
+            .call_function("get_pending_redemptions_length", json!([]))?
+            .read_only()
+            .fetch_from(&network_config)
+            .await?;
+        let queue_length_u32 = queue_length.data.parse::<u128>().unwrap() as u32;
+        
+        if queue_length_u32 == 0 {
+            println!("Redemption queue is empty, stopping processing");
+            break;
+        }
+        
+        println!("Processing next redemption from queue (queue length: {})", queue_length_u32);
+        vault_contract
+            .call_function("process_next_redemption", json!([]))?
+            .transaction()
+            .with_signer(solver_id.clone(), solver_signer.clone())
+            .send_to(&network_config)
+            .await?;
+        
+        sleep(Duration::from_millis(1200)).await;
+    }
 
     let lender_final_balance: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": lender_id }))?

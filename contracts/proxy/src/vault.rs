@@ -68,54 +68,6 @@ pub struct LiquidityRepaymentMessage {
 }
 
 impl Contract {
-    /// Calculate what a lender should receive based on their shares and deposit state
-    /// Returns (deposit_value, premium_value, total_value)
-    fn calculate_lender_entitlement(&self, shares: u128) -> (u128, u128, u128) {
-        let total_supply = self.token.ft_total_supply().0;
-        if total_supply == 0 {
-            return (0, 0, 0);
-        }
-
-        // Calculate base deposit value
-        let deposit_value = if self.total_deposits > 0 {
-            mul_div(shares, self.total_deposits, total_supply, Rounding::Down)
-        } else {
-            0
-        };
-
-        // Calculate premium based on Intents where this lender had ownership at borrow time
-        let mut premium_value = 0u128;
-
-        // Iterate through all Intents to find ones where this lender had ownership
-        for (_index, intent) in self.index_to_intent.iter() {
-            if intent.state == crate::intents::State::StpLiquidityReturned {
-                // This Intent has been repaid
-                if let Some(repayment_amount) = intent.repayment_amount {
-                    let principal_borrowed = intent.borrow_amount; // Use the actual borrow amount for this Intent
-
-                    // If lender's shares represent 100% of borrow_total_supply, they get 100% of premium from this Intent
-                    if intent.borrow_total_supply > 0 && shares >= intent.borrow_total_supply {
-                        // Lender had 100% ownership at borrow time - they get full premium from this Intent
-                        let intent_premium = repayment_amount.saturating_sub(principal_borrowed);
-                        premium_value = premium_value.saturating_add(intent_premium);
-                    } else if intent.borrow_total_supply > 0 {
-                        // Lender had partial ownership - they get proportional premium
-                        let lender_share_at_borrow =
-                            mul_div(shares, 1, intent.borrow_total_supply, Rounding::Down);
-                        let intent_premium = repayment_amount.saturating_sub(principal_borrowed);
-                        let lender_premium =
-                            mul_div(lender_share_at_borrow, intent_premium, 1, Rounding::Down);
-                        premium_value = premium_value.saturating_add(lender_premium);
-                    }
-                }
-            }
-        }
-
-        let total_value = deposit_value.saturating_add(premium_value);
-
-        (deposit_value, premium_value, total_value)
-    }
-
     fn enqueue_redemption(
         &mut self,
         owner_id: AccountId,
@@ -187,21 +139,16 @@ impl Contract {
             // Calculate what the shares are worth based on available assets
             let assets = self.internal_convert_to_assets(entry.shares, Rounding::Down);
 
-            // Calculate full redemption value (deposit + premiums based on Intent borrow state)
-            let (deposit_value, premium_value, full_redemption_value) =
-                self.calculate_lender_entitlement(entry.shares);
-
             env::log_str(&format!(
-                "process_redemption_queue: entry {} assets={} deposit_value={} premium_value={} full_redemption_value={} total_assets={}",
-                index, assets, deposit_value, premium_value, full_redemption_value, self.total_assets
+                "process_redemption_queue: entry {} assets={} total_assets={}",
+                index, assets, self.total_assets
             ));
 
-            // Check if we have enough assets for the full redemption value (deposit + premium)
-            // This prevents partial redemptions - user must wait until full amount is available
-            if assets == 0 || full_redemption_value > self.total_assets {
+            // Check if we have enough assets to process this redemption
+            if assets == 0 {
                 env::log_str(&format!(
-                    "process_redemption_queue: breaking - assets={} full_redemption_value={} total_assets={}",
-                    assets, full_redemption_value, self.total_assets
+                    "process_redemption_queue: breaking - assets={} total_assets={}",
+                    assets, self.total_assets
                 ));
                 break;
             }
@@ -226,14 +173,14 @@ impl Contract {
 
             env::log_str(&format!(
                 "process_redemption_queue: processing redemption for owner={} shares={} amount={}",
-                entry.owner_id, entry.shares, full_redemption_value
+                entry.owner_id, entry.shares, assets
             ));
 
             let promise = self.internal_execute_withdrawal(
                 entry.owner_id.clone(),
                 Some(entry.receiver_id.clone()),
                 entry.shares,
-                full_redemption_value,
+                assets,
                 entry.memo.clone(),
             );
             let _ = promise;
@@ -286,22 +233,19 @@ impl Contract {
             calculated_shares
         };
 
-        // For deposits, used_amount should be based on total_deposits, not total_assets
-        // When total_assets == 0 (all borrowed), we still want to accept the deposit
-        // So we convert shares back to assets using total_deposits instead
-        let used_amount = if self.total_assets == 0 && self.total_deposits > 0 {
-            // When all assets are borrowed, calculate used_amount based on total_deposits
-            // This ensures deposits still work correctly
-            let total_supply = self.token.ft_total_supply().0;
-            if total_supply == 0 {
-                amount.0
-            } else {
-                // Convert shares to assets using total_deposits
-                mul_div(shares, self.total_deposits, total_supply, Rounding::Up)
-            }
+        // For deposits, used_amount should always be based on total_deposits, not total_assets
+        // This is because shares represent ownership of deposits, not assets
+        // Premiums don't affect new deposits - they only affect redemptions
+        let total_supply = self.token.ft_total_supply().0;
+        let used_amount = if total_supply == 0 {
+            amount.0
+        } else if self.total_deposits > 0 {
+            // Convert shares to assets using total_deposits (not total_assets)
+            // This ensures deposits work correctly even when there's a premium
+            mul_div(shares, self.total_deposits, total_supply, Rounding::Up)
         } else {
-            // Normal case: use total_assets for conversion
-            self.internal_convert_to_assets(shares, Rounding::Up)
+            // No deposits yet, use the amount directly
+            amount.0
         };
 
         let unused_amount = amount
@@ -383,298 +327,154 @@ impl Contract {
             "Intent is not in borrow state"
         );
 
-        // Tokens from ft_transfer_call are not immediately available
-        // They are only transferred after ft_resolve_transfer completes in the FT contract
-        // We need to check the FT balance and retry until it increases
-        let previous_balance = self.total_assets;
-
-        env::log_str(&format!(
-            "handle_repayment: previous_balance={} expected_amount={}, checking FT balance",
-            previous_balance, amount.0
-        ));
-
-        // Make external call to FT contract to check balance
-        // This will call back to check_ft_balance_and_resolve_repayment
-        // We use an external call because self.token.ft_balance_of() might read a cached value
-        let promise =
-            near_contract_standards::fungible_token::core::ext_ft_core::ext(self.asset.clone())
-                .ft_balance_of(env::current_account_id())
-                .then(
-                    crate::vault_standards::internal::ext_self::ext(env::current_account_id())
-                        .with_static_gas(near_sdk::Gas::from_tgas(10))
-                        .check_ft_balance_and_resolve_repayment(
-                            sender_id,
-                            amount,
-                            U128(intent_index),
-                            U128(previous_balance),
-                            self.asset.clone(),
-                        ),
-                );
-
-        return PromiseOrValue::Promise(promise);
-    }
-}
-
-#[near]
-impl Contract {
-    #[private]
-    pub fn check_ft_balance_and_resolve_repayment(
-        &mut self,
-        sender_id: AccountId,
-        expected_amount: U128,
-        intent_index: U128,
-        previous_balance: U128,
-        ft_contract: AccountId,
-    ) {
-        // Get the balance from the promise result
-        // ft_balance_of returns U128 which is serialized as a JSON string
-        let current_ft_balance = match env::promise_result(0) {
-            near_sdk::PromiseResult::Successful(data) => {
-                env::log_str(&format!(
-                    "check_ft_balance_and_resolve_repayment: received promise result, data length={}",
-                    data.len()
-                ));
-                // Parse the balance from the FT contract response
-                // U128 is serialized as a JSON string, e.g., "100"
-                if let Ok(balance_str) = String::from_utf8(data) {
-                    env::log_str(&format!(
-                        "check_ft_balance_and_resolve_repayment: balance_str={}",
-                        balance_str
-                    ));
-                    if let Ok(balance) = serde_json::from_str::<U128>(&balance_str) {
-                        balance.0
-                    } else {
-                        env::log_str("check_ft_balance_and_resolve_repayment: failed to parse balance as U128, retrying");
-                        // Retry by calling ft_balance_of again
-                        near_contract_standards::fungible_token::core::ext_ft_core::ext(
-                            ft_contract.clone(),
-                        )
-                        .ft_balance_of(env::current_account_id())
-                        .then(
-                            crate::vault_standards::internal::ext_self::ext(
-                                env::current_account_id(),
-                            )
-                            .with_static_gas(near_sdk::Gas::from_tgas(10))
-                            .check_ft_balance_and_resolve_repayment(
-                                sender_id,
-                                expected_amount,
-                                intent_index,
-                                previous_balance,
-                                ft_contract,
-                            ),
-                        );
-                        return;
-                    }
-                } else {
-                    env::log_str("check_ft_balance_and_resolve_repayment: failed to parse data as UTF-8, retrying");
-                    // Retry by calling ft_balance_of again
-                    near_contract_standards::fungible_token::core::ext_ft_core::ext(
-                        ft_contract.clone(),
-                    )
-                    .ft_balance_of(env::current_account_id())
-                    .then(
-                        crate::vault_standards::internal::ext_self::ext(env::current_account_id())
-                            .with_static_gas(near_sdk::Gas::from_tgas(10))
-                            .check_ft_balance_and_resolve_repayment(
-                                sender_id,
-                                expected_amount,
-                                intent_index,
-                                previous_balance,
-                                ft_contract,
-                            ),
-                    );
-                    return;
-                }
-            }
-            near_sdk::PromiseResult::Failed => {
-                env::log_str("check_ft_balance_and_resolve_repayment: promise failed, retrying");
-                // Retry by calling ft_balance_of again
-                near_contract_standards::fungible_token::core::ext_ft_core::ext(
-                    ft_contract.clone(),
-                )
-                .ft_balance_of(env::current_account_id())
-                .then(
-                    crate::vault_standards::internal::ext_self::ext(env::current_account_id())
-                        .with_static_gas(near_sdk::Gas::from_tgas(10))
-                        .check_ft_balance_and_resolve_repayment(
-                            sender_id,
-                            expected_amount,
-                            intent_index,
-                            previous_balance,
-                            ft_contract,
-                        ),
-                );
-                return;
-            }
-        };
-
-        let expected_new_balance = previous_balance
-            .0
-            .checked_add(expected_amount.0)
+        // Add repayment amount to total_assets
+        // Note: Tokens from ft_transfer_call are transferred after ft_resolve_transfer completes,
+        // but we update total_assets here since we know the amount being transferred
+        self.total_assets = self
+            .total_assets
+            .checked_add(amount.0)
             .expect("total_assets overflow");
 
-        env::log_str(&format!(
-            "check_ft_balance_and_resolve_repayment: current_ft_balance={} previous_balance={} expected_new_balance={}",
-            current_ft_balance, previous_balance.0, expected_new_balance
-        ));
-
-        // If FT balance still hasn't increased, schedule another callback to retry
-        if current_ft_balance < expected_new_balance {
-            env::log_str(&format!(
-                "check_ft_balance_and_resolve_repayment: tokens still not available, retrying. current={} expected={}",
-                current_ft_balance, expected_new_balance
-            ));
-
-            // Retry by calling ft_balance_of again
-            near_contract_standards::fungible_token::core::ext_ft_core::ext(ft_contract.clone())
-                .ft_balance_of(env::current_account_id())
-                .then(
-                    crate::vault_standards::internal::ext_self::ext(env::current_account_id())
-                        .with_static_gas(near_sdk::Gas::from_tgas(10))
-                        .check_ft_balance_and_resolve_repayment(
-                            sender_id,
-                            expected_amount,
-                            intent_index,
-                            previous_balance,
-                            ft_contract,
-                        ),
-                );
-            return;
-        }
-
-        // Tokens are now available, proceed with repayment processing
-        env::log_str(&format!(
-            "check_ft_balance_and_resolve_repayment: tokens available, processing repayment. current_ft_balance={}",
-            current_ft_balance
-        ));
-
-        let intent_index_u128: u128 = intent_index.0;
-        let mut intent = self
-            .index_to_intent
-            .get(&intent_index_u128)
-            .unwrap_or_else(|| {
-                env::panic_str("Intent not found in check_ft_balance_and_resolve_repayment")
-            })
-            .clone();
-
-        require!(
-            intent.state == State::StpLiquidityBorrowed,
-            "Intent is not in borrow state"
-        );
-
-        // Update total_assets to match actual FT balance
-        self.total_assets = current_ft_balance;
-
         intent.state = State::StpLiquidityReturned;
-        intent.repayment_amount = Some(expected_amount.0);
-        self.index_to_intent.insert(intent_index_u128, intent);
+        intent.repayment_amount = Some(amount.0); // Track repayment amount for premium attribution
+        self.index_to_intent.insert(intent_index, intent);
 
         VaultDeposit {
             sender_id: &sender_id,
             owner_id: &sender_id,
-            assets: expected_amount,
-            shares: U128(0),
-            memo: Some("Repay (resolved)"),
-        }
-        .emit();
-
-        env::log_str(&format!(
-            "check_ft_balance_and_resolve_repayment: calling process_redemption_queue, pending_redemptions.len()={} head={}",
-            self.pending_redemptions.len(),
-            self.pending_redemptions_head
-        ));
-        self.process_redemption_queue();
-        env::log_str(&format!(
-            "check_ft_balance_and_resolve_repayment: after process_redemption_queue, total_assets={}",
-            self.total_assets
-        ));
-    }
-
-    #[private]
-    pub fn resolve_repayment(
-        &mut self,
-        sender_id: AccountId,
-        expected_amount: U128,
-        intent_index: U128,
-        previous_balance: U128,
-    ) {
-        env::log_str(&format!(
-            "resolve_repayment: sender={} expected_amount={} intent_index={} previous_balance={}",
-            sender_id, expected_amount.0, intent_index.0, previous_balance.0
-        ));
-
-        // Check actual FT balance to see if tokens are now available
-        let current_ft_balance = self.token.ft_balance_of(env::current_account_id()).0;
-        let expected_new_balance = previous_balance
-            .0
-            .checked_add(expected_amount.0)
-            .expect("total_assets overflow");
-
-        env::log_str(&format!(
-            "resolve_repayment: current_ft_balance={} expected_new_balance={}",
-            current_ft_balance, expected_new_balance
-        ));
-
-        // If FT balance still hasn't increased, schedule another callback to retry
-        if current_ft_balance < expected_new_balance {
-            env::log_str(&format!(
-                "resolve_repayment: tokens still not available, retrying. current={} expected={}",
-                current_ft_balance, expected_new_balance
-            ));
-
-            // Schedule callback to check again
-            crate::vault_standards::internal::ext_self::ext(env::current_account_id())
-                .with_static_gas(near_sdk::Gas::from_tgas(10))
-                .resolve_repayment(sender_id, expected_amount, intent_index, previous_balance);
-            return;
-        }
-
-        // Tokens are now available, proceed with repayment processing
-        env::log_str(&format!(
-            "resolve_repayment: tokens available, processing repayment. current_ft_balance={}",
-            current_ft_balance
-        ));
-
-        let intent_index_u128: u128 = intent_index.0;
-        let mut intent = self
-            .index_to_intent
-            .get(&intent_index_u128)
-            .unwrap_or_else(|| env::panic_str("Intent not found"))
-            .clone();
-
-        require!(
-            intent.state == State::StpLiquidityBorrowed,
-            "Intent is not in borrow state"
-        );
-
-        // Update total_assets to match actual FT balance
-        self.total_assets = current_ft_balance;
-
-        intent.state = State::StpLiquidityReturned;
-        intent.repayment_amount = Some(expected_amount.0); // Track repayment amount for premium attribution
-        self.index_to_intent.insert(intent_index_u128, intent);
-
-        VaultDeposit {
-            sender_id: &sender_id,
-            owner_id: &sender_id,
-            assets: expected_amount,
+            assets: amount,
             shares: U128(0),
             memo: Some("Repay"),
         }
         .emit();
 
         env::log_str(&format!(
-            "resolve_repayment: calling process_redemption_queue, pending_redemptions.len()={} head={}",
-            self.pending_redemptions.len(),
-            self.pending_redemptions_head
-        ));
-
-        self.process_redemption_queue();
-
-        env::log_str(&format!(
-            "resolve_repayment: after process_redemption_queue, total_assets={}",
+            "handle_repayment: repayment processed, total_assets={}",
             self.total_assets
         ));
+
+        PromiseOrValue::Value(U128(0))
+    }
+}
+
+#[near]
+impl Contract {
+    /// Process the next lender in the redemption queue (FIFO)
+    /// This method processes exactly one lender from the queue if liquidity is available
+    pub fn process_next_redemption(&mut self) -> bool {
+        env::log_str(&format!(
+            "process_next_redemption: start head={} len={} total_assets={}",
+            self.pending_redemptions_head,
+            self.pending_redemptions.len(),
+            self.total_assets
+        ));
+
+        // Check if queue is empty
+        if self.pending_redemptions_head >= self.pending_redemptions.len() {
+            env::log_str("process_next_redemption: queue is empty, nothing to process");
+            return false;
+        }
+
+        let index = self.pending_redemptions_head;
+        let Some(entry) = self.pending_redemptions.get(index).cloned() else {
+            env::log_str(&format!(
+                "process_next_redemption: no entry at index {}",
+                index
+            ));
+            return false;
+        };
+
+        env::log_str(&format!(
+            "process_next_redemption: processing entry {} owner={} shares={}",
+            index, entry.owner_id, entry.shares
+        ));
+
+        // Skip entries with 0 shares
+        if entry.shares == 0 {
+            env::log_str(&format!(
+                "process_next_redemption: entry {} has 0 shares, skipping",
+                index
+            ));
+            self.pending_redemptions_head += 1;
+            return true; // Processed (skipped)
+        }
+
+        // Check if owner still has sufficient shares
+        let owner_balance = self.token.ft_balance_of(entry.owner_id.clone()).0;
+        if owner_balance < entry.shares {
+            env::log_str(&format!(
+                "process_next_redemption: skipping owner={} reason=insufficient_shares balance={} shares={}",
+                entry.owner_id, owner_balance, entry.shares
+            ));
+            self.pending_redemptions_head += 1;
+            return true; // Processed (skipped)
+        }
+
+        // Calculate what the shares are worth based on available assets
+        // Premiums are already included in total_assets when solvers repay
+        let assets = self.internal_convert_to_assets(entry.shares, Rounding::Down);
+
+        env::log_str(&format!(
+            "process_next_redemption: entry {} assets={} total_assets={}",
+            index, assets, self.total_assets
+        ));
+
+        // Check if we have enough assets to process this redemption
+        if assets == 0 {
+            env::log_str(&format!(
+                "process_next_redemption: insufficient liquidity - assets={} total_assets={}",
+                assets, self.total_assets
+            ));
+            return false; // Cannot process, need to wait for more liquidity
+        }
+
+        // Advance head before processing (in case of failure, we've already marked it as processed)
+        self.pending_redemptions_head += 1;
+
+        // Decrement total_deposits by the deposit value being redeemed
+        let total_supply = self.token.ft_total_supply().0;
+        let deposit_value_being_redeemed = if total_supply > 0 && self.total_deposits > 0 {
+            mul_div(
+                entry.shares,
+                self.total_deposits,
+                total_supply,
+                Rounding::Up,
+            )
+        } else {
+            0
+        };
+        self.total_deposits = self
+            .total_deposits
+            .saturating_sub(deposit_value_being_redeemed);
+
+        env::log_str(&format!(
+            "process_next_redemption: processing redemption for owner={} shares={} amount={}",
+            entry.owner_id, entry.shares, assets
+        ));
+
+        let promise = self.internal_execute_withdrawal(
+            entry.owner_id.clone(),
+            Some(entry.receiver_id.clone()),
+            entry.shares,
+            assets,
+            entry.memo.clone(),
+        );
+        let _ = promise;
+
+        env::log_str(&format!(
+            "process_next_redemption: after withdrawal total_assets={}",
+            self.total_assets
+        ));
+
+        true // Successfully processed
+    }
+
+    /// Get the length of the pending redemption queue (remaining items)
+    pub fn get_pending_redemptions_length(&self) -> U128 {
+        let len = self.pending_redemptions.len();
+        let head = self.pending_redemptions_head;
+        let remaining = if len >= head { len - head } else { 0 };
+        U128(remaining as u128)
     }
 
     #[private]
@@ -776,33 +576,24 @@ impl VaultCore for Contract {
         // Calculate what the shares are worth based on available assets
         let assets = self.internal_convert_to_assets(shares.0, Rounding::Down);
 
-        // Calculate full redemption value (deposit + premiums based on Intent borrow state)
-        let (_deposit_value, _premium_value, full_redemption_value) =
-            self.calculate_lender_entitlement(shares.0);
-
-        // Calculate base deposit value for queuing logic
+        // Calculate the lender's deposit value (what they originally deposited)
         let total_supply = self.token.ft_total_supply().0;
-        let deposit_based_assets = if total_supply == 0 {
-            0
-        } else if self.total_deposits > 0 {
+        let deposit_value = if total_supply > 0 && self.total_deposits > 0 {
             mul_div(shares.0, self.total_deposits, total_supply, Rounding::Down)
         } else {
-            assets
+            0
         };
 
-        // Queue redemption if:
-        // 1. No assets to redeem
-        // 2. Available assets are insufficient for the full redemption value (deposit + premium)
-        // This prevents partial redemptions - user must wait until full amount is available
-        if assets == 0
-            || deposit_based_assets > self.total_assets
-            || full_redemption_value > self.total_assets
-        {
+        // Queue redemption if there are not enough assets to repay the lender their deposit value
+        // This happens when liquidity is borrowed and hasn't been repaid yet
+        // Premiums will be included in total_assets when solvers repay
+        if assets == 0 || assets < deposit_value {
             self.enqueue_redemption(owner, receiver, shares.0, memo);
             return PromiseOrValue::Value(U128(0));
         }
 
         // Decrement total_deposits by the deposit value being redeemed
+        let total_supply = self.token.ft_total_supply().0;
         let deposit_value_being_redeemed = if total_supply > 0 && self.total_deposits > 0 {
             mul_div(shares.0, self.total_deposits, total_supply, Rounding::Up)
         } else {
@@ -812,12 +603,13 @@ impl VaultCore for Contract {
             .total_deposits
             .saturating_sub(deposit_value_being_redeemed);
 
-        // Use full_redemption_value which includes deposit + premiums based on Intent borrow state
+        // Pay back assets based on the lender's share amount and total assets available
+        // Premiums are already included in total_assets when solvers repay
         PromiseOrValue::Promise(self.internal_execute_withdrawal(
             owner,
             Some(receiver),
             shares.0,
-            full_redemption_value,
+            assets,
             memo,
         ))
     }
@@ -1008,7 +800,7 @@ impl FungibleTokenMetadataProvider for Contract {
 mod tests {
 
     use super::*;
-    use crate::test_utils::helpers::{init_contract_ex as init_contract};
+    use crate::test_utils::helpers::init_contract_ex as init_contract;
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::testing_env;
 
@@ -1040,8 +832,12 @@ mod tests {
         let asset = "usdc.test";
         let mut contract = init_contract(owner, asset, 3);
         // Mint some shares to create supply
-        contract.token.internal_register_account(&owner.parse().unwrap());
-        contract.token.internal_deposit(&owner.parse().unwrap(), 1_000_000);
+        contract
+            .token
+            .internal_register_account(&owner.parse().unwrap());
+        contract
+            .token
+            .internal_deposit(&owner.parse().unwrap(), 1_000_000);
         // Set total assets
         contract.total_assets = 500_000;
         let assets = <Contract as VaultCore>::convert_to_assets(&contract, U128(1_000_000)).0;
@@ -1054,43 +850,16 @@ mod tests {
         let asset = "usdc.test";
         let mut contract = init_contract(owner, asset, 3);
         // existing supply and deposits
-        contract.token.internal_register_account(&owner.parse().unwrap());
-        contract.token.internal_deposit(&owner.parse().unwrap(), 1_000_000); // supply
+        contract
+            .token
+            .internal_register_account(&owner.parse().unwrap());
+        contract
+            .token
+            .internal_deposit(&owner.parse().unwrap(), 1_000_000); // supply
         contract.total_deposits = 2_000_000;
         let out = contract.internal_convert_to_shares_deposit(100);
         // shares = assets * supply / deposits = 100 * 1_000_000 / 2_000_000 = 50
         assert_eq!(out, 50);
-    }
-
-    #[test]
-    fn calculate_lender_entitlement_with_premium_full_owner() {
-        let owner = "owner.test";
-        let asset = "usdc.test";
-        let mut contract = init_contract(owner, asset, 3);
-        // Setup supply and deposits
-        contract.token.internal_register_account(&owner.parse().unwrap());
-        contract.token.internal_deposit(&owner.parse().unwrap(), 1_000_000);
-        contract.total_deposits = 1_000_000;
-
-        // Insert a repaid intent with premium: repay 550_000 for borrow 500_000
-        contract.index_to_intent.insert(
-            0,
-            crate::intents::Intent {
-                created: 0,
-                state: crate::intents::State::StpLiquidityReturned,
-                intent_data: "x".to_string(),
-                user_deposit_hash: "h".to_string(),
-                borrow_amount: 500_000,
-                borrow_total_deposits: contract.total_deposits,
-                borrow_total_supply: 1_000_000,
-                repayment_amount: Some(550_000),
-            },
-        );
-
-        let (deposit_value, premium, total) = contract.calculate_lender_entitlement(1_000_000);
-        assert_eq!(deposit_value, 1_000_000);
-        assert_eq!(premium, 50_000);
-        assert_eq!(total, 1_050_000);
     }
 
     #[test]
@@ -1166,18 +935,26 @@ mod tests {
         let asset = "usdc.test";
         let mut contract = init_contract(owner, asset, 3);
         // create some supply/deposits
-        contract.token.internal_register_account(&owner.parse().unwrap());
-        contract.token.internal_deposit(&owner.parse().unwrap(), 1_000_000);
+        contract
+            .token
+            .internal_register_account(&owner.parse().unwrap());
+        contract
+            .token
+            .internal_deposit(&owner.parse().unwrap(), 1_000_000);
         contract.total_deposits = 2_000_000;
         contract.total_assets = 2_000_000;
 
         let assets = U128(100);
         // preview_deposit uses internal_convert_to_shares_deposit
         let preview_shares = <Contract as VaultCore>::preview_deposit(&contract, assets).0;
-        assert_eq!(preview_shares, contract.internal_convert_to_shares_deposit(100));
+        assert_eq!(
+            preview_shares,
+            contract.internal_convert_to_shares_deposit(100)
+        );
 
         // preview_withdraw uses internal_convert_to_shares with Rounding::Up indirectly
-        let preview_withdraw_shares = <Contract as VaultCore>::preview_withdraw(&contract, U128(100)).0;
+        let preview_withdraw_shares =
+            <Contract as VaultCore>::preview_withdraw(&contract, U128(100)).0;
         let expected = contract.internal_convert_to_shares(100, Rounding::Up);
         assert_eq!(preview_withdraw_shares, expected);
     }
@@ -1235,7 +1012,9 @@ mod tests {
         // Prepare intent owned by solver
         let solver: AccountId = "solver.test".parse().unwrap();
         // Insert mapping solver -> [0]
-        contract.solver_id_to_indices.insert(solver.clone(), vec![0]);
+        contract
+            .solver_id_to_indices
+            .insert(solver.clone(), vec![0]);
         // Insert intent in borrow state
         contract.index_to_intent.insert(
             0,
@@ -1261,7 +1040,10 @@ mod tests {
         assert_eq!(contract.total_assets, 100);
         // intent updated
         let intent = contract.index_to_intent.get(&0).unwrap();
-        assert!(matches!(intent.state, crate::intents::State::StpLiquidityReturned));
+        assert!(matches!(
+            intent.state,
+            crate::intents::State::StpLiquidityReturned
+        ));
         assert_eq!(intent.repayment_amount, Some(100));
     }
 }

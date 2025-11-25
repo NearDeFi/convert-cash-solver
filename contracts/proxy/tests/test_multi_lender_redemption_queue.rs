@@ -242,9 +242,9 @@ async fn test_multi_lender_redemption_queue_with_premiums() -> Result<(), Box<dy
         assert_eq!(pending_redemptions_after_l1.data.len(), 1, "Lender1 should be queued for remaining shares");
     }
 
-    // Step 5: Solver repays with premium 10%
-    println!("\n--- Step 5: Solver repays with 10% premium ---");
-    let premium1 = (SOLVER_BORROW_AMOUNT * 10) / 100;
+    // Step 5: Solver repays with premium 1%
+    println!("\n--- Step 5: Solver repays with 1% premium ---");
+    let premium1 = SOLVER_BORROW_AMOUNT / 100; // 1% premium
     let total_repayment1 = SOLVER_BORROW_AMOUNT + premium1;
     println!("Premium: {}, Total repayment: {}", premium1, total_repayment1);
 
@@ -271,12 +271,38 @@ async fn test_multi_lender_redemption_queue_with_premiums() -> Result<(), Box<dy
         .with_signer(solver_id.clone(), solver_signer.clone())
         .send_to(&network_config)
         .await?;
-    println!("Solver repaid {} (principal + 10% premium)", total_repayment1);
+    println!("Solver repaid {} (principal + 1% premium)", total_repayment1);
 
-    sleep(Duration::from_millis(1200)).await;
+    // Wait for tokens to be transferred
+    sleep(Duration::from_millis(2000)).await;
+    
+    // Process the redemption queue - call process_next_redemption until queue is empty
+    loop {
+        let queue_length: Data<String> = vault_contract
+            .call_function("get_pending_redemptions_length", json!([]))?
+            .read_only()
+            .fetch_from(&network_config)
+            .await?;
+        let queue_length_u32 = queue_length.data.parse::<u128>().unwrap() as u32;
+        
+        if queue_length_u32 == 0 {
+            println!("Redemption queue is empty, stopping processing");
+            break;
+        }
+        
+        println!("Processing next redemption from queue (queue length: {})", queue_length_u32);
+        vault_contract
+            .call_function("process_next_redemption", json!([]))?
+            .transaction()
+            .with_signer(solver_id.clone(), solver_signer.clone())
+            .send_to(&network_config)
+            .await?;
+        
+        sleep(Duration::from_millis(1200)).await;
+    }
 
-    // Step 6: Lender 1 is paid out their deposit + premium 10%
-    println!("\n--- Step 6: Verify Lender 1 received deposit + 10% premium ---");
+    // Step 6: Lender 1 is paid out their deposit + premium 1%
+    println!("\n--- Step 6: Verify Lender 1 received deposit + 1% premium ---");
     let lender1_balance_after_repay1: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": lender1_id }))?
         .read_only()
@@ -284,7 +310,7 @@ async fn test_multi_lender_redemption_queue_with_premiums() -> Result<(), Box<dy
         .await?;
     let lender1_balance_u128 = lender1_balance_after_repay1.data.parse::<u128>().unwrap();
     // Lender1 should receive their deposit + full premium from the first solver borrow
-    // Since lender1 was the only lender when solver 1 borrowed, they get 100% of the premium
+    // Since lender1 was the only lender when solver 1 borrowed, they get 100% of the 1% premium
     // deposit (5000000) + premium (500000) = 5500000
     let lender1_expected = lender1_deposit + premium1;
     println!("Lender1 balance: {} (expected: {}, deposit: {}, premium: {})", 
@@ -376,7 +402,7 @@ async fn test_multi_lender_redemption_queue_with_premiums() -> Result<(), Box<dy
 
     // Step 9: Solver repays with premium 5%
     println!("\n--- Step 9: Solver repays with 5% premium ---");
-    let premium2 = (solver2_borrow_amount * 5) / 100;
+    let premium2 = solver2_borrow_amount / 100; // 1% premium
     let total_repayment2 = solver2_borrow_amount + premium2;
     println!("Premium: {}, Total repayment: {}", premium2, total_repayment2);
 
@@ -405,7 +431,33 @@ async fn test_multi_lender_redemption_queue_with_premiums() -> Result<(), Box<dy
         .await?;
     println!("Solver repaid {} (principal + 5% premium)", total_repayment2);
 
-    sleep(Duration::from_millis(1200)).await;
+    // Wait for tokens to be transferred
+    sleep(Duration::from_millis(2000)).await;
+    
+    // Process the redemption queue - call process_next_redemption until queue is empty
+    loop {
+        let queue_length: Data<String> = vault_contract
+            .call_function("get_pending_redemptions_length", json!([]))?
+            .read_only()
+            .fetch_from(&network_config)
+            .await?;
+        let queue_length_u32 = queue_length.data.parse::<u128>().unwrap() as u32;
+        
+        if queue_length_u32 == 0 {
+            println!("Redemption queue is empty, stopping processing");
+            break;
+        }
+        
+        println!("Processing next redemption from queue (queue length: {})", queue_length_u32);
+        vault_contract
+            .call_function("process_next_redemption", json!([]))?
+            .transaction()
+            .with_signer(solver_id.clone(), solver_signer.clone())
+            .send_to(&network_config)
+            .await?;
+        
+        sleep(Duration::from_millis(1200)).await;
+    }
 
     // Check pending redemptions and total assets after repayment
     let pending_redemptions_after_repay2_before_check: Data<Vec<serde_json::Value>> = vault_contract
@@ -440,8 +492,8 @@ async fn test_multi_lender_redemption_queue_with_premiums() -> Result<(), Box<dy
         println!("Lender2's {} shares convert to {} assets", lender2_shares_check_u128, lender2_convert_to_assets.data);
     }
 
-    // Step 10: Lender 2 is paid out original deposit + premium of 5%
-    println!("\n--- Step 10: Verify Lender 2 received deposit + 5% premium ---");
+    // Step 10: Lender 2 is paid out original deposit + premium of 1%
+    println!("\n--- Step 10: Verify Lender 2 received deposit + 1% premium ---");
     let lender2_balance_after_repay2: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": lender2_id }))?
         .read_only()
@@ -481,7 +533,7 @@ async fn test_multi_lender_redemption_queue_with_premiums() -> Result<(), Box<dy
     assert_eq!(total_shares_final.data, "0");
 
     println!("\n=== Test Summary ===");
-    println!("Lender1: deposited {}, received {} (deposit + 10% premium)", lender1_deposit, lender1_balance_u128);
+    println!("Lender1: deposited {}, received {} (deposit + 1% premium)", lender1_deposit, lender1_balance_u128);
     println!("Lender2: deposited {}, received {} (deposit{} premium)", lender2_deposit, lender2_balance_u128, if lender2_shares_u128 > 0 { " + 5%" } else { ", no" });
     println!("No remaining shares or liquidity - test passed!");
 

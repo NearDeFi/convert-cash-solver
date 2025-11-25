@@ -27,15 +27,6 @@ pub trait _ExtSelf {
         intent_index: U128,
         previous_balance: U128,
     );
-
-    fn check_ft_balance_and_resolve_repayment(
-        &mut self,
-        sender_id: AccountId,
-        expected_amount: U128,
-        intent_index: U128,
-        previous_balance: U128,
-        ft_contract: AccountId,
-    );
 }
 
 impl Contract {
@@ -125,8 +116,9 @@ impl Contract {
         mul_div(assets, supply_adj, assets_adj, rounding)
     }
 
-    /// Convert assets to shares when depositing - uses total_deposits instead of total_assets
-    /// This ensures deposits always receive shares even when all liquidity is borrowed
+    /// Convert assets to shares when depositing
+    /// Price per share = (total_deposits - expected_premiums) / total_shares
+    /// So shares = assets / price_per_share = (assets * total_shares) / (total_deposits - expected_premiums)
     pub fn internal_convert_to_shares_deposit(&self, assets: u128) -> u128 {
         let total_supply = self.token.ft_total_supply().0;
 
@@ -135,23 +127,36 @@ impl Contract {
             return assets * 10u128.pow(self.extra_decimals as u32);
         }
 
-        // Use total_deposits for share calculation, not total_assets
-        // This ensures new deposits receive shares based on their proportion of total deposits
-        // even when all liquidity is currently borrowed
-        let supply_adj = total_supply;
-        let deposits_adj = if self.total_deposits > 0 {
-            self.total_deposits
-        } else {
-            // Fallback to total_assets if total_deposits is somehow 0
-            self.total_assets.max(1)
-        };
+        // Calculate expected premiums from active borrows (1% of borrowed amounts)
+        let mut expected_premiums = 0u128;
+        for (_index, intent) in self.index_to_intent.iter() {
+            let expected_premium = intent.borrow_amount / 100; // 1% premium
+            expected_premiums = expected_premiums
+                .checked_add(expected_premium)
+                .expect("expected_premiums overflow");
+        }
 
-        let result = mul_div(assets, supply_adj, deposits_adj, Rounding::Down);
+        // Subtract unscaled expected_premiums from denominator
+        let denominator = self
+            .total_deposits
+            .checked_sub(expected_premiums)
+            .expect("denominator underflow")
+            .max(1);
+
+        // Debug: Calculate intermediate values to understand why result might be 0
+        let numerator = assets
+            .checked_mul(total_supply)
+            .expect("numerator overflow");
+        let mul_div_result = mul_div(assets, total_supply, denominator, Rounding::Down);
 
         env::log_str(&format!(
-            "convert_to_shares_deposit: assets={} total_supply={} total_deposits={} deposits_adj={} result={}",
-            assets, supply_adj, self.total_deposits, deposits_adj, result
+            "convert_to_shares_deposit DEBUG: assets={} total_supply={} total_deposits={} expected_premiums={} denominator={} numerator={} mul_div_result={}",
+            assets, total_supply, self.total_deposits, expected_premiums, denominator, numerator, mul_div_result
         ));
+
+        let result = mul_div_result;
+
+        // TODO run multi_lender_redemption_queue test to see why Lender2 is getting 0 shares
 
         result
     }
@@ -170,6 +175,7 @@ impl Contract {
             return 0;
         }
 
+        // Redemption should be based on total_assets (which includes premium after solver repays)
         let supply_adj = total_supply;
         let assets_adj = self.total_assets;
         let result = mul_div(shares, assets_adj, supply_adj, rounding);

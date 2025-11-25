@@ -169,8 +169,8 @@ async fn test_solver_borrow_liquidity() -> Result<(), Box<dyn std::error::Error 
     // Only intent so far has index 0
     let intent_index_u128: u128 = 0;
 
-    // Give solver an extra 10% to repay with a premium
-    let premium_amount = (SOLVER_BORROW_AMOUNT * 10) / 100;
+    // Give solver an extra 1% to repay with a premium
+    let premium_amount = SOLVER_BORROW_AMOUNT / 100; // 1% premium
     let total_repayment = SOLVER_BORROW_AMOUNT + premium_amount;
 
     ft_contract
@@ -239,7 +239,7 @@ async fn test_solver_borrow_liquidity() -> Result<(), Box<dyn std::error::Error 
 
     assert_eq!(after, before + total_repayment);
 
-    println!("✅ Solver repaid liquidity with 10% premium, contract balance increased and solver balance is zero");
+    println!("✅ Solver repaid liquidity with 1% premium, contract balance increased and solver balance is zero");
     Ok(())
 }
 

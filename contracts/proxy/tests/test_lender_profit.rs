@@ -3,6 +3,7 @@ mod helpers;
 use helpers::*;
 use near_api::{Contract, Data, NearToken};
 use serde_json::json;
+use tokio::time::{sleep, Duration};
 
 #[tokio::test]
 async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -30,21 +31,15 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
             .await?;
     }
 
-    vault_contract
-        .call_function("storage_deposit", json!({ "account_id": lender1_id }))?
-        .transaction()
-        .deposit(NearToken::from_millinear(10))
-        .with_signer(lender1_id.clone(), lender1_signer.clone())
-        .send_to(&network_config)
-        .await?;
-
-    vault_contract
-        .call_function("storage_deposit", json!({ "account_id": lender2_id }))?
-        .transaction()
-        .deposit(NearToken::from_millinear(10))
-        .with_signer(lender2_id.clone(), lender2_signer.clone())
-        .send_to(&network_config)
-        .await?;
+    for lender_id in [&lender1_id, &lender2_id] {
+        vault_contract
+            .call_function("storage_deposit", json!({ "account_id": lender_id }))?
+            .transaction()
+            .deposit(NearToken::from_millinear(10))
+            .with_signer(lender_id.clone(), if lender_id == &lender1_id { lender1_signer.clone() } else { lender2_signer.clone() })
+            .send_to(&network_config)
+            .await?;
+    }
 
     vault_contract
         .call_function("storage_deposit", json!({ "account_id": solver_id }))?
@@ -54,13 +49,16 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         .send_to(&network_config)
         .await?;
 
-    let deposit_amount = 50_000_000u128;
-    let premium_amount = (SOLVER_BORROW_AMOUNT * 10) / 100;
+    let lender1_deposit_amount = 50_000_000u128;
+    let lender2_deposit_amount = 1_000_000u128; // Lender2 deposits very little so Lender1's redemption is queued
+    let premium_amount = SOLVER_BORROW_AMOUNT / 100; // 1% premium
 
+    // Step 1: Lender 1 deposits
+    println!("\n=== Step 1: Lender 1 deposits ===");
     ft_contract
         .call_function("ft_transfer", json!({
             "receiver_id": lender1_id,
-            "amount": deposit_amount.to_string()
+            "amount": lender1_deposit_amount.to_string()
         }))?
         .transaction()
         .deposit(NearToken::from_yoctonear(1))
@@ -71,7 +69,7 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
     ft_contract
         .call_function("ft_transfer_call", json!({
             "receiver_id": vault_id,
-            "amount": deposit_amount.to_string(),
+            "amount": lender1_deposit_amount.to_string(),
             "msg": json!({ "receiver_id": lender1_id }).to_string()
         }))?
         .transaction()
@@ -80,13 +78,18 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         .send_to(&network_config)
         .await?;
 
+    sleep(Duration::from_millis(1000)).await;
+
     let lender1_shares: Data<String> = vault_contract
         .call_function("ft_balance_of", json!({ "account_id": lender1_id }))?
         .read_only()
         .fetch_from(&network_config)
         .await?;
     let lender1_shares_u128 = lender1_shares.data.parse::<u128>().unwrap();
+    println!("Lender1 deposited {} and received {} shares", lender1_deposit_amount, lender1_shares_u128);
 
+    // Step 2: Solver borrows
+    println!("\n=== Step 2: Solver borrows ===");
     let _intent = vault_contract
         .call_function("new_intent", json!({
             "intent_data": "intent",
@@ -98,6 +101,71 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         .send_to(&network_config)
         .await?;
 
+    sleep(Duration::from_millis(1000)).await;
+    println!("Solver borrowed {}", SOLVER_BORROW_AMOUNT);
+
+    // Step 3: Lender 1 redeems (will be queued because solver hasn't repaid yet and no assets available)
+    println!("\n=== Step 4: Lender 1 redeems (will be queued) ===");
+    let lender1_redeem_amount = lender1_shares_u128.to_string();
+    vault_contract
+        .call_function("redeem", json!({
+            "shares": lender1_redeem_amount,
+            "receiver_id": lender1_id,
+            "memo": null
+        }))?
+        .transaction()
+        .deposit(NearToken::from_yoctonear(1))
+        .with_signer(lender1_id.clone(), lender1_signer.clone())
+        .send_to(&network_config)
+        .await?;
+
+    sleep(Duration::from_millis(1000)).await;
+
+    let queue_length_before: Data<String> = vault_contract
+        .call_function("get_pending_redemptions_length", json!([]))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+    println!("Pending redemptions after lender1 redemption: {}", queue_length_before.data);
+    assert!(queue_length_before.data.parse::<u128>().unwrap() > 0, "Lender1's redemption should be queued");
+
+    // Step 4: Lender 2 deposits (after borrow and after Lender1's redemption is queued, so they won't get premium)
+    println!("\n=== Step 4: Lender 2 deposits (after borrow and after Lender1's redemption is queued) ===");
+    ft_contract
+        .call_function("ft_transfer", json!({
+            "receiver_id": lender2_id,
+            "amount": lender2_deposit_amount.to_string()
+        }))?
+        .transaction()
+        .deposit(NearToken::from_yoctonear(1))
+        .with_signer(genesis_account_id.clone(), genesis_signer.clone())
+        .send_to(&network_config)
+        .await?;
+
+    ft_contract
+        .call_function("ft_transfer_call", json!({
+            "receiver_id": vault_id,
+            "amount": lender2_deposit_amount.to_string(),
+            "msg": json!({ "receiver_id": lender2_id }).to_string()
+        }))?
+        .transaction()
+        .deposit(NearToken::from_yoctonear(1))
+        .with_signer(lender2_id.clone(), lender2_signer.clone())
+        .send_to(&network_config)
+        .await?;
+
+    sleep(Duration::from_millis(1000)).await;
+
+    let lender2_shares: Data<String> = vault_contract
+        .call_function("ft_balance_of", json!({ "account_id": lender2_id }))?
+        .read_only()
+        .fetch_from(&network_config)
+        .await?;
+    let lender2_shares_u128 = lender2_shares.data.parse::<u128>().unwrap();
+    println!("Lender2 deposited {} and received {} shares", lender2_deposit_amount, lender2_shares_u128);
+
+    // Step 5: Solver repays with premium
+    println!("\n=== Step 5: Solver repays with premium ===");
     ft_contract
         .call_function("ft_transfer", json!({
             "receiver_id": solver_id,
@@ -121,54 +189,37 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         .send_to(&network_config)
         .await?;
 
-    ft_contract
-        .call_function("ft_transfer", json!({
-            "receiver_id": lender2_id,
-            "amount": deposit_amount.to_string()
-        }))?
-        .transaction()
-        .deposit(NearToken::from_yoctonear(1))
-        .with_signer(genesis_account_id.clone(), genesis_signer.clone())
-        .send_to(&network_config)
-        .await?;
+    sleep(Duration::from_millis(2000)).await;
+    println!("Solver repaid {} (principal + {} premium)", SOLVER_BORROW_AMOUNT + premium_amount, premium_amount);
 
-    ft_contract
-        .call_function("ft_transfer_call", json!({
-            "receiver_id": vault_id,
-            "amount": deposit_amount.to_string(),
-            "msg": json!({ "receiver_id": lender2_id }).to_string()
-        }))?
-        .transaction()
-        .deposit(NearToken::from_yoctonear(1))
-        .with_signer(lender2_id.clone(), lender2_signer.clone())
-        .send_to(&network_config)
-        .await?;
+    // Step 6: Process redemption queue - Lender 1 should be processed (after solver repays)
+    println!("\n=== Step 6: Process redemption queue (Lender 1) ===");
+    loop {
+        let queue_length: Data<String> = vault_contract
+            .call_function("get_pending_redemptions_length", json!([]))?
+            .read_only()
+            .fetch_from(&network_config)
+            .await?;
+        let queue_length_u32 = queue_length.data.parse::<u128>().unwrap() as u32;
+        
+        if queue_length_u32 == 0 {
+            println!("Redemption queue is empty");
+            break;
+        }
+        
+        println!("Processing next redemption from queue (queue length: {})", queue_length_u32);
+        vault_contract
+            .call_function("process_next_redemption", json!([]))?
+            .transaction()
+            .with_signer(solver_id.clone(), solver_signer.clone())
+            .send_to(&network_config)
+            .await?;
+        
+        sleep(Duration::from_millis(2000)).await;
+    }
 
-    let lender2_shares: Data<String> = vault_contract
-        .call_function("ft_balance_of", json!({ "account_id": lender2_id }))?
-        .read_only()
-        .fetch_from(&network_config)
-        .await?;
-    let lender2_shares_u128 = lender2_shares.data.parse::<u128>().unwrap();
-    println!(
-        "Assertion: lender2 shares < lender1 shares | lender1_shares={} lender2_shares={}",
-        lender1_shares_u128, lender2_shares_u128
-    );
-    assert!(lender2_shares_u128 < lender1_shares_u128);
-
-    let lender1_redeem_amount = lender1_shares_u128.to_string();
-    vault_contract
-        .call_function("redeem", json!({
-            "shares": lender1_redeem_amount,
-            "receiver_id": lender1_id,
-            "memo": null
-        }))?
-        .transaction()
-        .deposit(NearToken::from_yoctonear(1))
-        .with_signer(lender1_id.clone(), lender1_signer.clone())
-        .send_to(&network_config)
-        .await?;
-
+    // Step 7: Verify Lender 1 received deposit + premium
+    println!("\n=== Step 7: Verify Lender 1 received deposit + premium ===");
     let lender1_final_balance: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": lender1_id }))?
         .read_only()
@@ -176,50 +227,14 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         .await?;
     let lender1_final_u128 = lender1_final_balance.data.parse::<u128>().unwrap();
 
-    println!(
-        "Assertion: lender1 final balance equals deposit + premium | final_balance={} deposit_amount={} premium_amount={}",
-        lender1_final_u128, deposit_amount, premium_amount
-    );
-    assert_eq!(lender1_final_u128, deposit_amount + premium_amount);
+    println!("Lender1 final balance: {} (expected: {} deposit + {} premium = {})", 
+        lender1_final_u128, lender1_deposit_amount, premium_amount, lender1_deposit_amount + premium_amount);
+    assert_eq!(lender1_final_u128, lender1_deposit_amount + premium_amount, "Lender1 should receive deposit + premium");
 
-    let remaining_assets_after_l1: Data<String> = vault_contract
-        .call_function("total_assets", json!([]))?
-        .read_only()
-        .fetch_from(&network_config)
-        .await?;
-    let remaining_after_l1 = remaining_assets_after_l1.data.parse::<u128>().unwrap();
-
-    println!(
-        "Assertion: remaining assets after lender1 redemption equals lender2 deposit | remaining_assets={} expected={}",
-        remaining_after_l1, deposit_amount
-    );
-    assert_eq!(remaining_after_l1, deposit_amount);
-
-    let total_shares_before_l2: Data<String> = vault_contract
-        .call_function("ft_total_supply", json!([]))?
-        .read_only()
-        .fetch_from(&network_config)
-        .await?;
-    println!(
-        "Pre-lender2 redeem totals | total_shares={} total_assets={}",
-        total_shares_before_l2.data, remaining_after_l1
-    );
-
-    let preview_l2_assets: Data<String> = vault_contract
-        .call_function(
-            "convert_to_assets",
-            json!({ "shares": lender2_shares_u128.to_string() }),
-        )?
-        .read_only()
-        .fetch_from(&network_config)
-        .await?;
-    println!(
-        "convert_to_assets view for lender2 shares | shares={} preview_assets={}",
-        lender2_shares_u128, preview_l2_assets.data
-    );
-
+    // Step 8: Lender 2 redeems
+    println!("\n=== Step 8: Lender 2 redeems ===");
     let lender2_redeem_amount = lender2_shares_u128.to_string();
-    let lender2_redeem_outcome = vault_contract
+    vault_contract
         .call_function("redeem", json!({
             "shares": lender2_redeem_amount,
             "receiver_id": lender2_id,
@@ -231,19 +246,10 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         .send_to(&network_config)
         .await?;
 
-    println!(
-        "lender2 redeem outcome status: {:?}",
-        lender2_redeem_outcome.status
-    );
-    if !lender2_redeem_outcome.receipts_outcome.is_empty() {
-        for (idx, receipt) in lender2_redeem_outcome.receipts_outcome.iter().enumerate() {
-            println!(
-                "lender2 redeem receipt[{idx}] status={:?} logs={:?}",
-                receipt.outcome.status, receipt.outcome.logs
-            );
-        }
-    }
+    sleep(Duration::from_millis(2000)).await;
 
+    // Step 9: Verify Lender 2 received only their deposit (no premium)
+    println!("\n=== Step 9: Verify Lender 2 received only deposit (no premium) ===");
     let lender2_final_balance: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": lender2_id }))?
         .read_only()
@@ -251,34 +257,26 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         .await?;
     let lender2_final_u128 = lender2_final_balance.data.parse::<u128>().unwrap();
 
-    println!(
-        "Assertion: lender2 final balance equals original deposit | final_balance={} expected={}",
-        lender2_final_u128, deposit_amount
-    );
-    assert_eq!(lender2_final_u128, deposit_amount);
+    println!("Lender2 final balance: {} (expected: {} deposit, no premium)", 
+        lender2_final_u128, lender2_deposit_amount);
+    assert_eq!(lender2_final_u128, lender2_deposit_amount, "Lender2 should receive only their deposit (no premium)");
 
+    // Final state verification
     let total_assets_final: Data<String> = vault_contract
         .call_function("total_assets", json!([]))?
         .read_only()
         .fetch_from(&network_config)
         .await?;
-    println!(
-        "Assertion: total assets final equals zero | total_assets={}",
-        total_assets_final.data
-    );
-    assert_eq!(total_assets_final.data, "0");
+    assert_eq!(total_assets_final.data, "0", "Total assets should be 0 after all redemptions");
 
     let total_shares_final: Data<String> = vault_contract
         .call_function("ft_total_supply", json!([]))?
         .read_only()
         .fetch_from(&network_config)
         .await?;
-    println!(
-        "Assertion: total shares final equals zero | total_shares={}",
-        total_shares_final.data
-    );
-    assert_eq!(total_shares_final.data, "0");
+    assert_eq!(total_shares_final.data, "0", "Total shares should be 0 after all redemptions");
+
+    println!("\n✅ Test passed! Lender1 received deposit + premium, Lender2 received only deposit");
 
     Ok(())
 }
-

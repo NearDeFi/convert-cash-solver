@@ -7,7 +7,7 @@ use near_api::{Contract, Data, NearToken};
 use serde_json::json;
 
 #[tokio::test]
-async fn test_vault_deposit_and_receive_shares() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn test_vault_deposit() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Start sandbox
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);

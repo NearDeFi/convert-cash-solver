@@ -39,8 +39,8 @@ pub mod helpers {
 
 #[cfg(test)]
 pub mod builders {
-    use crate::Contract;
     use crate::test_utils::helpers::init_ctx;
+    use crate::Contract;
     use near_contract_standards::fungible_token::metadata::FungibleTokenMetadata;
 
     pub struct ContractBuilder {
@@ -48,7 +48,6 @@ pub mod builders {
         asset: String,
         extra: u8,
         total_assets: u128,
-        total_deposits: u128,
         supply: u128,
         predecessor: Option<String>,
         attached: u128,
@@ -61,19 +60,32 @@ pub mod builders {
                 asset: asset.to_string(),
                 extra: 3,
                 total_assets: 0,
-                total_deposits: 0,
                 supply: 0,
                 predecessor: Some(owner.to_string()),
                 attached: 0,
             }
         }
 
-        pub fn extra_decimals(mut self, n: u8) -> Self { self.extra = n; self }
-        pub fn total_assets(mut self, n: u128) -> Self { self.total_assets = n; self }
-        pub fn total_deposits(mut self, n: u128) -> Self { self.total_deposits = n; self }
-        pub fn supply(mut self, n: u128) -> Self { self.supply = n; self }
-        pub fn predecessor(mut self, id: &str) -> Self { self.predecessor = Some(id.to_string()); self }
-        pub fn attached(mut self, yocto: u128) -> Self { self.attached = yocto; self }
+        pub fn extra_decimals(mut self, n: u8) -> Self {
+            self.extra = n;
+            self
+        }
+        pub fn total_assets(mut self, n: u128) -> Self {
+            self.total_assets = n;
+            self
+        }
+        pub fn supply(mut self, n: u128) -> Self {
+            self.supply = n;
+            self
+        }
+        pub fn predecessor(mut self, id: &str) -> Self {
+            self.predecessor = Some(id.to_string());
+            self
+        }
+        pub fn attached(mut self, yocto: u128) -> Self {
+            self.attached = yocto;
+            self
+        }
 
         pub fn build(self) -> Contract {
             if let Some(p) = &self.predecessor {
@@ -95,12 +107,11 @@ pub mod builders {
                 self.extra,
             );
             if self.supply > 0 {
-                c.token.internal_deposit(&self.owner.parse().unwrap(), self.supply);
+                c.token
+                    .internal_deposit(&self.owner.parse().unwrap(), self.supply);
             }
             c.total_assets = self.total_assets;
-            c.total_deposits = self.total_deposits;
             c
         }
     }
 }
-

@@ -5,7 +5,7 @@ use near_api::{Contract, Data, NearToken};
 use serde_json::json;
 
 #[tokio::test]
-async fn test_withdraw_omft_to_evm_enqueues_transfer() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn test_withdrawals() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Start sandbox and config
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);

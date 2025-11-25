@@ -8,7 +8,7 @@ use serde_json::json;
 use tokio::time::{sleep, Duration};
 
 #[tokio::test]
-async fn test_solver_borrow_liquidity() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Start sandbox
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);

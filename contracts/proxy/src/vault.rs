@@ -22,6 +22,7 @@ pub struct PendingRedemption {
     pub owner_id: AccountId,
     pub receiver_id: AccountId,
     pub shares: u128,
+    pub assets: u128,
     pub memo: Option<String>,
 }
 
@@ -73,12 +74,14 @@ impl Contract {
         owner_id: AccountId,
         receiver_id: AccountId,
         shares: u128,
+        assets: u128,
         memo: Option<String>,
     ) {
         let entry = PendingRedemption {
             owner_id: owner_id.clone(),
             receiver_id: receiver_id.clone(),
             shares,
+            assets,
             memo: memo.clone(),
         };
         self.pending_redemptions.push(entry);
@@ -136,40 +139,25 @@ impl Contract {
                 continue;
             }
 
-            // Calculate what the shares are worth based on available assets
-            let assets = self.internal_convert_to_assets(entry.shares, Rounding::Down);
+            // Use the assets value that was stored when the redemption was queued
+            // This ensures the lender gets the exact amount they were promised (deposit + premium)
+            let assets = entry.assets;
 
             env::log_str(&format!(
-                "process_redemption_queue: entry {} assets={} total_assets={}",
+                "process_redemption_queue: entry {} stored_assets={} total_assets={}",
                 index, assets, self.total_assets
             ));
 
             // Check if we have enough assets to process this redemption
-            if assets == 0 {
+            if assets == 0 || assets > self.total_assets {
                 env::log_str(&format!(
-                    "process_redemption_queue: breaking - assets={} total_assets={}",
+                    "process_redemption_queue: breaking - stored_assets={} total_assets={}",
                     assets, self.total_assets
                 ));
                 break;
             }
 
             self.pending_redemptions_head += 1;
-
-            // Decrement total_deposits by the deposit value being redeemed
-            let total_supply = self.token.ft_total_supply().0;
-            let deposit_value_being_redeemed = if total_supply > 0 && self.total_deposits > 0 {
-                mul_div(
-                    entry.shares,
-                    self.total_deposits,
-                    total_supply,
-                    Rounding::Up,
-                )
-            } else {
-                0
-            };
-            self.total_deposits = self
-                .total_deposits
-                .saturating_sub(deposit_value_being_redeemed);
 
             env::log_str(&format!(
                 "process_redemption_queue: processing redemption for owner={} shares={} amount={}",
@@ -233,19 +221,13 @@ impl Contract {
             calculated_shares
         };
 
-        // For deposits, used_amount should always be based on total_deposits, not total_assets
-        // This is because shares represent ownership of deposits, not assets
-        // Premiums don't affect new deposits - they only affect redemptions
+        // Calculate used_amount based on shares and total_supply
         let total_supply = self.token.ft_total_supply().0;
         let used_amount = if total_supply == 0 {
             amount.0
-        } else if self.total_deposits > 0 {
-            // Convert shares to assets using total_deposits (not total_assets)
-            // This ensures deposits work correctly even when there's a premium
-            mul_div(shares, self.total_deposits, total_supply, Rounding::Up)
         } else {
-            // No deposits yet, use the amount directly
-            amount.0
+            // Convert shares to assets using total_assets
+            mul_div(shares, self.total_assets, total_supply, Rounding::Up)
         };
 
         let unused_amount = amount
@@ -255,20 +237,15 @@ impl Contract {
 
         assert!(
             used_amount > 0,
-            "No assets to deposit, shares: {}, amount: {}, total_assets: {}, total_deposits: {}",
+            "No assets to deposit, shares: {}, amount: {}, total_assets: {}",
             shares,
             amount.0,
-            self.total_assets,
-            self.total_deposits
+            self.total_assets
         );
 
         let owner_id = parsed_msg.receiver_id.unwrap_or(sender_id.clone());
         self.token.internal_deposit(&owner_id, shares);
-        // Track both deposits and available assets
-        self.total_deposits = self
-            .total_deposits
-            .checked_add(used_amount)
-            .expect("total_deposits overflow");
+        // Track available assets
         self.total_assets = self
             .total_assets
             .checked_add(used_amount)
@@ -410,19 +387,19 @@ impl Contract {
             return true; // Processed (skipped)
         }
 
-        // Calculate what the shares are worth based on available assets
-        // Premiums are already included in total_assets when solvers repay
-        let assets = self.internal_convert_to_assets(entry.shares, Rounding::Down);
+        // Use the assets value that was stored when the redemption was queued
+        // This ensures the lender gets the exact amount they were promised (deposit + premium)
+        let assets = entry.assets;
 
         env::log_str(&format!(
-            "process_next_redemption: entry {} assets={} total_assets={}",
+            "process_next_redemption: entry {} stored_assets={} total_assets={}",
             index, assets, self.total_assets
         ));
 
         // Check if we have enough assets to process this redemption
-        if assets == 0 {
+        if assets == 0 || assets > self.total_assets {
             env::log_str(&format!(
-                "process_next_redemption: insufficient liquidity - assets={} total_assets={}",
+                "process_next_redemption: insufficient liquidity - stored_assets={} total_assets={}",
                 assets, self.total_assets
             ));
             return false; // Cannot process, need to wait for more liquidity
@@ -430,22 +407,6 @@ impl Contract {
 
         // Advance head before processing (in case of failure, we've already marked it as processed)
         self.pending_redemptions_head += 1;
-
-        // Decrement total_deposits by the deposit value being redeemed
-        let total_supply = self.token.ft_total_supply().0;
-        let deposit_value_being_redeemed = if total_supply > 0 && self.total_deposits > 0 {
-            mul_div(
-                entry.shares,
-                self.total_deposits,
-                total_supply,
-                Rounding::Up,
-            )
-        } else {
-            0
-        };
-        self.total_deposits = self
-            .total_deposits
-            .saturating_sub(deposit_value_being_redeemed);
 
         env::log_str(&format!(
             "process_next_redemption: processing redemption for owner={} shares={} amount={}",
@@ -571,37 +532,30 @@ impl VaultCore for Contract {
             "Exceeds max redeem"
         );
 
+        // Check if the lender is already in the redemption queue
+        let len = self.pending_redemptions.len();
+        let mut index = self.pending_redemptions_head;
+        while index < len {
+            if let Some(entry) = self.pending_redemptions.get(index) {
+                if entry.owner_id == owner {
+                    env::panic_str("Lender already has a redemption in the queue");
+                }
+            }
+            index += 1;
+        }
+
         let receiver = receiver_id.clone().unwrap_or_else(|| owner.clone());
 
         // Calculate what the shares are worth based on available assets
         let assets = self.internal_convert_to_assets(shares.0, Rounding::Down);
 
-        // Calculate the lender's deposit value (what they originally deposited)
-        let total_supply = self.token.ft_total_supply().0;
-        let deposit_value = if total_supply > 0 && self.total_deposits > 0 {
-            mul_div(shares.0, self.total_deposits, total_supply, Rounding::Down)
-        } else {
-            0
-        };
-
-        // Queue redemption if there are not enough assets to repay the lender their deposit value
+        // Queue redemption if there are not enough assets
         // This happens when liquidity is borrowed and hasn't been repaid yet
         // Premiums will be included in total_assets when solvers repay
-        if assets == 0 || assets < deposit_value {
-            self.enqueue_redemption(owner, receiver, shares.0, memo);
+        if assets == 0 || assets > self.total_assets {
+            self.enqueue_redemption(owner, receiver, shares.0, assets, memo);
             return PromiseOrValue::Value(U128(0));
         }
-
-        // Decrement total_deposits by the deposit value being redeemed
-        let total_supply = self.token.ft_total_supply().0;
-        let deposit_value_being_redeemed = if total_supply > 0 && self.total_deposits > 0 {
-            mul_div(shares.0, self.total_deposits, total_supply, Rounding::Up)
-        } else {
-            0
-        };
-        self.total_deposits = self
-            .total_deposits
-            .saturating_sub(deposit_value_being_redeemed);
 
         // Pay back assets based on the lender's share amount and total assets available
         // Premiums are already included in total_assets when solvers repay
@@ -641,7 +595,7 @@ impl VaultCore for Contract {
     }
 
     fn convert_to_shares(&self, assets: U128) -> U128 {
-        // For deposits, use total_deposits; for other cases use available assets
+        // Use available assets for share conversion
         // This is the default implementation for preview_deposit and max_mint
         // which should show what shares would be received based on deposits
         U128(self.internal_convert_to_shares_deposit(assets.0))
@@ -856,7 +810,6 @@ mod tests {
         contract
             .token
             .internal_deposit(&owner.parse().unwrap(), 1_000_000); // supply
-        contract.total_deposits = 2_000_000;
         let out = contract.internal_convert_to_shares_deposit(100);
         // shares = assets * supply / deposits = 100 * 1_000_000 / 2_000_000 = 50
         assert_eq!(out, 50);
@@ -874,10 +827,9 @@ mod tests {
         // No assets available
         contract.total_assets = 0;
         // Some deposits to compute deposit_based_assets later
-        contract.total_deposits = 1_000;
 
         // enqueue redemption
-        contract.enqueue_redemption(user.clone(), user.clone(), 100, None);
+        contract.enqueue_redemption(user.clone(), user.clone(), 100, 0, None);
         // attempt to process -> should break and not advance head
         contract.process_redemption_queue();
         assert_eq!(contract.pending_redemptions_head, 0);
@@ -893,17 +845,14 @@ mod tests {
         contract.token.internal_register_account(&user);
         contract.token.internal_deposit(&user, 1_000); // total supply
         contract.total_assets = 200; // available assets
-        contract.total_deposits = 1_000; // deposits for deposit_value computation
+                                     // deposits for deposit_value computation
 
-        // enqueue 100 shares redemption
-        contract.enqueue_redemption(user.clone(), user.clone(), 100, None);
+        // enqueue 100 shares redemption with expected assets value
+        // Calculate assets: (100 * 200) / 1000 = 20
+        contract.enqueue_redemption(user.clone(), user.clone(), 100, 20, None);
         // process should advance head to 1 (one entry processed)
         contract.process_redemption_queue();
         assert_eq!(contract.pending_redemptions_head, 1);
-        // total_deposits should be reduced by proportional deposit value:
-        // 100 * total_deposits / total_supply = 100 * 1000 / 1000 = 100 (rounded up in code)
-        // We can't assert exact value after async effects, but it should be <= original
-        assert!(contract.total_deposits <= 900);
     }
 
     #[test]
@@ -941,7 +890,6 @@ mod tests {
         contract
             .token
             .internal_deposit(&owner.parse().unwrap(), 1_000_000);
-        contract.total_deposits = 2_000_000;
         contract.total_assets = 2_000_000;
 
         let assets = U128(100);
@@ -1024,7 +972,6 @@ mod tests {
                 intent_data: "x".to_string(),
                 user_deposit_hash: "h".to_string(),
                 borrow_amount: 100,
-                borrow_total_deposits: 0,
                 borrow_total_supply: 0,
                 repayment_amount: None,
             },

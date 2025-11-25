@@ -6,7 +6,7 @@ use serde_json::json;
 use tokio::time::{sleep, Duration};
 
 #[tokio::test]
-async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn test_lender_profit() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);
     let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
@@ -105,7 +105,7 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
     println!("Solver borrowed {}", SOLVER_BORROW_AMOUNT);
 
     // Step 3: Lender 1 redeems (will be queued because solver hasn't repaid yet and no assets available)
-    println!("\n=== Step 4: Lender 1 redeems (will be queued) ===");
+    println!("\n=== Step 3: Lender 1 redeems (will be queued) ===");
     let lender1_redeem_amount = lender1_shares_u128.to_string();
     vault_contract
         .call_function("redeem", json!({

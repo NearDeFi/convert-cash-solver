@@ -6,7 +6,7 @@ use serde_json::json;
 use tokio::time::{sleep, Duration};
 
 #[tokio::test]
-async fn test_fifo_redemption_queue_with_proportional_premium() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);
     let (genesis_account_id, genesis_signer) = setup_genesis_account().await;

@@ -316,7 +316,7 @@ impl Contract {
             "Intent not owned by solver"
         );
 
-        let intent = self
+        let mut intent = self
             .index_to_intent
             .get(&intent_index)
             .unwrap_or_else(|| env::panic_str("Intent not found"))

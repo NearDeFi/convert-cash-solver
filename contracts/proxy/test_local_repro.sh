@@ -14,6 +14,7 @@ Options:
   -d, --debug         Run tests with sandbox debug logging
   -t, --test NAME     Run specific test with output
   --no-build          Skip reproducible build step
+  --keep-going        Do not exit immediately if tests fail
   -h, --help          Show this help message
 
 Examples:
@@ -26,6 +27,7 @@ USAGE
 SKIP_BUILD=false
 VERBOSE=false
 DEBUG=false
+KEEP_GOING=false
 TEST_NAME=""
 
 while [[ $# -gt 0 ]]; do
@@ -44,6 +46,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -d|--debug)
             DEBUG=true
+            shift
+            ;;
+        --keep-going)
+            KEEP_GOING=true
             shift
             ;;
         -t|--test)
@@ -93,28 +99,74 @@ run_tests() {
     echo "========================================="
     cd "$PROXY_DIR"
 
-    if [[ -n "$TEST_NAME" ]]; then
-        echo "Running specific test: $TEST_NAME"
-        if $DEBUG; then
-            NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test "$TEST_NAME" -- --nocapture
-        else
-            cargo test "$TEST_NAME" -- --nocapture
+    local exit_code=0
+
+    run_cargo_suite() {
+        local mode="$1"; shift
+        local cmd=("$@")
+        echo ""
+        echo ">> Running ${mode}..."
+        set +e
+        "${cmd[@]}"
+        local status=$?
+        set -e
+        if [[ $status -ne 0 ]]; then
+            echo "❌ ${mode} failed with status $status"
+            if ! $KEEP_GOING; then
+                exit $status
+            else
+                echo "⚠️  Continuing because --keep-going was set"
+                exit_code=$status
+            fi
         fi
-    elif $DEBUG; then
-        echo "Running tests with debug logging..."
-        NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test -- --nocapture
-    elif $VERBOSE; then
-        echo "Running tests with output..."
-        cargo test -- --nocapture
+    }
+
+    if [[ -n "$TEST_NAME" ]]; then
+        if $DEBUG; then
+            run_cargo_suite "custom test ($TEST_NAME)" NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test "$TEST_NAME" -- --nocapture
+        else
+            run_cargo_suite "custom test ($TEST_NAME)" cargo test "$TEST_NAME" -- --nocapture
+        fi
     else
-        echo "Running tests (quiet mode)..."
-        cargo test
+        # lib/unit tests
+        if $DEBUG; then
+            run_cargo_suite "unit tests (debug)" NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test --lib -- --nocapture
+        elif $VERBOSE; then
+            run_cargo_suite "unit tests (verbose)" cargo test --lib -- --nocapture
+        else
+            run_cargo_suite "unit tests" cargo test --lib
+        fi
+
+        # integration tests (each file)
+        local suites=(
+            sandbox_test
+            test_lender_profit
+            test_lender_redemption_queue
+            test_multi_lender_redemption_queue
+            test_solver_borrow
+            test_vault_deposit
+            test_withdrawals
+        )
+
+        for suite in "${suites[@]}"; do
+            if $DEBUG; then
+                run_cargo_suite "integration test $suite (debug)" NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test --test "$suite" -- --nocapture
+            elif $VERBOSE; then
+                run_cargo_suite "integration test $suite (verbose)" cargo test --test "$suite" -- --nocapture
+            else
+                run_cargo_suite "integration test $suite" cargo test --test "$suite"
+            fi
+        done
     fi
 
     echo ""
     echo "========================================="
     echo "Tests Complete!"
     echo "========================================="
+
+    if [[ $exit_code -ne 0 ]]; then
+        exit $exit_code
+    fi
 }
 
 if ! $SKIP_BUILD; then

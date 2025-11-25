@@ -92,6 +92,7 @@ impl Contract {
         ));
     }
 
+    #[allow(dead_code)]
     fn process_redemption_queue(&mut self) {
         env::log_str(&format!(
             "process_redemption_queue: start head={} len={} total_assets={}",

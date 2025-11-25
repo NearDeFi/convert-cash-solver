@@ -10,7 +10,7 @@ async fn test_multi_lender_queue() -> Result<(), Box<dyn std::error::Error + Sen
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);
     let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
-    println!("=== Test: Multi-lender redemption queue with 1% premium ===");
+    println!("=== Test: Multi-lender redemption queue with 1% intent_yield ===");
     println!("Sandbox started, genesis account = {}", genesis_account_id);
 
     let vault_id = deploy_vault_contract(&network_config, &genesis_account_id, &genesis_signer).await?;
@@ -242,23 +242,23 @@ async fn test_multi_lender_queue() -> Result<(), Box<dyn std::error::Error + Sen
         assert_eq!(pending_redemptions_after_l1.data.len(), 1, "Lender1 should be queued for remaining shares");
     }
 
-    // Step 5: Solver repays with premium 1%
-    println!("\n--- Step 5: Solver repays with 1% premium ---");
-    let premium1 = SOLVER_BORROW_AMOUNT / 100; // 1% premium
-    let total_repayment1 = SOLVER_BORROW_AMOUNT + premium1;
-    println!("Premium: {}, Total repayment: {}", premium1, total_repayment1);
+    // Step 5: Solver repays with intent_yield 1%
+    println!("\n--- Step 5: Solver repays with 1% intent_yield ---");
+    let intent_yield1 = SOLVER_BORROW_AMOUNT / 100; // 1% intent_yield
+    let total_repayment1 = SOLVER_BORROW_AMOUNT + intent_yield1;
+    println!("Intent yield: {}, Total repayment: {}", intent_yield1, total_repayment1);
 
     ft_contract
         .call_function("ft_transfer", json!({
             "receiver_id": solver_id,
-            "amount": premium1.to_string()
+            "amount": intent_yield1.to_string()
         }))?
         .transaction()
         .deposit(NearToken::from_yoctonear(1))
         .with_signer(genesis_account_id.clone(), genesis_signer.clone())
         .send_to(&network_config)
         .await?;
-    println!("Transferred premium {} to solver", premium1);
+    println!("Transferred intent_yield {} to solver", intent_yield1);
 
     ft_contract
         .call_function("ft_transfer_call", json!({
@@ -271,7 +271,7 @@ async fn test_multi_lender_queue() -> Result<(), Box<dyn std::error::Error + Sen
         .with_signer(solver_id.clone(), solver_signer.clone())
         .send_to(&network_config)
         .await?;
-    println!("Solver repaid {} (principal + 1% premium)", total_repayment1);
+    println!("Solver repaid {} (principal + 1% intent_yield)", total_repayment1);
 
     // Wait for tokens to be transferred
     sleep(Duration::from_millis(2000)).await;
@@ -301,22 +301,22 @@ async fn test_multi_lender_queue() -> Result<(), Box<dyn std::error::Error + Sen
         sleep(Duration::from_millis(1200)).await;
     }
 
-    // Step 6: Lender 1 is paid out their deposit + premium 1%
-    println!("\n--- Step 6: Verify Lender 1 received deposit + 1% premium ---");
+    // Step 6: Lender 1 is paid out their deposit + intent_yield 1%
+    println!("\n--- Step 6: Verify Lender 1 received deposit + 1% intent_yield ---");
     let lender1_balance_after_repay1: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": lender1_id }))?
         .read_only()
         .fetch_from(&network_config)
         .await?;
     let lender1_balance_u128 = lender1_balance_after_repay1.data.parse::<u128>().unwrap();
-    // Lender1 should receive their deposit + full premium from the first solver borrow
-    // Since lender1 was the only lender when solver 1 borrowed, they get 100% of the 1% premium
-    // deposit (5000000) + premium (500000) = 5500000
-    let lender1_expected = lender1_deposit + premium1;
-    println!("Lender1 balance: {} (expected: {}, deposit: {}, premium: {})", 
-        lender1_balance_u128, lender1_expected, lender1_deposit, premium1);
-    // Lender1 should receive their deposit + full premium since they were the only lender at borrow time
-    assert_eq!(lender1_balance_u128, lender1_expected, "Lender1 should receive deposit + full premium");
+    // Lender1 should receive their deposit + full intent_yield from the first solver borrow
+    // Since lender1 was the only lender when solver 1 borrowed, they get 100% of the 1% intent_yield
+    // deposit (5000000) + intent_yield (500000) = 5500000
+    let lender1_expected = lender1_deposit + intent_yield1;
+    println!("Lender1 balance: {} (expected: {}, deposit: {}, intent_yield: {})", 
+        lender1_balance_u128, lender1_expected, lender1_deposit, intent_yield1);
+    // Lender1 should receive their deposit + full intent_yield since they were the only lender at borrow time
+    assert_eq!(lender1_balance_u128, lender1_expected, "Lender1 should receive deposit + full intent_yield");
 
     let pending_redemptions_after_repay1: Data<Vec<serde_json::Value>> = vault_contract
         .call_function("get_pending_redemptions", json!({}))?
@@ -400,23 +400,23 @@ async fn test_multi_lender_queue() -> Result<(), Box<dyn std::error::Error + Sen
         println!("Lender2 has 0 shares, cannot redeem");
     }
 
-    // Step 9: Solver repays with premium 1%
-    println!("\n--- Step 9: Solver repays with 1% premium ---");
-    let premium2 = solver2_borrow_amount / 100; // 1% premium
-    let total_repayment2 = solver2_borrow_amount + premium2;
-    println!("Premium: {}, Total repayment: {}", premium2, total_repayment2);
+    // Step 9: Solver repays with intent_yield 1%
+    println!("\n--- Step 9: Solver repays with 1% intent_yield ---");
+    let intent_yield2 = solver2_borrow_amount / 100; // 1% intent_yield
+    let total_repayment2 = solver2_borrow_amount + intent_yield2;
+    println!("Intent yield: {}, Total repayment: {}", intent_yield2, total_repayment2);
 
     ft_contract
         .call_function("ft_transfer", json!({
             "receiver_id": solver_id,
-            "amount": premium2.to_string()
+            "amount": intent_yield2.to_string()
         }))?
         .transaction()
         .deposit(NearToken::from_yoctonear(1))
         .with_signer(genesis_account_id.clone(), genesis_signer.clone())
         .send_to(&network_config)
         .await?;
-    println!("Transferred premium {} to solver", premium2);
+    println!("Transferred intent_yield {} to solver", intent_yield2);
 
     ft_contract
         .call_function("ft_transfer_call", json!({
@@ -429,7 +429,7 @@ async fn test_multi_lender_queue() -> Result<(), Box<dyn std::error::Error + Sen
         .with_signer(solver_id.clone(), solver_signer.clone())
         .send_to(&network_config)
         .await?;
-    println!("Solver repaid {} (principal + 1% premium)", total_repayment2);
+    println!("Solver repaid {} (principal + 1% intent_yield)", total_repayment2);
 
     // Wait for tokens to be transferred
     sleep(Duration::from_millis(2000)).await;
@@ -502,16 +502,16 @@ async fn test_multi_lender_queue() -> Result<(), Box<dyn std::error::Error + Sen
     let lender2_balance_u128 = lender2_balance_after_repay2.data.parse::<u128>().unwrap();
     
     if lender2_shares_u128 > 0 {
-        // If Lender2 has shares, they should receive deposit + 1% premium
-        let lender2_expected = lender2_deposit + premium2;
-        println!("Lender2 balance: {} (expected: {}, deposit: {}, premium: {})", 
-            lender2_balance_u128, lender2_expected, lender2_deposit, premium2);
-        assert_eq!(lender2_balance_u128, lender2_expected, "Lender2 should receive deposit + 1% premium");
+        // If Lender2 has shares, they should receive deposit + 1% intent_yield
+        let lender2_expected = lender2_deposit + intent_yield2;
+        println!("Lender2 balance: {} (expected: {}, deposit: {}, intent_yield: {})", 
+            lender2_balance_u128, lender2_expected, lender2_deposit, intent_yield2);
+        assert_eq!(lender2_balance_u128, lender2_expected, "Lender2 should receive deposit + 1% intent_yield");
     } else {
         // If Lender2 has 0 shares (deposited when vault had 0 assets), they should only get their deposit back
-        println!("Lender2 balance: {} (expected: {}, deposit only, no premium since they have 0 shares)", 
+        println!("Lender2 balance: {} (expected: {}, deposit only, no intent_yield since they have 0 shares)", 
             lender2_balance_u128, lender2_deposit);
-        assert_eq!(lender2_balance_u128, lender2_deposit, "Lender2 should receive only their deposit (no shares, no premium)");
+        assert_eq!(lender2_balance_u128, lender2_deposit, "Lender2 should receive only their deposit (no shares, no intent_yield)");
     }
 
     let pending_redemptions_after_repay2: Data<Vec<serde_json::Value>> = vault_contract
@@ -541,8 +541,8 @@ async fn test_multi_lender_queue() -> Result<(), Box<dyn std::error::Error + Sen
     assert_eq!(total_shares_final.data, "0");
 
     println!("\n=== Test Summary ===");
-    println!("Lender1: deposited {}, received {} (deposit + 1% premium)", lender1_deposit, lender1_balance_u128);
-    println!("Lender2: deposited {}, received {} (deposit{} premium)", lender2_deposit, lender2_balance_u128, if lender2_shares_u128 > 0 { " + 1%" } else { ", no" });
+    println!("Lender1: deposited {}, received {} (deposit + 1% intent_yield)", lender1_deposit, lender1_balance_u128);
+    println!("Lender2: deposited {}, received {} (deposit{} intent_yield)", lender2_deposit, lender2_balance_u128, if lender2_shares_u128 > 0 { " + 1%" } else { ", no" });
     println!("No remaining shares or liquidity - test passed!");
 
     Ok(())

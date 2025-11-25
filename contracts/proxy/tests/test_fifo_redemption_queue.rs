@@ -10,7 +10,7 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);
     let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
-    println!("=== Test: FIFO Redemption Queue with Proportional Premium ===");
+    println!("=== Test: FIFO Redemption Queue with Proportional Yield ===");
     println!("Sandbox started, genesis account = {}", genesis_account_id);
 
     let vault_id = deploy_vault_contract(&network_config, &genesis_account_id, &genesis_signer).await?;
@@ -55,7 +55,7 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
         println!("Vault storage_deposit completed for {}", lender_id);
     }
 
-    println!("\n=== Test: FIFO Redemption Queue with Proportional Premium ===\n");
+    println!("\n=== Test: FIFO Redemption Queue with Proportional Yield ===\n");
 
     // Step 1: Lender 1 deposits 50,000,000
     let lender1_deposit = 50_000_000u128;
@@ -227,11 +227,11 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
         assert_eq!(second_owner, lender1_id.to_string(), "Lender1 should be second in queue");
     }
 
-    // Step 6: Solver repays 75,000,000 + 1% premium
-    let premium = solver_borrow_amount / 100; // 1% premium
-    let total_repayment = solver_borrow_amount + premium; // 82,500,000
-    println!("\n--- Step 6: Solver repays {} (principal + 1% premium) ---", total_repayment);
-    println!("Premium: {}, Total repayment: {}", premium, total_repayment);
+    // Step 6: Solver repays 75,000,000 + 1% intent_yield
+    let intent_yield = solver_borrow_amount / 100; // 1% intent_yield
+    let total_repayment = solver_borrow_amount + intent_yield; // 82,500,000
+    println!("\n--- Step 6: Solver repays {} (principal + 1% intent_yield) ---", total_repayment);
+    println!("Intent yield: {}, Total repayment: {}", intent_yield, total_repayment);
 
     // Check solver's balance before repayment
     let solver_balance_before: Data<String> = ft_contract
@@ -243,31 +243,31 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     println!("Solver balance before repayment: {} (should have {} from borrow)", solver_balance_before_u128, solver_borrow_amount);
 
     // Solver already has the principal (75,000,000) from the borrow
-    // We only need to transfer the premium (7,500,000) to the solver
+    // We only need to transfer the intent_yield (7,500,000) to the solver
     ft_contract
         .call_function("ft_transfer", json!({
             "receiver_id": solver_id,
-            "amount": premium.to_string()
+            "amount": intent_yield.to_string()
         }))?
         .transaction()
         .deposit(NearToken::from_yoctonear(1))
         .with_signer(genesis_account_id.clone(), genesis_signer.clone())
         .send_to(&network_config)
         .await?;
-    println!("Transferred premium {} to solver", premium);
+    println!("Transferred intent_yield {} to solver", intent_yield);
     
     sleep(Duration::from_millis(500)).await;
     
-    // Check solver's balance after premium transfer
-    let solver_balance_after_premium: Data<String> = ft_contract
+    // Check solver's balance after intent_yield transfer
+    let solver_balance_after_intent_yield: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": solver_id }))?
         .read_only()
         .fetch_from(&network_config)
         .await?;
-    let solver_balance_after_premium_u128 = solver_balance_after_premium.data.parse::<u128>().unwrap();
-    println!("Solver balance after premium transfer: {} (should be {})", solver_balance_after_premium_u128, solver_borrow_amount + premium);
+    let solver_balance_after_intent_yield_u128 = solver_balance_after_intent_yield.data.parse::<u128>().unwrap();
+    println!("Solver balance after intent_yield transfer: {} (should be {})", solver_balance_after_intent_yield_u128, solver_borrow_amount + intent_yield);
 
-    // Solver repays the full amount (principal + premium)
+    // Solver repays the full amount (principal + intent_yield)
     let repay_outcome = ft_contract
         .call_function("ft_transfer_call", json!({
             "receiver_id": vault_id,
@@ -279,7 +279,7 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
         .with_signer(solver_id.clone(), solver_signer.clone())
         .send_to(&network_config)
         .await?;
-    println!("Solver repaid {} (principal + 1% premium), outcome: {:?}", total_repayment, repay_outcome.status);
+    println!("Solver repaid {} (principal + 1% intent_yield), outcome: {:?}", total_repayment, repay_outcome.status);
 
     // Wait for tokens to be transferred and ft_resolve_transfer to complete
     sleep(Duration::from_millis(3000)).await;
@@ -361,12 +361,12 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
         .await?;
     let lender2_balance_u128 = lender2_balance_after_repay.data.parse::<u128>().unwrap();
     
-    // Lender2 should get deposit + proportional premium (1/3 of premium since 25/75 = 1/3)
-    let lender2_premium_share = premium / 3; // 25,000,000 / 75,000,000 = 1/3
-    let lender2_expected = lender2_deposit + lender2_premium_share; // 25,000,000 + 2,500,000 = 27,500,000
-    println!("Lender2 balance: {} (expected: {}, deposit: {}, premium share: {})", 
-        lender2_balance_u128, lender2_expected, lender2_deposit, lender2_premium_share);
-    assert_eq!(lender2_balance_u128, lender2_expected, "Lender2 should receive deposit + proportional premium");
+    // Lender2 should get deposit + proportional intent_yield (1/3 of intent_yield since 25/75 = 1/3)
+    let lender2_intent_yield_share = intent_yield / 3; // 25,000,000 / 75,000,000 = 1/3
+    let lender2_expected = lender2_deposit + lender2_intent_yield_share; // 25,000,000 + 2,500,000 = 27,500,000
+    println!("Lender2 balance: {} (expected: {}, deposit: {}, intent_yield share: {})", 
+        lender2_balance_u128, lender2_expected, lender2_deposit, lender2_intent_yield_share);
+    assert_eq!(lender2_balance_u128, lender2_expected, "Lender2 should receive deposit + proportional intent_yield");
 
     // Step 8: Verify Lender 1 is paid out second
     println!("\n--- Step 8: Verify Lender 1 is paid out second ---");
@@ -377,12 +377,12 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
         .await?;
     let lender1_balance_u128 = lender1_balance_after_repay.data.parse::<u128>().unwrap();
     
-    // Lender1 should get deposit + proportional premium (2/3 of premium since 50/75 = 2/3)
-    let lender1_premium_share = (premium * 2) / 3; // 50,000,000 / 75,000,000 = 2/3
-    let lender1_expected = lender1_deposit + lender1_premium_share; // 50,000,000 + 5,000,000 = 55,000,000
-    println!("Lender1 balance: {} (expected: {}, deposit: {}, premium share: {})", 
-        lender1_balance_u128, lender1_expected, lender1_deposit, lender1_premium_share);
-    assert_eq!(lender1_balance_u128, lender1_expected, "Lender1 should receive deposit + proportional premium");
+    // Lender1 should get deposit + proportional intent_yield (2/3 of intent_yield since 50/75 = 2/3)
+    let lender1_intent_yield_share = (intent_yield * 2) / 3; // 50,000,000 / 75,000,000 = 2/3
+    let lender1_expected = lender1_deposit + lender1_intent_yield_share; // 50,000,000 + 5,000,000 = 55,000,000
+    println!("Lender1 balance: {} (expected: {}, deposit: {}, intent_yield share: {})", 
+        lender1_balance_u128, lender1_expected, lender1_deposit, lender1_intent_yield_share);
+    assert_eq!(lender1_balance_u128, lender1_expected, "Lender1 should receive deposit + proportional intent_yield");
 
     // Verify queue is empty
     let pending_redemptions_final: Data<Vec<serde_json::Value>> = vault_contract
@@ -412,8 +412,8 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     assert_eq!(total_shares_final.data, "0");
 
     println!("\n=== Test Summary ===");
-    println!("Lender1: deposited {}, received {} (deposit + 2/3 of premium)", lender1_deposit, lender1_balance_u128);
-    println!("Lender2: deposited {}, received {} (deposit + 1/3 of premium)", lender2_deposit, lender2_balance_u128);
+    println!("Lender1: deposited {}, received {} (deposit + 2/3 of intent_yield)", lender1_deposit, lender1_balance_u128);
+    println!("Lender2: deposited {}, received {} (deposit + 1/3 of intent_yield)", lender2_deposit, lender2_balance_u128);
     println!("Lender2 was paid out before Lender1 (FIFO queue) - test passed!");
 
     Ok(())

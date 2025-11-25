@@ -117,7 +117,7 @@ impl Contract {
     }
 
     /// Convert assets to shares when depositing
-    /// To prevent new depositors from diluting premiums reserved for early lenders with queued redemptions,
+    /// To prevent new depositors from diluting intent_yield reserved for early lenders with queued redemptions,
     /// we use a denominator that includes expected_yield, giving new depositors fewer shares.
     /// Price per share = (total_assets + total_borrowed + expected_yield) / total_shares
     /// So shares = assets / price_per_share = (assets * total_shares) / (total_assets + total_borrowed + expected_yield)
@@ -129,8 +129,8 @@ impl Contract {
             return assets * 10u128.pow(self.extra_decimals as u32);
         }
 
-        // Calculate expected premiums from active borrows (1% of borrowed amounts)
-        // These premiums are reserved for early lenders, so we add them to the denominator
+        // Calculate expected intent_yield from active borrows (1% of borrowed amounts)
+        // This intent_yield is reserved for early lenders, so we add it to the denominator
         // to give new depositors fewer shares
         let (total_borrowed, expected_yield) = self.calculate_expected_yield();
 
@@ -172,7 +172,7 @@ impl Contract {
                 total_borrowed = total_borrowed
                     .checked_add(intent.borrow_amount)
                     .expect("total_borrowed overflow");
-                let intent_yield = intent.borrow_amount / 100; // 1% premium
+                let intent_yield = intent.borrow_amount / 100; // 1% intent_yield
                 expected_yield = expected_yield
                     .checked_add(intent_yield)
                     .expect("expected_yield overflow");

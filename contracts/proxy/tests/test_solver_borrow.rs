@@ -169,14 +169,14 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
     // Only intent so far has index 0
     let intent_index_u128: u128 = 0;
 
-    // Give solver an extra 1% to repay with a premium
-    let premium_amount = SOLVER_BORROW_AMOUNT / 100; // 1% premium
-    let total_repayment = SOLVER_BORROW_AMOUNT + premium_amount;
+    // Give solver an extra 1% to repay with intent_yield
+    let intent_yield_amount = SOLVER_BORROW_AMOUNT / 100; // 1% intent_yield
+    let total_repayment = SOLVER_BORROW_AMOUNT + intent_yield_amount;
 
     ft_contract
         .call_function("ft_transfer", json!({
             "receiver_id": solver_id,
-            "amount": premium_amount.to_string()
+            "amount": intent_yield_amount.to_string()
         }))?
         .transaction()
         .deposit(NearToken::from_yoctonear(1))
@@ -190,7 +190,7 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
         .fetch_from(&network_config)
         .await?;
 
-    // Solver repays borrowed liquidity plus premium
+    // Solver repays borrowed liquidity plus intent_yield
     ft_contract
         .call_function("ft_transfer_call", json!({
             "receiver_id": vault_id,
@@ -239,7 +239,7 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
 
     assert_eq!(after, before + total_repayment);
 
-    println!("✅ Solver repaid liquidity with 1% premium, contract balance increased and solver balance is zero");
+    println!("✅ Solver repaid liquidity with 1% intent_yield, contract balance increased and solver balance is zero");
     Ok(())
 }
 

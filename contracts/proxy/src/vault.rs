@@ -141,7 +141,7 @@ impl Contract {
             }
 
             // Use the assets value that was stored when the redemption was queued
-            // This ensures the lender gets the exact amount they were promised (deposit + premium)
+            // This ensures the lender gets the exact amount they were promised (deposit + intent_yield)
             let assets = entry.assets;
 
             env::log_str(&format!(
@@ -314,7 +314,7 @@ impl Contract {
             .expect("total_assets overflow");
 
         intent.state = State::StpLiquidityReturned;
-        intent.repayment_amount = Some(amount.0); // Track repayment amount for premium attribution
+        intent.repayment_amount = Some(amount.0); // Track repayment amount for intent_yield attribution
         self.index_to_intent.insert(intent_index, intent);
 
         VaultDeposit {
@@ -389,7 +389,7 @@ impl Contract {
         }
 
         // Use the assets value that was stored when the redemption was queued
-        // This ensures the lender gets the exact amount they were promised (deposit + premium)
+        // This ensures the lender gets the exact amount they were promised (deposit + intent_yield)
         let assets = entry.assets;
 
         env::log_str(&format!(
@@ -552,14 +552,14 @@ impl VaultCore for Contract {
 
         // Queue redemption if there are not enough assets
         // This happens when liquidity is borrowed and hasn't been repaid yet
-        // Premiums will be included in total_assets when solvers repay
+        // Yield will be included in total_assets when solvers repay
         if assets == 0 || assets > self.total_assets {
             self.enqueue_redemption(owner, receiver, shares.0, assets, memo);
             return PromiseOrValue::Value(U128(0));
         }
 
         // Pay back assets based on the lender's share amount and total assets available
-        // Premiums are already included in total_assets when solvers repay
+        // Yield is already included in total_assets when solvers repay
         PromiseOrValue::Promise(self.internal_execute_withdrawal(
             owner,
             Some(receiver),

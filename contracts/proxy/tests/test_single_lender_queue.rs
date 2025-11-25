@@ -173,13 +173,13 @@ async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Se
         pending_redemptions.data
     );
 
-    let premium_amount = SOLVER_BORROW_AMOUNT / 100; // 1% premium
-    let total_repayment = SOLVER_BORROW_AMOUNT + premium_amount;
+    let intent_yield_amount = SOLVER_BORROW_AMOUNT / 100; // 1% intent_yield
+    let total_repayment = SOLVER_BORROW_AMOUNT + intent_yield_amount;
 
     ft_contract
         .call_function("ft_transfer", json!({
             "receiver_id": solver_id,
-            "amount": premium_amount.to_string()
+            "amount": intent_yield_amount.to_string()
         }))?
         .transaction()
         .deposit(NearToken::from_yoctonear(1))
@@ -187,8 +187,8 @@ async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Se
         .send_to(&network_config)
         .await?;
     println!(
-        "FT transfer genesis -> {} premium amount={}",
-        solver_id, premium_amount
+        "FT transfer genesis -> {} intent_yield amount={}",
+        solver_id, intent_yield_amount
     );
 
     ft_contract
@@ -203,7 +203,7 @@ async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Se
         .send_to(&network_config)
         .await?;
     println!(
-        "FT transfer_call {} -> vault repayment amount={} (principal + premium)",
+        "FT transfer_call {} -> vault repayment amount={} (principal + intent_yield)",
         solver_id, total_repayment
     );
 

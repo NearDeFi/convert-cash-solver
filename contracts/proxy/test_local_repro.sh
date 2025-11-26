@@ -1,8 +1,12 @@
 #!/bin/bash
 
 # Local test runner that preserves reproducible WASM artifacts
+# Combines reproducible builds with Matt's test execution functionality
 
 set -euo pipefail
+
+# Array of test files to run (from Matt's test.sh)
+TESTS=("test_vault_deposit" "test_multi_lender_queue" "test_fifo_redemption_queue" "test_single_lender_queue" "test_solver_borrow")
 
 show_usage() {
     cat <<'USAGE'
@@ -13,14 +17,16 @@ Options:
   -v, --verbose       Run tests with output (--nocapture)
   -d, --debug         Run tests with sandbox debug logging
   -t, --test NAME     Run specific test with output
+  -a, --array         Run all tests in the TESTS array (from Matt's test.sh)
   --no-build          Skip reproducible build step
   --keep-going        Do not exit immediately if tests fail
   -h, --help          Show this help message
 
 Examples:
-  ./test_local_repro.sh
-  ./test_local_repro.sh --no-build -v
-  ./test_local_repro.sh -t sandbox_test::test_mock_ft_deployment_only
+  ./test_local_repro.sh                              # Build reproducible and run all tests
+  ./test_local_repro.sh --no-build -v                # Skip build, run with output
+  ./test_local_repro.sh -t test_vault_initialization # Run specific test
+  ./test_local_repro.sh -a                           # Run all tests in TESTS array
 USAGE
 }
 
@@ -29,6 +35,7 @@ VERBOSE=false
 DEBUG=false
 KEEP_GOING=false
 TEST_NAME=""
+RUN_ARRAY=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -56,6 +63,11 @@ while [[ $# -gt 0 ]]; do
             TEST_NAME="$2"
             shift 2
             ;;
+        -a|--array)
+            RUN_ARRAY=true
+            VERBOSE=true  # Automatically enable verbose mode for array tests
+            shift
+            ;;
         *)
             TEST_NAME="$1"
             shift
@@ -78,6 +90,13 @@ build_reproducible() {
     echo "========================================="
     echo "Reproducible Build: Proxy Contract"
     echo "========================================="
+    
+    # Check if cargo-near is installed
+    if ! command -v cargo-near &> /dev/null; then
+        echo "cargo-near is not installed. Installing..."
+        cargo install cargo-near
+    fi
+    
     (
         cd "$PROXY_DIR"
         cargo near build reproducible-wasm --variant force_bulk_memory
@@ -121,43 +140,40 @@ run_tests() {
         fi
     }
 
-    if [[ -n "$TEST_NAME" ]]; then
-        if $DEBUG; then
+    # Run tests from TESTS array (Matt's -a/--array option)
+    if [ "$RUN_ARRAY" == true ]; then
+        echo "Running tests from TESTS array: ${TESTS[*]}"
+        for test in "${TESTS[@]}"; do
+            echo ""
+            echo "Running test: $test"
+            if [ "$DEBUG" == true ]; then
+                run_cargo_suite "test $test (debug)" NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test "$test" -- --nocapture
+            elif [ "$VERBOSE" == true ]; then
+                run_cargo_suite "test $test (verbose)" cargo test "$test" -- --nocapture
+            else
+                run_cargo_suite "test $test" cargo test "$test"
+            fi
+        done
+    # Run specific test by name
+    elif [[ -n "$TEST_NAME" ]]; then
+        echo "Running specific test: $TEST_NAME"
+        if [ "$DEBUG" == true ]; then
             run_cargo_suite "custom test ($TEST_NAME)" NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test "$TEST_NAME" -- --nocapture
         else
             run_cargo_suite "custom test ($TEST_NAME)" cargo test "$TEST_NAME" -- --nocapture
         fi
+    # Run all tests (default behavior)
     else
-        # lib/unit tests
-        if $DEBUG; then
-            run_cargo_suite "unit tests (debug)" NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test --lib -- --nocapture
-        elif $VERBOSE; then
-            run_cargo_suite "unit tests (verbose)" cargo test --lib -- --nocapture
+        if [ "$DEBUG" == true ]; then
+            echo "Running all tests with debug logging..."
+            run_cargo_suite "all tests (debug)" NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test -- --nocapture
+        elif [ "$VERBOSE" == true ]; then
+            echo "Running all tests with output..."
+            run_cargo_suite "all tests (verbose)" cargo test -- --nocapture
         else
-            run_cargo_suite "unit tests" cargo test --lib
+            echo "Running all tests (quiet mode)..."
+            run_cargo_suite "all tests" cargo test
         fi
-
-        # integration tests (each file)
-        local suites=(
-            sandbox_test
-            test_fifo_redemption_queue
-            test_lender_profit
-            test_lender_redemption_queue
-            test_multi_lender_redemption_queue
-            test_solver_borrow
-            test_vault_deposit
-            test_withdrawals
-        )
-
-        for suite in "${suites[@]}"; do
-            if $DEBUG; then
-                run_cargo_suite "integration test $suite (debug)" NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test --test "$suite" -- --nocapture
-            elif $VERBOSE; then
-                run_cargo_suite "integration test $suite (verbose)" cargo test --test "$suite" -- --nocapture
-            else
-                run_cargo_suite "integration test $suite" cargo test --test "$suite"
-            fi
-        done
     fi
 
     echo ""
@@ -178,4 +194,3 @@ else
 fi
 
 run_tests
-

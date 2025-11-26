@@ -804,15 +804,17 @@ mod tests {
         let owner = "owner.test";
         let asset = "usdc.test";
         let mut contract = init_contract(owner, asset, 3);
-        // existing supply and deposits
+        // existing supply and assets
         contract
             .token
             .internal_register_account(&owner.parse().unwrap());
         contract
             .token
             .internal_deposit(&owner.parse().unwrap(), 1_000_000); // supply
+        contract.total_assets = 2_000_000; // Set total_assets for the new calculation logic
         let out = contract.internal_convert_to_shares_deposit(100);
-        // shares = assets * supply / deposits = 100 * 1_000_000 / 2_000_000 = 50
+        // With new logic: shares = assets * supply / (total_assets + total_borrowed + expected_yield)
+        // shares = 100 * 1_000_000 / (2_000_000 + 0 + 0) = 50
         assert_eq!(out, 50);
     }
 

@@ -22,3 +22,4 @@ env.development.local
 
 justfile
 ./contracts/proxy/justfile
+contracts/proxy/CONCEPTOS_VAULT.md

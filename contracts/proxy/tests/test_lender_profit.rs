@@ -6,7 +6,7 @@ use serde_json::json;
 use tokio::time::{sleep, Duration};
 
 #[tokio::test]
-async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn test_lender_profit() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);
     let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
@@ -51,7 +51,7 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
 
     let lender1_deposit_amount = 50_000_000u128;
     let lender2_deposit_amount = 1_000_000u128; // Lender2 deposits very little so Lender1's redemption is queued
-    let premium_amount = SOLVER_BORROW_AMOUNT / 100; // 1% premium
+    let intent_yield_amount = SOLVER_BORROW_AMOUNT / 100; // 1% intent_yield
 
     // Step 1: Lender 1 deposits
     println!("\n=== Step 1: Lender 1 deposits ===");
@@ -105,7 +105,7 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
     println!("Solver borrowed {}", SOLVER_BORROW_AMOUNT);
 
     // Step 3: Lender 1 redeems (will be queued because solver hasn't repaid yet and no assets available)
-    println!("\n=== Step 4: Lender 1 redeems (will be queued) ===");
+    println!("\n=== Step 3: Lender 1 redeems (will be queued) ===");
     let lender1_redeem_amount = lender1_shares_u128.to_string();
     vault_contract
         .call_function("redeem", json!({
@@ -129,7 +129,7 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
     println!("Pending redemptions after lender1 redemption: {}", queue_length_before.data);
     assert!(queue_length_before.data.parse::<u128>().unwrap() > 0, "Lender1's redemption should be queued");
 
-    // Step 4: Lender 2 deposits (after borrow and after Lender1's redemption is queued, so they won't get premium)
+    // Step 4: Lender 2 deposits (after borrow and after Lender1's redemption is queued, so they won't get intent_yield)
     println!("\n=== Step 4: Lender 2 deposits (after borrow and after Lender1's redemption is queued) ===");
     ft_contract
         .call_function("ft_transfer", json!({
@@ -164,12 +164,12 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
     let lender2_shares_u128 = lender2_shares.data.parse::<u128>().unwrap();
     println!("Lender2 deposited {} and received {} shares", lender2_deposit_amount, lender2_shares_u128);
 
-    // Step 5: Solver repays with premium
-    println!("\n=== Step 5: Solver repays with premium ===");
+    // Step 5: Solver repays with intent_yield
+    println!("\n=== Step 5: Solver repays with intent_yield ===");
     ft_contract
         .call_function("ft_transfer", json!({
             "receiver_id": solver_id,
-            "amount": premium_amount.to_string()
+            "amount": intent_yield_amount.to_string()
         }))?
         .transaction()
         .deposit(NearToken::from_yoctonear(1))
@@ -180,7 +180,7 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
     ft_contract
         .call_function("ft_transfer_call", json!({
             "receiver_id": vault_id,
-            "amount": (SOLVER_BORROW_AMOUNT + premium_amount).to_string(),
+            "amount": (SOLVER_BORROW_AMOUNT + intent_yield_amount).to_string(),
             "msg": json!({ "repay": { "intent_index": "0" } }).to_string()
         }))?
         .transaction()
@@ -190,7 +190,7 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         .await?;
 
     sleep(Duration::from_millis(2000)).await;
-    println!("Solver repaid {} (principal + {} premium)", SOLVER_BORROW_AMOUNT + premium_amount, premium_amount);
+    println!("Solver repaid {} (principal + {} intent_yield)", SOLVER_BORROW_AMOUNT + intent_yield_amount, intent_yield_amount);
 
     // Step 6: Process redemption queue - Lender 1 should be processed (after solver repays)
     println!("\n=== Step 6: Process redemption queue (Lender 1) ===");
@@ -218,8 +218,8 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         sleep(Duration::from_millis(2000)).await;
     }
 
-    // Step 7: Verify Lender 1 received deposit + premium
-    println!("\n=== Step 7: Verify Lender 1 received deposit + premium ===");
+    // Step 7: Verify Lender 1 received deposit + intent_yield
+    println!("\n=== Step 7: Verify Lender 1 received deposit + intent_yield ===");
     let lender1_final_balance: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": lender1_id }))?
         .read_only()
@@ -227,9 +227,9 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         .await?;
     let lender1_final_u128 = lender1_final_balance.data.parse::<u128>().unwrap();
 
-    println!("Lender1 final balance: {} (expected: {} deposit + {} premium = {})", 
-        lender1_final_u128, lender1_deposit_amount, premium_amount, lender1_deposit_amount + premium_amount);
-    assert_eq!(lender1_final_u128, lender1_deposit_amount + premium_amount, "Lender1 should receive deposit + premium");
+    println!("Lender1 final balance: {} (expected: {} deposit + {} intent_yield = {})", 
+        lender1_final_u128, lender1_deposit_amount, intent_yield_amount, lender1_deposit_amount + intent_yield_amount);
+    assert_eq!(lender1_final_u128, lender1_deposit_amount + intent_yield_amount, "Lender1 should receive deposit + intent_yield");
 
     // Step 8: Lender 2 redeems
     println!("\n=== Step 8: Lender 2 redeems ===");
@@ -248,8 +248,8 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
 
     sleep(Duration::from_millis(2000)).await;
 
-    // Step 9: Verify Lender 2 received only their deposit (no premium)
-    println!("\n=== Step 9: Verify Lender 2 received only deposit (no premium) ===");
+    // Step 9: Verify Lender 2 received only their deposit (no intent_yield)
+    println!("\n=== Step 9: Verify Lender 2 received only deposit (no intent_yield) ===");
     let lender2_final_balance: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": lender2_id }))?
         .read_only()
@@ -257,9 +257,9 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         .await?;
     let lender2_final_u128 = lender2_final_balance.data.parse::<u128>().unwrap();
 
-    println!("Lender2 final balance: {} (expected: {} deposit, no premium)", 
+    println!("Lender2 final balance: {} (expected: {} deposit, no intent_yield)", 
         lender2_final_u128, lender2_deposit_amount);
-    assert_eq!(lender2_final_u128, lender2_deposit_amount, "Lender2 should receive only their deposit (no premium)");
+    assert_eq!(lender2_final_u128, lender2_deposit_amount, "Lender2 should receive only their deposit (no intent_yield)");
 
     // Final state verification
     let total_assets_final: Data<String> = vault_contract
@@ -276,7 +276,7 @@ async fn test_multi_lender_profit_distribution() -> Result<(), Box<dyn std::erro
         .await?;
     assert_eq!(total_shares_final.data, "0", "Total shares should be 0 after all redemptions");
 
-    println!("\n✅ Test passed! Lender1 received deposit + premium, Lender2 received only deposit");
+    println!("\n✅ Test passed! Lender1 received deposit + intent_yield, Lender2 received only deposit");
 
     Ok(())
 }

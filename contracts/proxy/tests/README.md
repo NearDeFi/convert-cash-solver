@@ -82,18 +82,18 @@ cd /home/matt/Projects/mattlockyer/convert-cash-solver/contracts/proxy
 ./test.sh test_vault_conversion_functions
 
 # Vault deposit test
-./test.sh test_vault_deposit_and_receive_shares
+./test.sh test_vault_deposit
 
 # Solver reward test
-./test.sh test_solver_borrow_liquidity
+./test.sh test_solver_borrow
 ```
 
 ### **Run Individual Tests Directly**
 
 ```bash
-cargo test test_vault_deposit_and_receive_shares -- --nocapture
+cargo test test_vault_deposit -- --nocapture
 cargo test test_vault_initialization -- --nocapture
-cargo test test_solver_borrow_liquidity -- --nocapture
+cargo test test_solver_borrow -- --nocapture
 ```
 
 ### **Run All Tests in a File**

@@ -39,9 +39,8 @@ pub struct Intent {
     pub intent_data: String,
     pub user_deposit_hash: String,
     pub borrow_amount: u128, // Amount borrowed (principal) for this Intent
-    pub borrow_total_deposits: u128, // Total deposits at time of borrow (for premium attribution)
-    pub borrow_total_supply: u128, // Total share supply at time of borrow (for premium attribution)
-    pub repayment_amount: Option<u128>, // Repayment amount (principal + premium) when repaid
+    pub borrow_total_supply: u128, // Total share supply at time of borrow (for intent_yield attribution)
+    pub repayment_amount: Option<u128>, // Repayment amount (principal + intent_yield) when repaid
 }
 
 #[near]
@@ -146,8 +145,7 @@ impl Contract {
         }
         self.solver_id_to_indices.insert(solver_id.clone(), indices);
 
-        // Capture deposit state at borrow time for premium attribution
-        let borrow_total_deposits = self.total_deposits;
+        // Capture deposit state at borrow time for intent_yield attribution
         let borrow_total_supply = self.token.ft_total_supply().0;
 
         self.index_to_intent.insert(
@@ -158,7 +156,6 @@ impl Contract {
                 intent_data,
                 user_deposit_hash,
                 borrow_amount: borrow_amount.0,
-                borrow_total_deposits,
                 borrow_total_supply,
                 repayment_amount: None,
             },

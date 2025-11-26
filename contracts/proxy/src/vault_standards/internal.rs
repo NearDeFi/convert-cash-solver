@@ -117,8 +117,10 @@ impl Contract {
     }
 
     /// Convert assets to shares when depositing
-    /// Price per share = (total_deposits - expected_premiums) / total_shares
-    /// So shares = assets / price_per_share = (assets * total_shares) / (total_deposits - expected_premiums)
+    /// To prevent new depositors from diluting intent_yield reserved for early lenders with queued redemptions,
+    /// we use a denominator that includes expected_yield, giving new depositors fewer shares.
+    /// Price per share = (total_assets + total_borrowed + expected_yield) / total_shares
+    /// So shares = assets / price_per_share = (assets * total_shares) / (total_assets + total_borrowed + expected_yield)
     pub fn internal_convert_to_shares_deposit(&self, assets: u128) -> u128 {
         let total_supply = self.token.ft_total_supply().0;
 
@@ -127,36 +129,20 @@ impl Contract {
             return assets * 10u128.pow(self.extra_decimals as u32);
         }
 
-        // Calculate expected premiums from active borrows (1% of borrowed amounts)
-        let mut expected_premiums = 0u128;
-        for (_index, intent) in self.index_to_intent.iter() {
-            let expected_premium = intent.borrow_amount / 100; // 1% premium
-            expected_premiums = expected_premiums
-                .checked_add(expected_premium)
-                .expect("expected_premiums overflow");
-        }
+        // Calculate expected intent_yield from active borrows (1% of borrowed amounts)
+        // This intent_yield is reserved for early lenders, so we add it to the denominator
+        // to give new depositors fewer shares
+        let (total_borrowed, expected_yield) = self.calculate_expected_yield();
 
-        // Subtract unscaled expected_premiums from denominator
         let denominator = self
-            .total_deposits
-            .checked_sub(expected_premiums)
-            .expect("denominator underflow")
+            .total_assets
+            .checked_add(total_borrowed)
+            .expect("denominator overflow")
+            .checked_add(expected_yield)
+            .expect("denominator overflow")
             .max(1);
 
-        // Debug: Calculate intermediate values to understand why result might be 0
-        let numerator = assets
-            .checked_mul(total_supply)
-            .expect("numerator overflow");
-        let mul_div_result = mul_div(assets, total_supply, denominator, Rounding::Down);
-
-        env::log_str(&format!(
-            "convert_to_shares_deposit DEBUG: assets={} total_supply={} total_deposits={} expected_premiums={} denominator={} numerator={} mul_div_result={}",
-            assets, total_supply, self.total_deposits, expected_premiums, denominator, numerator, mul_div_result
-        ));
-
-        let result = mul_div_result;
-
-        // TODO run multi_lender_redemption_queue test to see why Lender2 is getting 0 shares
+        let result = mul_div(assets, total_supply, denominator, Rounding::Down);
 
         result
     }
@@ -169,22 +155,29 @@ impl Contract {
             return shares / 10u128.pow(self.extra_decimals as u32);
         }
 
-        // When the vault holds no assets but still has outstanding shares,
-        // treat the available assets as zero to avoid overestimating redemptions.
-        if self.total_assets == 0 {
-            return 0;
-        }
+        let (total_borrowed, expected_yield) = self.calculate_expected_yield();
+        let total_assets = self.total_assets + total_borrowed + expected_yield;
 
-        // Redemption should be based on total_assets (which includes premium after solver repays)
-        let supply_adj = total_supply;
-        let assets_adj = self.total_assets;
-        let result = mul_div(shares, assets_adj, supply_adj, rounding);
-
-        env::log_str(&format!(
-            "convert_to_assets: shares={} total_supply={} total_assets={} result={}",
-            shares, supply_adj, assets_adj, result
-        ));
+        let result = mul_div(shares, total_assets, total_supply, rounding);
 
         result
+    }
+
+    pub fn calculate_expected_yield(&self) -> (u128, u128) {
+        let mut expected_yield = 0u128;
+        let mut total_borrowed = 0u128;
+        for (_index, intent) in self.index_to_intent.iter() {
+            // Only count active borrows (not yet repaid)
+            if intent.state == crate::intents::State::StpLiquidityBorrowed {
+                total_borrowed = total_borrowed
+                    .checked_add(intent.borrow_amount)
+                    .expect("total_borrowed overflow");
+                let intent_yield = intent.borrow_amount / 100; // 1% intent_yield
+                expected_yield = expected_yield
+                    .checked_add(intent_yield)
+                    .expect("expected_yield overflow");
+            }
+        }
+        (total_borrowed, expected_yield)
     }
 }

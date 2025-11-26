@@ -4,6 +4,9 @@
 
 set -e  # Exit on error
 
+# Array of test files to run
+TESTS=("test_vault_deposit" "test_multi_lender_queue" "test_fifo_redemption_queue" "test_single_lender_queue" "test_solver_borrow")
+
 # Function to show usage
 show_usage() {
     echo "Usage: ./test.sh [OPTIONS] [TEST_NAME]"
@@ -13,6 +16,7 @@ show_usage() {
     echo "  -v, --verbose       Run tests with output (--nocapture)"
     echo "  -d, --debug         Run tests with sandbox debug logging"
     echo "  -t, --test NAME     Run specific test with output"
+    echo "  -a, --array         Run all tests in the TESTS array"
     echo "  --no-build          Skip building, just run tests"
     echo "  -h, --help          Show this help message"
     echo ""
@@ -20,6 +24,7 @@ show_usage() {
     echo "  ./test.sh                              # Build and run all tests"
     echo "  ./test.sh -v                           # Run all tests with output"
     echo "  ./test.sh -t test_vault_initialization # Run specific test"
+    echo "  ./test.sh -a                            # Run all tests in TESTS array"
     echo "  ./test.sh --no-build -v                # Skip build, run with output"
 }
 
@@ -28,6 +33,7 @@ SKIP_BUILD=false
 VERBOSE=false
 DEBUG=false
 TEST_NAME=""
+RUN_ARRAY=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -50,6 +56,11 @@ while [[ $# -gt 0 ]]; do
         -t|--test)
             TEST_NAME="$2"
             shift 2
+            ;;
+        -a|--array)
+            RUN_ARRAY=true
+            VERBOSE=true  # Automatically enable verbose mode for array tests
+            shift
             ;;
         *)
             TEST_NAME="$1"
@@ -95,7 +106,20 @@ echo "Running Tests"
 echo "========================================="
 
 # Run tests with appropriate flags
-if [ -n "$TEST_NAME" ]; then
+if [ "$RUN_ARRAY" == true ]; then
+    echo "Running tests from TESTS array: ${TESTS[*]}"
+    for test in "${TESTS[@]}"; do
+        echo ""
+        echo "Running test: $test"
+        if [ "$DEBUG" == true ]; then
+            NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test "$test" -- --nocapture
+        elif [ "$VERBOSE" == true ]; then
+            cargo test "$test" -- --nocapture
+        else
+            cargo test "$test"
+        fi
+    done
+elif [ -n "$TEST_NAME" ]; then
     echo "Running specific test: $TEST_NAME"
     if [ "$DEBUG" == true ]; then
         NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test "$TEST_NAME" -- --nocapture

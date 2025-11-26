@@ -8,8 +8,11 @@ use near_sandbox::{GenesisAccount, Sandbox};
 use serde_json::json;
 use std::sync::Arc;
 
-pub const CONTRACT_WASM_PATH: &str = "/Users/hasselalcala/Documents/near_projects/STP_protocol/convert-cash-solver/contracts/proxy/target/near/contract.wasm";
-pub const MOCK_FT_WASM_PATH: &str = "/Users/hasselalcala/Documents/near_projects/STP_protocol/convert-cash-solver/contracts/mock_ft/target/near/mock_ft.wasm";
+pub mod test_builder;
+pub use test_builder::*;
+
+pub const CONTRACT_WASM_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/near/contract.wasm");
+pub const MOCK_FT_WASM_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../mock_ft/target/near/mock_ft.wasm");
 pub const EXTRA_DECIMALS: u8 = 3; // Multiplier for first deposit: 10^3 = 1000
 #[allow(dead_code)]
 pub const SOLVER_BORROW_AMOUNT: u128 = 5_000_000; // 5 USDC with 6 decimals

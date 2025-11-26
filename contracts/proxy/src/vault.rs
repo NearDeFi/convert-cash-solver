@@ -87,8 +87,8 @@ impl Contract {
         self.pending_redemptions.push(entry);
 
         env::log_str(&format!(
-            "queued_redemption owner={} receiver={} shares={}",
-            owner_id, receiver_id, shares
+            "queued_redemption owner={} receiver={} shares={} assets={}",
+            owner_id, receiver_id, shares, assets
         ));
     }
 
@@ -224,7 +224,10 @@ impl Contract {
 
         // Calculate used_amount based on shares and total_supply
         let total_supply = self.token.ft_total_supply().0;
-        let used_amount = if total_supply == 0 {
+        let used_amount = if total_supply == 0 || self.total_assets == 0 {
+            // First deposit or all assets are borrowed - accept the full deposit amount
+            // When total_assets is 0 (all borrowed), we can't use the normal calculation
+            // because it would result in used_amount = 0
             amount.0
         } else {
             // Convert shares to assets using total_assets
@@ -548,11 +551,19 @@ impl VaultCore for Contract {
         let receiver = receiver_id.clone().unwrap_or_else(|| owner.clone());
 
         // Calculate what the shares are worth based on available assets
+        // This includes expected yield from current borrows, calculated at redemption time
+        // The value is stored and will be used when processing the redemption later
         let assets = self.internal_convert_to_assets(shares.0, Rounding::Down);
+
+        env::log_str(&format!(
+            "redeem: owner={} shares={} calculated_assets={} total_assets={}",
+            owner, shares.0, assets, self.total_assets
+        ));
 
         // Queue redemption if there are not enough assets
         // This happens when liquidity is borrowed and hasn't been repaid yet
-        // Yield will be included in total_assets when solvers repay
+        // The calculated assets value (including expected yield) is stored here
+        // When the redemption is processed later, this stored value will be used
         if assets == 0 || assets > self.total_assets {
             self.enqueue_redemption(owner, receiver, shares.0, assets, memo);
             return PromiseOrValue::Value(U128(0));

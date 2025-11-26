@@ -3,6 +3,7 @@
 
 use near_api::{Contract, Data, NearToken, NetworkConfig};
 use near_api::AccountId;
+use near_sandbox::Sandbox;
 use serde_json::json;
 use tokio::time::{sleep, Duration};
 use std::sync::Arc;
@@ -10,6 +11,7 @@ use std::sync::Arc;
 use super::*;
 
 pub struct TestScenarioBuilder {
+    _sandbox: Sandbox, // Keep sandbox alive for the entire test duration
     network_config: NetworkConfig,
     genesis_account_id: AccountId,
     genesis_signer: Arc<Signer>,
@@ -27,6 +29,7 @@ impl TestScenarioBuilder {
         let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
 
         Ok(Self {
+            _sandbox: sandbox, // Keep sandbox alive
             network_config,
             genesis_account_id,
             genesis_signer,
@@ -386,5 +389,78 @@ pub async fn get_total_assets(
         .await?;
     
     Ok(total_assets.data.parse::<u128>().unwrap())
+}
+
+/// Calculate expected shares for a deposit based on current vault state
+/// Formula: shares = (assets * total_supply) / (total_assets + total_borrowed + expected_yield)
+/// where expected_yield = sum of (borrow_amount / 100) for all active borrows
+pub async fn calculate_expected_shares_for_deposit(
+    builder: &TestScenarioBuilder,
+    deposit_amount: u128,
+) -> Result<u128, Box<dyn std::error::Error + Send + Sync>> {
+    let vault_contract = builder.vault_contract();
+    let network_config = builder.network_config();
+
+    // Get current vault state
+    let total_assets = get_total_assets(builder).await?;
+    let total_supply: Data<String> = vault_contract
+        .call_function("ft_total_supply", json!([]))?
+        .read_only()
+        .fetch_from(network_config)
+        .await?;
+    let total_supply_u128 = total_supply.data.parse::<u128>().unwrap();
+
+    // If vault is empty, first deposit uses extra_decimals multiplier
+    if total_supply_u128 == 0 {
+        return Ok(deposit_amount * 1000u128); // extra_decimals = 3, so 10^3 = 1000
+    }
+
+    // Get all intents to calculate total_borrowed and expected_yield
+    let intents: Data<Vec<serde_json::Value>> = vault_contract
+        .call_function("get_intents", json!([]))?
+        .read_only()
+        .fetch_from(network_config)
+        .await?;
+
+    let mut total_borrowed = 0u128;
+    let mut expected_yield = 0u128;
+
+    for intent in intents.data {
+        // Only count active borrows (StpLiquidityBorrowed state)
+        // State is serialized as string in JSON
+        let state_str = intent["state"].as_str().unwrap_or("");
+        
+        if state_str == "StpLiquidityBorrowed" {
+            // borrow_amount is serialized as string for large numbers in NEAR
+            let borrow_amount = if let Some(amt_str) = intent["borrow_amount"].as_str() {
+                amt_str.parse::<u128>().unwrap_or(0)
+            } else if let Some(amt_num) = intent["borrow_amount"].as_u64() {
+                amt_num as u128
+            } else {
+                0
+            };
+            
+            total_borrowed += borrow_amount;
+            expected_yield += borrow_amount / 100; // 1% intent_yield
+        }
+    }
+
+    // Calculate denominator: total_assets + total_borrowed + expected_yield
+    let denominator = total_assets
+        .checked_add(total_borrowed)
+        .unwrap_or(u128::MAX)
+        .checked_add(expected_yield)
+        .unwrap_or(u128::MAX)
+        .max(1);
+
+    // Calculate shares: (deposit_amount * total_supply) / denominator
+    // Using integer division with rounding down (same as mul_div with Rounding::Down)
+    let shares = (deposit_amount as u128)
+        .checked_mul(total_supply_u128)
+        .unwrap_or(0)
+        .checked_div(denominator)
+        .unwrap_or(0);
+
+    Ok(shares)
 }
 

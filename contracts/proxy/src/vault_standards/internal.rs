@@ -158,7 +158,17 @@ impl Contract {
         let (total_borrowed, expected_yield) = self.calculate_expected_yield();
         let total_assets = self.total_assets + total_borrowed + expected_yield;
 
+        env::log_str(&format!(
+            "internal_convert_to_assets: shares={} total_supply={} total_assets={} total_borrowed={} expected_yield={} calculated_total={}",
+            shares, total_supply, self.total_assets, total_borrowed, expected_yield, total_assets
+        ));
+
         let result = mul_div(shares, total_assets, total_supply, rounding);
+
+        env::log_str(&format!(
+            "internal_convert_to_assets: result={} (shares={} * total_assets={} / total_supply={})",
+            result, shares, total_assets, total_supply
+        ));
 
         result
     }

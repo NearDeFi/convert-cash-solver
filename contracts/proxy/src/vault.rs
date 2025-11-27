@@ -564,7 +564,7 @@ impl VaultCore for Contract {
         // This happens when liquidity is borrowed and hasn't been repaid yet
         // The calculated assets value (including expected yield) is stored here
         // When the redemption is processed later, this stored value will be used
-        if assets == 0 || assets > self.total_assets {
+        if self.total_assets == 0 || assets == 0 || assets > self.total_assets {
             self.enqueue_redemption(owner, receiver, shares.0, assets, memo);
             return PromiseOrValue::Value(U128(0));
         }

@@ -6,21 +6,25 @@
 set -euo pipefail
 
 # Array of test files to run (from Matt's test.sh)
-TESTS=("test_vault_deposit" "test_multi_lender_queue" "test_fifo_redemption_queue" "test_single_lender_queue" "test_solver_borrow")
+# Note: test_half_redemptions added from Matt's changes
+# Excluded tests still in development: test_l1_multiple_deposits_borrows_redemption, test_partial_redemption_with_borrow, test_complex_multi_lender_scenario
+TESTS=("test_half_redemptions" "test_vault_deposit" "test_multi_lender_queue" "test_fifo_redemption_queue" "test_single_lender_queue" "test_solver_borrow")
 
 show_usage() {
     cat <<'USAGE'
 Usage: ./test_local_repro.sh [OPTIONS] [TEST_NAME]
 
 Options:
-  (no args)           Build reproducible WASM artifacts and run all tests (quiet)
+  (no args)           Build reproducible WASM artifacts and run tests from TESTS array (quiet)
   -v, --verbose       Run tests with output (--nocapture)
   -d, --debug         Run tests with sandbox debug logging
   -t, --test NAME     Run specific test with output
-  -a, --array         Run all tests in the TESTS array (from Matt's test.sh)
+  -a, --array         Same as default: run all tests in the TESTS array (from Matt's test.sh)
   --no-build          Skip reproducible build step
   --keep-going        Do not exit immediately if tests fail
   -h, --help          Show this help message
+  
+Note: By default, only tests in TESTS array are run (excludes tests in development).
 
 Examples:
   ./test_local_repro.sh                              # Build reproducible and run all tests
@@ -140,8 +144,16 @@ run_tests() {
         fi
     }
 
-    # Run tests from TESTS array (Matt's -a/--array option)
-    if [ "$RUN_ARRAY" == true ]; then
+    # Run specific test by name
+    if [[ -n "$TEST_NAME" ]]; then
+        echo "Running specific test: $TEST_NAME"
+        if [ "$DEBUG" == true ]; then
+            run_cargo_suite "custom test ($TEST_NAME)" NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test "$TEST_NAME" -- --nocapture
+        else
+            run_cargo_suite "custom test ($TEST_NAME)" cargo test "$TEST_NAME" -- --nocapture
+        fi
+    # Run tests from TESTS array (default behavior - excludes tests in development)
+    else
         echo "Running tests from TESTS array: ${TESTS[*]}"
         for test in "${TESTS[@]}"; do
             echo ""
@@ -154,26 +166,6 @@ run_tests() {
                 run_cargo_suite "test $test" cargo test "$test"
             fi
         done
-    # Run specific test by name
-    elif [[ -n "$TEST_NAME" ]]; then
-        echo "Running specific test: $TEST_NAME"
-        if [ "$DEBUG" == true ]; then
-            run_cargo_suite "custom test ($TEST_NAME)" NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test "$TEST_NAME" -- --nocapture
-        else
-            run_cargo_suite "custom test ($TEST_NAME)" cargo test "$TEST_NAME" -- --nocapture
-        fi
-    # Run all tests (default behavior)
-    else
-        if [ "$DEBUG" == true ]; then
-            echo "Running all tests with debug logging..."
-            run_cargo_suite "all tests (debug)" NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test -- --nocapture
-        elif [ "$VERBOSE" == true ]; then
-            echo "Running all tests with output..."
-            run_cargo_suite "all tests (verbose)" cargo test -- --nocapture
-        else
-            echo "Running all tests (quiet mode)..."
-            run_cargo_suite "all tests" cargo test
-        fi
     fi
 
     echo ""

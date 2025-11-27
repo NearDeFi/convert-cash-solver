@@ -166,12 +166,12 @@ pub async fn deposit_to_vault(
         .send_to(network_config)
         .await?;
 
-    // Deposit to vault
+    // Deposit to vault (using simple format like test_half_redemptions.rs)
     ft_contract
         .call_function("ft_transfer_call", json!({
             "receiver_id": vault_id,
             "amount": amount.to_string(),
-            "msg": json!({ "deposit": { "receiver_id": lender_id } }).to_string()
+            "msg": json!({ "receiver_id": lender_id }).to_string()
         }))?
         .transaction()
         .deposit(NearToken::from_yoctonear(1))
@@ -322,9 +322,11 @@ pub async fn process_redemption_queue(
         let queue_length_u32 = queue_length.data.parse::<u128>().unwrap() as u32;
         
         if queue_length_u32 == 0 {
+            println!("Redemption queue is empty, stopping processing");
             break;
         }
         
+        println!("Processing next redemption from queue (queue length: {})", queue_length_u32);
         vault_contract
             .call_function("process_next_redemption", json!([]))?
             .transaction()
@@ -333,6 +335,19 @@ pub async fn process_redemption_queue(
             .await?;
         
         sleep(Duration::from_millis(2000)).await;
+        
+        // Check if processing succeeded (like test_half_redemptions.rs)
+        let queue_length_after: Data<String> = vault_contract
+            .call_function("get_pending_redemptions_length", json!([]))?
+            .read_only()
+            .fetch_from(network_config)
+            .await?;
+        let queue_length_after_u32 = queue_length_after.data.parse::<u128>().unwrap() as u32;
+        
+        if queue_length_after_u32 == queue_length_u32 {
+            println!("Queue didn't advance, stopping");
+            break;
+        }
     }
 
     Ok(())

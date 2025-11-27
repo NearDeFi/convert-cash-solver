@@ -9,7 +9,6 @@ use serde_json::json;
 use std::sync::Arc;
 
 pub mod test_builder;
-pub use test_builder::*;
 
 pub const CONTRACT_WASM_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/near/contract.wasm");
 pub const MOCK_FT_WASM_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../mock_ft/target/near/mock_ft.wasm");

@@ -72,6 +72,13 @@ impl Contract {
         // Use provided amount or default to SOLVER_BORROW_AMOUNT
         let borrow_amount = amount.map(|a| a.0).unwrap_or(SOLVER_BORROW_AMOUNT);
 
+        // Prevent borrowing when there are pending redemptions in the queue
+        // This ensures lenders waiting for liquidity are prioritized over new borrows
+        require!(
+            self.pending_redemptions_head >= self.pending_redemptions.len(),
+            "Cannot borrow while redemptions are pending"
+        );
+
         require!(
             self.total_assets >= borrow_amount,
             "Insufficient assets for solver borrow"

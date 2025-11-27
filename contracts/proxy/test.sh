@@ -5,7 +5,17 @@
 set -e  # Exit on error
 
 # Array of test files to run
-TESTS=("test half_redemptions" "test_vault_deposit" "test_multi_lender_queue" "test_fifo_redemption_queue" "test_single_lender_queue" "test_solver_borrow")
+TESTS=(
+    "test_half_redemptions"
+    "test_vault_deposit"
+    "test_multi_lender_queue"
+    "test_fifo_redemption_queue"
+    "test_single_lender_queue"
+    "test_solver_borrow"
+    "test_borrow_with_redemption"
+    "test_multi_solver"
+    "test_lender_profit"
+)
 
 # Function to show usage
 show_usage() {

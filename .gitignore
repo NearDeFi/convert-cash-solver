@@ -21,3 +21,8 @@ notes
 env.development.local
 
 justfile
+./contracts/proxy/justfile
+./contracts/proxy/tests/test_l1_multiple_deposits_borrows_redemption.rs 
+./contracts/proxy/tests/test_partial_redemption_with_borrow.rs 
+
+test_local_repro.sh

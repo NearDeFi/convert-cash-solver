@@ -2,6 +2,31 @@
 name = "mock_ft"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/NearDeFi/convert-cash-solver"
+
+[package.metadata.near]
+wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+
+[package.metadata.near.reproducible_build]
+image = "sourcescan/cargo-near:0.15.0-rust-1.86.0"
+image_digest = "sha256:aad208b09976f643b56104cc6af87fbb03afadff2e76f9e5e3fa283969e15f8b"
+passed_env = []
+container_build_command = [
+    "cargo",
+    "near",
+    "build",
+    "non-reproducible-wasm",
+    "--locked",
+]
+
+[package.metadata.near.reproducible_build.variant.force_bulk_memory]
+container_build_command = [
+    "cargo",
+    "near",
+    "build",
+    "non-reproducible-wasm",
+    "--locked",
+]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

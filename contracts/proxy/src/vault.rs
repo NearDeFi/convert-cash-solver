@@ -815,15 +815,17 @@ mod tests {
         let owner = "owner.test";
         let asset = "usdc.test";
         let mut contract = init_contract(owner, asset, 3);
-        // existing supply and deposits
+        // existing supply and assets
         contract
             .token
             .internal_register_account(&owner.parse().unwrap());
         contract
             .token
             .internal_deposit(&owner.parse().unwrap(), 1_000_000); // supply
+        contract.total_assets = 2_000_000; // Set total_assets for the new calculation logic
         let out = contract.internal_convert_to_shares_deposit(100);
-        // shares = assets * supply / deposits = 100 * 1_000_000 / 2_000_000 = 50
+        // With new logic: shares = assets * supply / (total_assets + total_borrowed + expected_yield)
+        // shares = 100 * 1_000_000 / (2_000_000 + 0 + 0) = 50
         assert_eq!(out, 50);
     }
 
@@ -994,10 +996,17 @@ mod tests {
         testing_env!(builder.build());
         // repay 100
         let msg = serde_json::json!({ "repay": { "intent_index": "0" } }).to_string();
-        let _ = contract.ft_on_transfer(solver.clone(), U128(100), msg);
-        // total_assets increased by 100
+        let result = contract.ft_on_transfer(solver.clone(), U128(100), msg);
+
+        // handle_repayment now returns PromiseOrValue::Value(U128(0)) synchronously
+        // Verify that the repayment was processed correctly
+        match result {
+            PromiseOrValue::Value(v) => assert_eq!(v.0, 0),
+            _ => panic!("expected PromiseOrValue::Value(U128(0))"),
+        }
+        
+        // Now: total_assets increased and the intent updated
         assert_eq!(contract.total_assets, 100);
-        // intent updated
         let intent = contract.index_to_intent.get(&0).unwrap();
         assert!(matches!(
             intent.state,

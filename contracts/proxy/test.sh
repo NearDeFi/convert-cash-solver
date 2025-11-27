@@ -93,7 +93,7 @@ if [ "$SKIP_BUILD" == false ]; then
 
     # Build the main proxy contract
     echo "Building proxy contract WASM..."
-    cargo near build non-reproducible-wasm
+    cargo near build
     
     echo ""
     
@@ -101,7 +101,7 @@ if [ "$SKIP_BUILD" == false ]; then
     if [ -d "../mock_ft" ]; then
         echo "Building mock_ft contract WASM..."
         cd ../mock_ft
-        cargo near build non-reproducible-wasm
+        cargo near build
         cd ../proxy
         echo "✅ mock_ft contract built successfully"
     else

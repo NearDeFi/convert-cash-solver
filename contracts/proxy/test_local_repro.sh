@@ -5,10 +5,31 @@
 
 set -euo pipefail
 
-# Array of test files to run (from Matt's test.sh)
-# Note: test_half_redemptions added from Matt's changes
-# Excluded tests still in development: test_l1_multiple_deposits_borrows_redemption, test_partial_redemption_with_borrow, test_complex_multi_lender_scenario
-TESTS=("test_half_redemptions" "test_vault_deposit" "test_multi_lender_queue" "test_fifo_redemption_queue" "test_single_lender_queue" "test_solver_borrow")
+# Array of test files to run (all tests in tests/ directory)
+# Note: sandbox_test.rs contains multiple tests with specific names
+TESTS=(
+    "test_borrow_with_redemption"
+    "test_complex_multi_lender_scenario"
+    "test_fifo_redemption_queue"
+    "test_half_redemptions"
+    "test_lender_profit"
+    "test_multi_lender_queue"
+    "test_multi_solver"
+    "test_single_lender_queue"
+    "test_solver_borrow"
+    "test_vault_deposit"
+    "test_withdrawals"
+    # Tests from sandbox_test.rs
+    "test_mock_ft_deployment_only"
+    "test_contract_deployment"
+    "test_approve_codehash"
+    "test_vault_initialization"
+    "test_vault_conversion_functions"
+    # Tests for solver borrow limits
+    "test_solver_borrow_exceeds_pool_size"
+    "test_solver_borrow_exact_pool_size"
+    "test_solver_borrow_empty_pool"
+)
 
 show_usage() {
     cat <<'USAGE'

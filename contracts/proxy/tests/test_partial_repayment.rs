@@ -97,31 +97,36 @@ async fn test_partial_repayment_less_than_principal() -> Result<(), Box<dyn std:
         .send_to(builder.network_config())
         .await;
 
-    // Verify the transaction failed
+    // Note: ft_transfer_call returns SuccessValue even when the receiver panics
+    // because ft_resolve_transfer handles the rollback. We need to check the
+    // contract state to verify the repayment was rejected.
     match &repay_result {
         Ok(outcome) => {
             let status_str = format!("{:?}", outcome.status);
             println!("\nTransaction status: {}", status_str);
-            assert!(
-                status_str.contains("Failure") || status_str.contains("Repayment") && status_str.contains("less than minimum"),
-                "Partial repayment should fail but got: {}", status_str
-            );
-            println!("✅ Contract correctly REJECTED partial repayment");
+            // The status might be Success but tokens returned - we verify state below
         }
         Err(e) => {
-            let error_str = format!("{:?}", e);
-            println!("✅ Contract correctly REJECTED partial repayment with error: {}", error_str);
+            println!("Transaction error (expected): {:?}", e);
         }
     }
 
-    sleep(Duration::from_millis(1000)).await;
+    sleep(Duration::from_millis(1500)).await;
 
     // Step 4: Verify state unchanged after failed repayment
-    println!("\n=== Step 4: Verify state unchanged ===");
+    println!("\n=== Step 4: Verify state unchanged (repayment was rejected) ===");
     
+    // Verify total_assets is still 0 (repayment was not accepted)
     let total_assets_after_failed_repay = get_total_assets(&builder).await?;
     println!("Total assets after failed repayment: {} (should still be 0)", total_assets_after_failed_repay);
     assert_eq!(total_assets_after_failed_repay, 0, "Total assets should remain 0 after failed repayment");
+
+    // Verify solver still has their tokens (they were returned via ft_resolve_transfer)
+    let solver_balance_after_failed_repay = get_balance(&builder, "solver").await?;
+    println!("Solver balance after failed repayment: {} (should still be {})", 
+        solver_balance_after_failed_repay, borrow_amount);
+    assert_eq!(solver_balance_after_failed_repay, borrow_amount, 
+        "Solver should still have their tokens after failed repayment");
 
     // Check intent state - should still be borrowed
     let intents: Data<Vec<serde_json::Value>> = builder.vault_contract()
@@ -135,6 +140,7 @@ async fn test_partial_repayment_less_than_principal() -> Result<(), Box<dyn std:
         let state = intent["state"].as_str().unwrap_or("");
         println!("Intent state: {} (should be 'StpLiquidityBorrowed')", state);
         assert_eq!(state, "StpLiquidityBorrowed", "Intent should still be in borrowed state");
+        println!("✅ Contract correctly REJECTED partial repayment - state unchanged");
     }
 
     println!("\n✅ Test passed! Partial repayment correctly rejected, lenders protected");
@@ -206,29 +212,28 @@ async fn test_repayment_exact_principal_no_yield() -> Result<(), Box<dyn std::er
         .send_to(builder.network_config())
         .await;
 
-    // Verify the transaction failed
+    // Note: ft_transfer_call may return Success even when receiver panics
     match &repay_result {
         Ok(outcome) => {
             let status_str = format!("{:?}", outcome.status);
             println!("\nTransaction status: {}", status_str);
-            assert!(
-                status_str.contains("Failure") || status_str.contains("less than minimum"),
-                "Repayment without yield should fail but got: {}", status_str
-            );
-            println!("✅ Contract correctly REJECTED repayment without yield");
         }
         Err(e) => {
-            let error_str = format!("{:?}", e);
-            println!("✅ Contract correctly REJECTED repayment without yield: {}", error_str);
+            println!("Transaction error (expected): {:?}", e);
         }
     }
 
-    sleep(Duration::from_millis(1000)).await;
+    sleep(Duration::from_millis(1500)).await;
 
-    // Verify state unchanged
+    // Verify state unchanged - this is the real test
     let total_assets_after = get_total_assets(&builder).await?;
     println!("\nTotal assets after failed repayment: {} (should be 0)", total_assets_after);
     assert_eq!(total_assets_after, 0, "Total assets should remain 0");
+
+    // Verify solver still has their tokens
+    let solver_balance_after = get_balance(&builder, "solver").await?;
+    println!("Solver balance after failed repayment: {} (should be {})", solver_balance_after, borrow_amount);
+    assert_eq!(solver_balance_after, borrow_amount, "Solver should still have tokens");
 
     println!("\n✅ Test passed! Repayment without yield correctly rejected");
     Ok(())

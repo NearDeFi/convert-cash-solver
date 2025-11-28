@@ -308,6 +308,22 @@ impl Contract {
             "Intent is not in borrow state"
         );
 
+        // Validate minimum repayment: principal + expected yield (1%)
+        // This protects lenders from partial repayments that would cause losses
+        let expected_yield = intent.borrow_amount / 100; // 1% yield
+        let minimum_repayment = intent
+            .borrow_amount
+            .checked_add(expected_yield)
+            .expect("minimum_repayment overflow");
+
+        require!(
+            amount.0 >= minimum_repayment,
+            format!(
+                "Repayment {} is less than minimum required {} (principal {} + yield {})",
+                amount.0, minimum_repayment, intent.borrow_amount, expected_yield
+            )
+        );
+
         // Add repayment amount to total_assets
         // Note: Tokens from ft_transfer_call are transferred after ft_resolve_transfer completes,
         // but we update total_assets here since we know the amount being transferred

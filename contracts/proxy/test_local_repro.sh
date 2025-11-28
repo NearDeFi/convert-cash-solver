@@ -29,6 +29,11 @@ TESTS=(
     "test_solver_borrow_exceeds_pool_size"
     "test_solver_borrow_exact_pool_size"
     "test_solver_borrow_empty_pool"
+    # Tests for repayment validation
+    "test_partial_repayment_less_than_principal"
+    "test_repayment_exact_principal_no_yield"
+    "test_repayment_with_yield"
+    "test_repayment_with_extra_yield"
 )
 
 show_usage() {

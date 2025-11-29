@@ -764,8 +764,9 @@ mod tests {
 
         // enqueue redemption
         contract.enqueue_redemption(user.clone(), user.clone(), 100, 0, None);
-        // attempt to process -> should break and not advance head
-        contract.process_redemption_queue();
+        // attempt to process -> should return false and not advance head
+        let processed = contract.process_next_redemption();
+        assert!(!processed, "Should not process when no liquidity");
         assert_eq!(contract.pending_redemptions_head, 0);
     }
 
@@ -785,7 +786,8 @@ mod tests {
         // Calculate assets: (100 * 200) / 1000 = 20
         contract.enqueue_redemption(user.clone(), user.clone(), 100, 20, None);
         // process should advance head to 1 (one entry processed)
-        contract.process_redemption_queue();
+        let processed = contract.process_next_redemption();
+        assert!(processed, "Should process when liquidity is available");
         assert_eq!(contract.pending_redemptions_head, 1);
     }
 

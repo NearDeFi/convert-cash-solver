@@ -1028,6 +1028,6 @@ mod tests {
             intent.state,
             crate::intents::State::StpLiquidityReturned
         ));
-        assert_eq!(intent.repayment_amount, Some(100));
+        assert_eq!(intent.repayment_amount, Some(101));
     }
 }

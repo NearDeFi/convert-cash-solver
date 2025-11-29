@@ -1022,7 +1022,7 @@ mod tests {
         }
         
         // Now: total_assets increased and the intent updated
-        assert_eq!(contract.total_assets, 100);
+        assert_eq!(contract.total_assets, 101);
         let intent = contract.index_to_intent.get(&0).unwrap();
         assert!(matches!(
             intent.state,

@@ -1,5 +1,10 @@
 // Test builder pattern for integration tests
 // This builder helps simplify the creation of complex test scenarios
+//
+// Note: #![allow(dead_code)] is used because not all helper functions are used
+// by every test file, but they are available for use across all integration tests.
+
+#![allow(dead_code)]
 
 use near_api::{Contract, Data, NearToken, NetworkConfig};
 use near_api::AccountId;
@@ -237,7 +242,6 @@ pub async fn solver_repay(
         .ok_or_else(|| "Solver account not found".to_string())?;
     
     let ft_contract = builder.ft_contract();
-    let vault_contract = builder.vault_contract();
     let vault_id = builder.vault_id();
     let genesis_account_id = builder.genesis_account_id();
     let genesis_signer = builder.genesis_signer();

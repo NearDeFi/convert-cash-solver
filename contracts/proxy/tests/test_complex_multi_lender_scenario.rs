@@ -134,7 +134,7 @@ async fn test_complex_multi_lender_scenario() -> Result<(), Box<dyn std::error::
         .fetch_from(builder.network_config())
         .await?;
     
-    let lender1_first_redemption_received = if pending_redemptions_after_l1.data.is_empty() {
+    let _lender1_first_redemption_received = if pending_redemptions_after_l1.data.is_empty() {
         let received = lender1_balance_after_redeem - lender1_balance_before_redeem;
         println!("L1 redemption processed immediately, received: {}", received);
         Some(received)

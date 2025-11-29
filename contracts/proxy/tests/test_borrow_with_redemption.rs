@@ -152,7 +152,7 @@ async fn test_borrow_with_redemption() -> Result<(), Box<dyn std::error::Error +
     println!("\n=== Step 4: Solver2 tries to borrow (should be BLOCKED) ===");
     let solver2_borrow_amount = total_assets_after_s1_u128; // Try to borrow remaining liquidity
     
-    let intent2_result = vault_contract
+    let _intent2_result = vault_contract
         .call_function("new_intent", json!({
             "intent_data": "intent-s2",
             "_solver_deposit_address": solver2_id,

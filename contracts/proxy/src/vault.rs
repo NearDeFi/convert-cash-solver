@@ -1012,7 +1012,7 @@ mod tests {
         testing_env!(builder.build());
         // repay 100
         let msg = serde_json::json!({ "repay": { "intent_index": "0" } }).to_string();
-        let result = contract.ft_on_transfer(solver.clone(), U128(100), msg);
+        let result = contract.ft_on_transfer(solver.clone(), U128(101), msg);
 
         // handle_repayment now returns PromiseOrValue::Value(U128(0)) synchronously
         // Verify that the repayment was processed correctly

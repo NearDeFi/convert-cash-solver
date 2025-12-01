@@ -34,6 +34,12 @@ TESTS=(
     "test_repayment_exact_principal_no_yield"
     "test_repayment_with_yield"
     "test_repayment_with_extra_yield"
+    # NEP-621 Rounding Direction Security Tests
+    "test_deposit_shares_round_down"
+    "test_micro_transaction_attack_prevention"
+    "test_small_amount_precision"
+    "test_yield_calculation_rounding"
+    "test_redemption_rounds_down"
 )
 
 show_usage() {

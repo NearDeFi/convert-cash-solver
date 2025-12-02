@@ -6,15 +6,23 @@ set -e  # Exit on error
 
 # Array of test files to run
 TESTS=(
-    "test_half_redemptions"
-    "test_vault_deposit"
-    "test_multi_lender_queue"
+    "test_borrow_with_redemption"
+    "test_complex_multi_lender_scenario"
     "test_fifo_redemption_queue"
+    "test_half_redemptions"
+    "test_lender_profit"
+    "test_multi_lender_queue"
+    "test_multi_solver"
+    "test_partial_repayment"
+    "test_rounding_nep621"
     "test_single_lender_queue"
     "test_solver_borrow"
-    "test_borrow_with_redemption"
-    "test_multi_solver"
-    "test_lender_profit"
+    "test_solver_borrow_empty_pool"
+    "test_solver_borrow_exact_pool"
+    "test_solver_borrow_exceeds_pool"
+    "test_vault_deposit"
+    "test_withdrawals"
+    "sandbox_test"
 )
 
 # Function to show usage
@@ -91,9 +99,9 @@ if [ "$SKIP_BUILD" == false ]; then
         cargo install cargo-near
     fi
 
-    # Build the main proxy contract
+    # Build the main proxy contract (non-reproducible for faster builds)
     echo "Building proxy contract WASM..."
-    cargo near build
+    cargo near build non-reproducible-wasm
     
     echo ""
     
@@ -101,11 +109,49 @@ if [ "$SKIP_BUILD" == false ]; then
     if [ -d "../mock_ft" ]; then
         echo "Building mock_ft contract WASM..."
         cd ../mock_ft
-        cargo near build
+        cargo near build non-reproducible-wasm
         cd ../proxy
         echo "✅ mock_ft contract built successfully"
     else
         echo "⚠️  mock_ft contract not found at ../mock_ft (skipping)"
+    fi
+    
+    echo ""
+    
+    # Build each test binary sequentially to avoid overloading the system
+    echo "========================================="
+    echo "Building Test Binaries (Sequential)"
+    echo "========================================="
+    
+    BUILD_SUCCESSES=0
+    BUILD_FAILURES=0
+    FAILED_TESTS=()
+    
+    for test in "${TESTS[@]}"; do
+        echo -n "Building $test... "
+        if cargo build --test "$test" 2>/dev/null; then
+            echo "✅"
+            BUILD_SUCCESSES=$((BUILD_SUCCESSES + 1))
+        else
+            echo "❌"
+            BUILD_FAILURES=$((BUILD_FAILURES + 1))
+            FAILED_TESTS+=("$test")
+        fi
+    done
+    
+    echo ""
+    echo "========================================="
+    echo "Build Summary"
+    echo "========================================="
+    echo "✅ Successful: $BUILD_SUCCESSES"
+    echo "❌ Failed: $BUILD_FAILURES"
+    
+    if [ ${#FAILED_TESTS[@]} -gt 0 ]; then
+        echo ""
+        echo "Failed tests:"
+        for failed in "${FAILED_TESTS[@]}"; do
+            echo "  - $failed"
+        done
     fi
     
     echo ""
@@ -116,35 +162,38 @@ echo "Running Tests"
 echo "========================================="
 
 # Run tests with appropriate flags
+# Use --test-threads=1 to run tests sequentially (less resource-intensive)
 if [ "$RUN_ARRAY" == true ]; then
-    echo "Running tests from TESTS array: ${TESTS[*]}"
+    echo "Running tests from TESTS array (one at a time)..."
     for test in "${TESTS[@]}"; do
         echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "Running test: $test"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         if [ "$DEBUG" == true ]; then
-            NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test "$test" -- --nocapture
+            NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test --test "$test" -- --nocapture --test-threads=1
         elif [ "$VERBOSE" == true ]; then
-            cargo test "$test" -- --nocapture
+            cargo test --test "$test" -- --nocapture --test-threads=1
         else
-            cargo test "$test"
+            cargo test --test "$test" -- --test-threads=1
         fi
     done
 elif [ -n "$TEST_NAME" ]; then
     echo "Running specific test: $TEST_NAME"
     if [ "$DEBUG" == true ]; then
-        NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test "$TEST_NAME" -- --nocapture
+        NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test --test "$TEST_NAME" -- --nocapture --test-threads=1
     else
-        cargo test "$TEST_NAME" -- --nocapture
+        cargo test --test "$TEST_NAME" -- --nocapture --test-threads=1
     fi
 elif [ "$DEBUG" == true ]; then
     echo "Running tests with debug logging..."
-    NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test -- --nocapture
+    NEAR_ENABLE_SANDBOX_LOG=1 NEAR_SANDBOX_LOG=debug cargo test -- --nocapture --test-threads=1
 elif [ "$VERBOSE" == true ]; then
     echo "Running tests with output..."
-    cargo test -- --nocapture
+    cargo test -- --nocapture --test-threads=1
 else
     echo "Running tests (quiet mode)..."
-    cargo test
+    cargo test -- --test-threads=1
 fi
 
 echo ""

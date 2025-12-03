@@ -1,4 +1,23 @@
-// Basic sandbox tests for contract deployment and functionality
+//! # Sandbox Tests - Contract Deployment and Basic Functionality
+//!
+//! These tests verify the fundamental deployment and initialization of the vault
+//! contract using the NEAR sandbox environment. They serve as smoke tests to ensure
+//! the contract can be deployed and queried correctly.
+//!
+//! ## Test Overview
+//!
+//! | Test | Description | Expected Outcome |
+//! |------|-------------|------------------|
+//! | `test_mock_ft_deployment_only` | Deploys mock USDC | FT contract responds with correct supply and metadata |
+//! | `test_contract_deployment` | Deploys vault contract | Vault deploys without errors |
+//! | `test_approve_codehash` | Owner approves TEE codehash | Codehash approved successfully |
+//! | `test_vault_initialization` | Checks vault initial state | Zero assets, zero shares, correct metadata |
+//! | `test_vault_conversion_functions` | Tests share conversion | Empty vault uses extra_decimals multiplier |
+//!
+//! ## No Lender/Solver Interaction
+//!
+//! These tests focus purely on contract deployment and view functions.
+//! They do not involve deposits, borrows, or redemptions.
 
 mod helpers;
 
@@ -7,6 +26,17 @@ use near_api::{Contract, Data};
 use serde_json::json;
 use tokio::time::{sleep, Duration};
 
+/// Tests deployment of the mock fungible token contract.
+///
+/// # Scenario
+///
+/// Deploys a mock USDC token and verifies its configuration.
+///
+/// # Expected Outcome
+///
+/// - FT contract deploys successfully
+/// - Total supply matches initialization value
+/// - Metadata shows correct symbol (USDC) and decimals (6)
 #[tokio::test]
 async fn test_mock_ft_deployment_only() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
@@ -22,7 +52,7 @@ async fn test_mock_ft_deployment_only() -> Result<(), Box<dyn std::error::Error 
     )
     .await?;
 
-    // Give the sandbox a moment to finalize the deploy before issuing view calls.
+    // Wait for deploy to finalize
     sleep(Duration::from_millis(200)).await;
 
     let ft_contract = Contract(ft_id.clone());
@@ -44,16 +74,22 @@ async fn test_mock_ft_deployment_only() -> Result<(), Box<dyn std::error::Error 
     Ok(())
 }
 
+/// Tests basic vault contract deployment.
+///
+/// # Scenario
+///
+/// Deploys the vault contract with mock FT as underlying asset.
+///
+/// # Expected Outcome
+///
+/// - Vault contract deploys without errors
+/// - Contract account is accessible
 #[tokio::test]
 async fn test_contract_deployment() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Start sandbox
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);
-
-    // Setup genesis account
     let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
 
-    // Deploy contract
     let contract_id = deploy_vault_contract(&network_config, &genesis_account_id, &genesis_signer).await?;
     
     println!("Contract deployed to: {}", contract_id);
@@ -61,19 +97,24 @@ async fn test_contract_deployment() -> Result<(), Box<dyn std::error::Error + Se
     Ok(())
 }
 
+/// Tests owner-only codehash approval function.
+///
+/// # Scenario
+///
+/// Owner calls `approve_codehash` to whitelist a TEE worker codehash.
+///
+/// # Expected Outcome
+///
+/// - Transaction succeeds when called by owner
+/// - Codehash is added to approved set
 #[tokio::test]
 async fn test_approve_codehash() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Start sandbox
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);
-
-    // Setup genesis account (owner)
     let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
 
-    // Deploy and initialize contract
     let contract_id = deploy_vault_contract(&network_config, &genesis_account_id, &genesis_signer).await?;
 
-    // Approve a codehash
     let codehash = "approved_codehash_456".to_string();
     let contract = Contract(contract_id.clone());
     let result = contract
@@ -90,22 +131,29 @@ async fn test_approve_codehash() -> Result<(), Box<dyn std::error::Error + Send 
     Ok(())
 }
 
+/// Tests vault initialization state and metadata.
+///
+/// # Scenario
+///
+/// Deploys vault and queries all initial state values.
+///
+/// # Expected Outcome
+///
+/// - Share token metadata: name=vUSDC, decimals=24
+/// - Underlying asset: usdc.* address
+/// - Total assets: 0 (no deposits yet)
+/// - Total shares: 0 (no shares minted)
 #[tokio::test]
 async fn test_vault_initialization() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Start sandbox
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);
-
-    // Setup genesis account
     let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
 
-    // Deploy contract using helper (with extra_decimals = 3)
     let contract_id = deploy_vault_contract(&network_config, &genesis_account_id, &genesis_signer).await?;
     
     let vault_contract = Contract(contract_id.clone());
 
-    // Test: Get vault metadata (FT metadata for vault shares)
-    // Note: ft_metadata returns a struct, so we use Data<serde_json::Value> for flexibility
+    // Check share token metadata
     let metadata: Data<serde_json::Value> = vault_contract
         .call_function("ft_metadata", json!([]))? 
         .read_only()
@@ -118,7 +166,7 @@ async fn test_vault_initialization() -> Result<(), Box<dyn std::error::Error + S
     assert_eq!(metadata.data["symbol"], "vUSDC");
     assert_eq!(metadata.data["decimals"], 24);
 
-    // Test: Get underlying asset
+    // Check underlying asset
     let asset: Data<String> = vault_contract
         .call_function("asset", json!([]))?
         .read_only()
@@ -128,7 +176,7 @@ async fn test_vault_initialization() -> Result<(), Box<dyn std::error::Error + S
     println!("Underlying asset: {}", asset.data);
     assert!(asset.data.starts_with("usdc."), "Asset should be usdc token");
 
-    // Test: Get total assets (should be 0 initially)
+    // Check initial state (empty vault)
     let total_assets: Data<String> = vault_contract
         .call_function("total_assets", json!([]))?
         .read_only()
@@ -138,7 +186,6 @@ async fn test_vault_initialization() -> Result<(), Box<dyn std::error::Error + S
     println!("Total assets: {}", total_assets.data);
     assert_eq!(total_assets.data, "0");
 
-    // Test: Get total supply of shares (should be 0 initially)
     let total_supply: Data<String> = vault_contract
         .call_function("ft_total_supply", json!([]))?
         .read_only()
@@ -159,21 +206,27 @@ async fn test_vault_initialization() -> Result<(), Box<dyn std::error::Error + S
     Ok(())
 }
 
+/// Tests vault share conversion functions on an empty vault.
+///
+/// # Scenario
+///
+/// Calls `preview_deposit` and `preview_withdraw` on empty vault.
+///
+/// # Expected Outcome
+///
+/// - Empty vault uses extra_decimals multiplier (10^3 = 1000)
+/// - 1 token input produces 1000 shares output
 #[tokio::test]
 async fn test_vault_conversion_functions() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Start sandbox
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);
-
-    // Setup genesis account
     let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
 
-    // Deploy contract with vault parameters
     let contract_id = deploy_vault_contract(&network_config, &genesis_account_id, &genesis_signer).await?;
     
     let contract = Contract(contract_id.clone());
 
-    // Test: convert_to_shares for empty vault with extra_decimals = 3
+    // Test preview_deposit with extra_decimals
     let assets_to_convert = "1000000000000000000000000"; // 1 token with 24 decimals
     let shares: Data<String> = contract
         .call_function("preview_deposit", json!({
@@ -185,13 +238,13 @@ async fn test_vault_conversion_functions() -> Result<(), Box<dyn std::error::Err
 
     println!("Assets {} converts to shares: {}", assets_to_convert, shares.data);
     
-    // For empty vault with extra_decimals, multiply by 10^EXTRA_DECIMALS
+    // Empty vault multiplies by 10^EXTRA_DECIMALS
     let multiplier = 10u128.pow(EXTRA_DECIMALS as u32);
     let expected_shares = (assets_to_convert.parse::<u128>().unwrap() * multiplier).to_string();
     println!("Expected shares: {} (assets × {})", expected_shares, multiplier);
     assert_eq!(shares.data, expected_shares, "Should multiply by 10^{} = {}", EXTRA_DECIMALS, multiplier);
 
-    // Test: preview_withdraw (reverse - how many shares needed to withdraw X assets)
+    // Test preview_withdraw
     let preview_shares: Data<String> = contract
         .call_function("preview_withdraw", json!({
             "assets": "1000000000000000000000000"

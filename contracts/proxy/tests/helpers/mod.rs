@@ -1,4 +1,19 @@
-// Common helper functions for sandbox tests
+//! # Test Helpers Module
+//!
+//! Provides common infrastructure for NEAR sandbox integration tests.
+//! These helpers abstract away boilerplate for deploying contracts, creating
+//! accounts, and performing common operations.
+//!
+//! ## Modules
+//!
+//! - [`test_builder`]: Builder pattern for constructing complex test scenarios
+//!
+//! ## Key Functions
+//!
+//! - [`deploy_mock_ft`]: Deploys a mock NEP-141 fungible token
+//! - [`deploy_vault_contract`]: Deploys the vault contract with mock FT
+//! - [`create_user_account`]: Creates funded test accounts
+//! - [`create_network_config`]: Configures connection to sandbox
 
 use near_api::{
     signer, Account, AccountId, Contract, NearToken, NetworkConfig, RPCEndpoint, Signer,
@@ -10,12 +25,37 @@ use std::sync::Arc;
 
 pub mod test_builder;
 
-pub const CONTRACT_WASM_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/near/contract.wasm");
-pub const MOCK_FT_WASM_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../mock_ft/target/near/mock_ft.wasm");
-pub const EXTRA_DECIMALS: u8 = 3; // Multiplier for first deposit: 10^3 = 1000
-#[allow(dead_code)]
-pub const SOLVER_BORROW_AMOUNT: u128 = 5_000_000; // 5 USDC with 6 decimals
+// ============================================================================
+// Constants
+// ============================================================================
 
+/// Path to the compiled vault contract WASM.
+pub const CONTRACT_WASM_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/near/contract.wasm");
+
+/// Path to the compiled mock FT contract WASM.
+pub const MOCK_FT_WASM_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../mock_ft/target/near/mock_ft.wasm");
+
+/// Extra decimals for vault share precision (10^3 = 1000 multiplier).
+pub const EXTRA_DECIMALS: u8 = 3;
+
+/// Default solver borrow amount (5 USDC with 6 decimals).
+#[allow(dead_code)]
+pub const SOLVER_BORROW_AMOUNT: u128 = 5_000_000;
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/// Validates that a transaction execution status indicates success.
+///
+/// # Arguments
+///
+/// * `status` - The execution status to check
+/// * `context` - Description for error messages
+///
+/// # Returns
+///
+/// `Ok(())` if successful, `Err` with context message otherwise.
 fn ensure_success_status(
     status: &FinalExecutionStatus,
     context: &str,
@@ -29,6 +69,15 @@ fn ensure_success_status(
     }
 }
 
+/// Creates a network configuration for connecting to the sandbox.
+///
+/// # Arguments
+///
+/// * `sandbox` - The running sandbox instance
+///
+/// # Returns
+///
+/// A `NetworkConfig` configured for the sandbox RPC endpoint.
 pub fn create_network_config(sandbox: &Sandbox) -> NetworkConfig {
     NetworkConfig {
         network_name: "sandbox".to_string(),
@@ -37,6 +86,14 @@ pub fn create_network_config(sandbox: &Sandbox) -> NetworkConfig {
     }
 }
 
+/// Retrieves the genesis account credentials from the sandbox.
+///
+/// The genesis account has the initial NEAR balance and is used to
+/// fund other accounts and deploy contracts.
+///
+/// # Returns
+///
+/// A tuple of (account_id, signer) for the genesis account.
 pub async fn setup_genesis_account() -> (AccountId, Arc<Signer>) {
     let genesis_account_default = GenesisAccount::default();
     let genesis_account_id: AccountId = genesis_account_default.account_id;
@@ -48,6 +105,21 @@ pub async fn setup_genesis_account() -> (AccountId, Arc<Signer>) {
     (genesis_account_id, genesis_signer)
 }
 
+/// Deploys a mock NEP-141 fungible token contract.
+///
+/// Creates a new account for the token and deploys the mock FT WASM.
+/// The token is initialized with the specified total supply.
+///
+/// # Arguments
+///
+/// * `network_config` - Network connection configuration
+/// * `genesis_account_id` - Account to fund the FT account
+/// * `genesis_signer` - Signer for the genesis account
+/// * `total_supply` - Initial token supply as a string
+///
+/// # Returns
+///
+/// The account ID of the deployed FT contract.
 #[allow(dead_code)]
 pub async fn deploy_mock_ft(
     network_config: &NetworkConfig,
@@ -69,10 +141,8 @@ pub async fn deploy_mock_ft(
 
     println!("Mock FT account created: {}", ft_id);
 
-    // Read mock FT WASM
+    // Read and deploy mock FT WASM
     let wasm_bytes = std::fs::read(MOCK_FT_WASM_PATH)?;
-    
-    // Deploy mock FT contract
     let ft_signer: Arc<Signer> = Signer::new(Signer::from_secret_key(ft_secret_key)).unwrap();
     
     let deploy_res = Contract::deploy(ft_id.clone())
@@ -100,12 +170,28 @@ pub async fn deploy_mock_ft(
     Ok(ft_id)
 }
 
+/// Deploys the vault contract with a mock FT as the underlying asset.
+///
+/// This function:
+/// 1. Deploys a mock USDC token with 1M supply
+/// 2. Creates and deploys the vault contract
+/// 3. Registers the vault with the FT for storage
+///
+/// # Arguments
+///
+/// * `network_config` - Network connection configuration
+/// * `genesis_account_id` - Account to own the contracts
+/// * `genesis_signer` - Signer for the genesis account
+///
+/// # Returns
+///
+/// The account ID of the deployed vault contract.
 pub async fn deploy_vault_contract(
     network_config: &NetworkConfig,
     genesis_account_id: &AccountId,
     genesis_signer: &Arc<Signer>,
 ) -> Result<AccountId, Box<dyn std::error::Error + Send + Sync>> {
-    // First, deploy mock FT contract with initial supply
+    // Deploy mock FT with initial supply
     let total_supply = "1000000000000"; // 1 million USDC (6 decimals)
     let asset_id = deploy_mock_ft(network_config, genesis_account_id, genesis_signer, total_supply).await?;
     
@@ -123,13 +209,10 @@ pub async fn deploy_vault_contract(
 
     println!("Vault contract account created: {}", contract_id);
 
-    // Read vault contract WASM
+    // Read and deploy vault WASM
     let wasm_bytes = std::fs::read(CONTRACT_WASM_PATH)?;
-    
-    // Deploy vault contract
     let contract_signer: Arc<Signer> = Signer::new(Signer::from_secret_key(contract_secret_key)).unwrap();
     
-    // Deploy with init in a single transaction (original flow)
     let init_args = json!({
         "owner_id": genesis_account_id,
         "asset": asset_id,
@@ -174,6 +257,18 @@ pub async fn deploy_vault_contract(
     Ok(contract_id)
 }
 
+/// Creates a new user account funded with NEAR.
+///
+/// # Arguments
+///
+/// * `network_config` - Network connection configuration
+/// * `genesis_account_id` - Account to fund the new account
+/// * `genesis_signer` - Signer for the genesis account
+/// * `user_name` - Name prefix for the account (e.g., "alice" -> "alice.{genesis}")
+///
+/// # Returns
+///
+/// A tuple of (account_id, signer) for the new account.
 #[allow(dead_code)]
 pub async fn create_user_account(
     network_config: &NetworkConfig,
@@ -197,4 +292,3 @@ pub async fn create_user_account(
 
     Ok((user_id, user_signer))
 }
-

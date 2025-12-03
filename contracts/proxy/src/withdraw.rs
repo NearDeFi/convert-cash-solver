@@ -1,14 +1,60 @@
+//! # Cross-Chain Withdrawal Module
+//!
+//! Enables withdrawing OMFT (Omnichain Multichain Fungible Tokens) from NEAR
+//! to external chains via the OMFT bridge protocol.
+//!
+//! ## Supported Chains
+//!
+//! - **EVM Chains**: Ethereum, Polygon, Arbitrum, etc. (0x addresses)
+//! - **Solana**: Base58-encoded addresses
+//!
+//! ## Bridge Mechanism
+//!
+//! The OMFT bridge recognizes a special memo format `WITHDRAW_TO:<address>` when
+//! the receiver of an `ft_transfer` is the token contract itself. This triggers
+//! the bridge to burn the tokens on NEAR and mint them on the destination chain.
+
 use crate::*;
 use near_contract_standards::fungible_token::core::ext_ft_core;
-use near_sdk::{Gas, json_types::U128};
+use near_sdk::{json_types::U128, Gas};
 
+/// Gas allocation for OMFT withdrawal cross-contract call.
 const GAS_FOR_OMFT_WITHDRAW: Gas = Gas::from_tgas(30);
 
 #[near]
 impl Contract {
-
-    /// Burns OMFT on NEAR and withdraws to an EVM address controlled by the pool.
-    /// The OMFT bridge recognizes the memo "WITHDRAW_TO:<0x...>" when receiver_id is the token contract itself.
+    /// Burns OMFT tokens on NEAR and withdraws them to an EVM address.
+    ///
+    /// This initiates a cross-chain transfer by calling `ft_transfer` on the
+    /// OMFT token contract with a special memo that triggers the bridge.
+    ///
+    /// # Arguments
+    ///
+    /// * `token_contract` - The OMFT token contract (must match vault asset)
+    /// * `amount` - Amount to withdraw
+    /// * `evm_address` - Destination EVM address (0x-prefixed, 40 hex chars)
+    ///
+    /// # Requirements
+    ///
+    /// - Caller must be the contract owner
+    /// - Requires 1 yoctoNEAR attached for security
+    /// - Token contract must match the vault's underlying asset
+    /// - Amount must not exceed available vault assets
+    /// - EVM address must be valid format (0x + 40 hex characters)
+    ///
+    /// # Returns
+    ///
+    /// A promise for the `ft_transfer` cross-contract call.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// contract.withdraw_omft_to_evm(
+    ///     "usdc.omft.near".parse().unwrap(),
+    ///     U128(1_000_000),
+    ///     "0x742d35Cc6634C0532925a3b844Bc9e7595f7eA3b".to_string()
+    /// );
+    /// ```
     #[payable]
     pub fn withdraw_omft_to_evm(
         &mut self,
@@ -16,46 +62,68 @@ impl Contract {
         amount: U128,
         evm_address: String,
     ) -> Promise {
-        // Access control and anti-CSRF
+        // Access control
         self.require_owner();
         near_sdk::assert_one_yocto();
 
-        // Basic input validations
+        // Validate inputs
         require!(amount.0 > 0, "amount must be > 0");
         require!(
             token_contract == self.asset,
             "token_contract must match vault asset"
         );
-        // Ensure we are not attempting to move more than managed assets
         require!(
             amount.0 <= self.total_assets,
             "amount exceeds available assets"
         );
 
-        // Normalize and validate EVM address
+        // Validate EVM address format (0x + 40 hex characters)
         let evm = evm_address.trim().to_string();
-        // Basic format validation for 0x... address (length check); bridge will enforce strictly.
         require!(
             evm.starts_with("0x")
                 && evm.len() == 42
-                && evm
-                    .chars()
-                    .skip(2)
-                    .all(|c| c.is_ascii_hexdigit()),
+                && evm.chars().skip(2).all(|c| c.is_ascii_hexdigit()),
             "invalid EVM address format"
         );
 
+        // Construct the bridge memo
         let memo = format!("WITHDRAW_TO:{}", evm);
 
-        // Send ft_transfer to the OMFT contract itself with 1 yocto deposit
+        // =====================================================================
+        // Cross-Contract Call: OMFT Bridge Withdrawal
+        // =====================================================================
+        // Calls ft_transfer on the OMFT token contract with:
+        // - receiver_id = token contract itself (triggers bridge logic)
+        // - memo = "WITHDRAW_TO:<evm_address>" (bridge instruction)
+        // The bridge will burn tokens on NEAR and mint on the destination EVM chain.
+        // =====================================================================
         ext_ft_core::ext(token_contract.clone())
             .with_attached_deposit(NearToken::from_yoctonear(1))
             .with_static_gas(GAS_FOR_OMFT_WITHDRAW)
             .ft_transfer(token_contract, amount, Some(memo))
     }
 
-    /// Burns OMFT on NEAR and withdraws to a Solana address (base58).
-    /// The OMFT bridge recognizes the memo "WITHDRAW_TO:<solana_address>" when receiver_id is the token contract itself.
+    /// Burns OMFT tokens on NEAR and withdraws them to a Solana address.
+    ///
+    /// Similar to EVM withdrawal, but uses Solana's Base58 address format.
+    ///
+    /// # Arguments
+    ///
+    /// * `token_contract` - The OMFT token contract (must match vault asset)
+    /// * `amount` - Amount to withdraw
+    /// * `sol_address` - Destination Solana address (Base58 encoded)
+    ///
+    /// # Requirements
+    ///
+    /// - Caller must be the contract owner
+    /// - Requires 1 yoctoNEAR attached for security
+    /// - Token contract must match the vault's underlying asset
+    /// - Amount must not exceed available vault assets
+    /// - Solana address must be valid Base58 (32-44 characters, no 0/O/I/l)
+    ///
+    /// # Returns
+    ///
+    /// A promise for the `ft_transfer` cross-contract call.
     #[payable]
     pub fn withdraw_omft_to_solana(
         &mut self,
@@ -63,29 +131,29 @@ impl Contract {
         amount: U128,
         sol_address: String,
     ) -> Promise {
-        // Access control and anti-CSRF
+        // Access control
         self.require_owner();
         near_sdk::assert_one_yocto();
 
-        // Basic input validations
+        // Validate inputs
         require!(amount.0 > 0, "amount must be > 0");
         require!(
             token_contract == self.asset,
             "token_contract must match vault asset"
         );
-        // Ensure we are not attempting to move more than managed assets
         require!(
             amount.0 <= self.total_assets,
             "amount exceeds available assets"
         );
-        // Minimal sanity checks; actual validation is enforced by the bridge/relayer.
+
+        // Validate Solana address format (Base58, 32-44 chars)
         let sol = sol_address.trim().to_string();
-        // Length bounds
         require!(
             sol.len() >= 32 && sol.len() <= 64,
             "invalid Solana address length"
         );
-        // Base58 charset (no 0, O, I, l)
+
+        // Validate Base58 character set (excludes 0, O, I, l)
         let is_base58 = sol.chars().all(|c| {
             matches!(c,
                 '1'..='9'
@@ -95,14 +163,27 @@ impl Contract {
         });
         require!(is_base58, "invalid Solana address characters");
 
+        // Construct the bridge memo
         let memo = format!("WITHDRAW_TO:{}", sol);
 
+        // =====================================================================
+        // Cross-Contract Call: OMFT Bridge Withdrawal to Solana
+        // =====================================================================
+        // Calls ft_transfer on the OMFT token contract with:
+        // - receiver_id = token contract itself (triggers bridge logic)
+        // - memo = "WITHDRAW_TO:<solana_address>" (bridge instruction)
+        // The bridge will burn tokens on NEAR and mint on Solana.
+        // =====================================================================
         ext_ft_core::ext(token_contract.clone())
             .with_attached_deposit(NearToken::from_yoctonear(1))
             .with_static_gas(GAS_FOR_OMFT_WITHDRAW)
             .ft_transfer(token_contract, amount, Some(memo))
     }
 }
+
+// ============================================================================
+// Unit Tests
+// ============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -114,7 +195,7 @@ mod tests {
     fn evm_requires_one_yocto() {
         let mut contract = ContractBuilder::new("owner.test", "usdc.test")
             .predecessor("owner.test")
-            .attached(0) // no yocto
+            .attached(0)
             .build();
         let _ = contract.withdraw_omft_to_evm(
             "usdc.test".parse().unwrap(),
@@ -128,7 +209,7 @@ mod tests {
     fn sol_requires_one_yocto() {
         let mut contract = ContractBuilder::new("owner.test", "usdc.test")
             .predecessor("owner.test")
-            .attached(0) // no yocto
+            .attached(0)
             .build();
         let _ = contract.withdraw_omft_to_solana(
             "usdc.test".parse().unwrap(),
@@ -142,7 +223,7 @@ mod tests {
     fn evm_amount_must_be_positive() {
         let mut contract = ContractBuilder::new("owner.test", "usdc.test")
             .predecessor("owner.test")
-            .attached(1) // 1 yocto
+            .attached(1)
             .build();
         let _ = contract.withdraw_omft_to_evm(
             "usdc.test".parse().unwrap(),
@@ -186,7 +267,6 @@ mod tests {
             .predecessor("owner.test")
             .attached(1)
             .build();
-        // total_assets starts at 0 -> any positive amount should fail
         let _ = contract.withdraw_omft_to_evm(
             "usdc.test".parse().unwrap(),
             U128(1),
@@ -198,7 +278,7 @@ mod tests {
     #[should_panic]
     fn only_owner_can_withdraw() {
         let mut contract = ContractBuilder::new("owner.test", "usdc.test")
-            .predecessor("alice.test") // non-owner
+            .predecessor("alice.test")
             .attached(1)
             .build();
         let _ = contract.withdraw_omft_to_evm(
@@ -220,7 +300,6 @@ mod tests {
             U128(1_000_000),
             "0x1111111111111111111111111111111111111111".to_string(),
         );
-        // If we reach here, guards passed (no assertions)
     }
 
     #[test]
@@ -245,8 +324,11 @@ mod tests {
             .predecessor("owner.test")
             .attached(1)
             .build();
-        // 0x + 3 hex -> invalid
-        let _ = contract.withdraw_omft_to_evm("usdc.test".parse().unwrap(), U128(1), "0x123".to_string());
+        let _ = contract.withdraw_omft_to_evm(
+            "usdc.test".parse().unwrap(),
+            U128(1),
+            "0x123".to_string(),
+        );
     }
 
     #[test]
@@ -257,7 +339,6 @@ mod tests {
             .predecessor("owner.test")
             .attached(1)
             .build();
-        // includes '0' which is not in base58 alphabet
         let _ = contract.withdraw_omft_to_solana(
             "usdc.test".parse().unwrap(),
             U128(1),
@@ -278,7 +359,6 @@ mod tests {
             U128(1_000_000),
             "0x1111111111111111111111111111111111111111".to_string(),
         );
-        // The method prepares and triggers a cross-contract call; it does not mutate total_assets locally.
         assert_eq!(contract.total_assets, before);
     }
 }

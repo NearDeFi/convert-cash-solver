@@ -1,4 +1,31 @@
-// Test solver receives mock FT tokens when creating an intent
+//! # Solver Borrow Test
+//!
+//! Tests the complete solver lifecycle: borrowing liquidity from the vault,
+//! executing an intent, and repaying with yield.
+//!
+//! ## Test Overview
+//!
+//! | Test | Description | Expected Outcome |
+//! |------|-------------|------------------|
+//! | `test_solver_borrow` | Solver borrows, fulfills intent, repays with 1% yield | Vault assets increase by yield amount |
+//!
+//! ## Lender/Solver Interaction Flow
+//!
+//! ```text
+//! 1. Lender deposits 50 USDC → receives vault shares
+//! 2. Solver calls new_intent → borrows 5 USDC from vault
+//! 3. Solver fulfills intent off-chain (simulated)
+//! 4. Solver repays 5.05 USDC (principal + 1% yield)
+//! 5. Vault total_assets increases by 0.05 USDC (yield)
+//! ```
+//!
+//! ## Key Verification Points
+//!
+//! - Solver receives borrowed tokens immediately after new_intent
+//! - Intent state transitions: Created → LiquidityBorrowed → LiquidityReturned
+//! - Solver balance returns to 0 after repayment
+//! - Total shares remain unchanged (no dilution)
+//! - Total assets increase by the yield amount
 
 mod helpers;
 
@@ -7,27 +34,39 @@ use near_api::{Contract, Data, NearToken};
 use serde_json::json;
 use tokio::time::{sleep, Duration};
 
+/// Tests the complete solver borrow and repay cycle.
+///
+/// # Scenario
+///
+/// 1. User deposits 50 USDC as liquidity
+/// 2. Solver creates intent and borrows 5 USDC
+/// 3. Solver repays 5.05 USDC (principal + 1% yield)
+///
+/// # Expected Outcome
+///
+/// - Solver receives exactly SOLVER_BORROW_AMOUNT tokens
+/// - Intent is created with correct data
+/// - After repayment, solver balance = 0
+/// - Vault total_assets = original + borrow + yield
+/// - Total shares unchanged (yield accrues to share value)
 #[tokio::test]
 async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Start sandbox
+    // Start sandbox and deploy contracts
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);
-
-    // Setup genesis account
     let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
 
-    // Deploy vault (which also deploys mock FT)
     let vault_id = deploy_vault_contract(&network_config, &genesis_account_id, &genesis_signer).await?;
     let ft_id: near_api::AccountId = format!("usdc.{}", genesis_account_id).parse()?;
 
-    // Create user and deposit assets into vault so rewards can be paid
+    // Create and fund lender
     let (user_id, user_signer) =
         create_user_account(&network_config, &genesis_account_id, &genesis_signer, "user").await?;
 
     let ft_contract = Contract(ft_id.clone());
     let vault_contract = Contract(vault_id.clone());
 
-    // Register user with FT contract and vault
+    // Register user with FT and vault
     ft_contract
         .call_function("storage_deposit", json!({
             "account_id": user_id
@@ -48,7 +87,9 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
         .send_to(&network_config)
         .await?;
 
-    // Transfer USDC to user and deposit into vault (provide liquidity)
+    // =========================================================================
+    // LENDER PROVIDES LIQUIDITY
+    // =========================================================================
     let transfer_amount = "100000000"; // 100 USDC
     ft_contract
         .call_function("ft_transfer", json!({
@@ -80,7 +121,7 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
     let (solver_id, solver_signer) =
         create_user_account(&network_config, &genesis_account_id, &genesis_signer, "solver").await?;
 
-    // Register solver with FT contract so they can receive tokens
+    // Register solver with FT
     ft_contract
         .call_function("storage_deposit", json!({
             "account_id": solver_id
@@ -91,7 +132,7 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
         .send_to(&network_config)
         .await?;
 
-    // Record solver balance before creating intent
+    // Verify solver starts with 0 balance
     let solver_balance_before: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({
             "account_id": solver_id
@@ -108,7 +149,9 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
         .fetch_from(&network_config)
         .await?;
 
-    // Solver creates new intent (should receive mock FT tokens)
+    // =========================================================================
+    // SOLVER BORROWS LIQUIDITY
+    // =========================================================================
     let _new_intent_result = vault_contract
         .call_function("new_intent", json!({
             "intent_data": "test-intent",
@@ -120,7 +163,7 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
         .send_to(&network_config)
         .await?;
 
-    // Wait 2 blocks because the transfer is async
+    // Wait for cross-contract call to complete
     sleep(Duration::from_millis(1200)).await;
 
     // Verify solver received tokens
@@ -142,7 +185,7 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
     );
     assert_eq!(solver_balance_after, expected_amount);
 
-    // Fetch intents stored for the solver and ensure the new intent was recorded
+    // Verify intent was created
     let intents: Data<Vec<serde_json::Value>> = vault_contract
         .call_function(
             "get_intents_by_solver",
@@ -166,13 +209,14 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
     assert_eq!(latest_intent["user_deposit_hash"], "hash-123");
     assert_eq!(latest_intent["intent_data"], "test-intent");
 
-    // Only intent so far has index 0
+    // =========================================================================
+    // SOLVER REPAYS WITH YIELD
+    // =========================================================================
     let intent_index_u128: u128 = 0;
-
-    // Give solver an extra 1% to repay with intent_yield
-    let intent_yield_amount = SOLVER_BORROW_AMOUNT / 100; // 1% intent_yield
+    let intent_yield_amount = SOLVER_BORROW_AMOUNT / 100; // 1% yield
     let total_repayment = SOLVER_BORROW_AMOUNT + intent_yield_amount;
 
+    // Transfer yield to solver
     ft_contract
         .call_function("ft_transfer", json!({
             "receiver_id": solver_id,
@@ -190,7 +234,7 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
         .fetch_from(&network_config)
         .await?;
 
-    // Solver repays borrowed liquidity plus intent_yield
+    // Solver repays principal + yield
     ft_contract
         .call_function("ft_transfer_call", json!({
             "receiver_id": vault_id,
@@ -207,7 +251,11 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
         .send_to(&network_config)
         .await?;
 
-    // Verify solver balance is zero
+    // =========================================================================
+    // VERIFY FINAL STATE
+    // =========================================================================
+    
+    // Solver balance should be zero
     let solver_balance_final: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({
             "account_id": solver_id
@@ -218,6 +266,7 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
     assert_eq!(solver_balance_final.data, "0");
     println!("✅ Solver balance is zero");
 
+    // Total shares unchanged
     let total_shares_after: Data<String> = vault_contract
         .call_function("ft_total_supply", json!([]))?
         .read_only()
@@ -227,7 +276,7 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
     assert_eq!(total_shares_after.data, total_shares_before.data);
     println!("✅ total shares is the same");
 
-    // Verify contract assets increased by 10%
+    // Total assets increased by repayment
     let total_assets_after_repay: Data<String> = vault_contract
         .call_function("total_assets", json!([]))?
         .read_only()
@@ -242,4 +291,3 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
     println!("✅ Solver repaid liquidity with 1% intent_yield, contract balance increased and solver balance is zero");
     Ok(())
 }
-

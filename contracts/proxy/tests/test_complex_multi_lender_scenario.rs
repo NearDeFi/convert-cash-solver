@@ -1,3 +1,41 @@
+//! # Complex Multi-Lender Scenario Test
+//!
+//! Tests a complex scenario with multiple lenders, multiple borrows, and
+//! interleaved deposits/redemptions. This stress-tests the vault's share
+//! calculation and yield distribution mechanics.
+//!
+//! ## Test Overview
+//!
+//! | Test | Description | Expected Outcome |
+//! |------|-------------|------------------|
+//! | `test_complex_multi_lender_scenario` | 3 lenders, 2 borrows, partial redemptions | Yield distributed proportionally, all lenders receive appropriate returns |
+//!
+//! ## Lender/Solver Interaction Flow
+//!
+//! ```text
+//! 1.  L1 deposits 50 USDC → receives shares (empty vault, gets 1000x multiplier)
+//! 2.  Solver borrows 25 USDC (part of L1's deposit)
+//! 3.  L2 deposits 30 USDC (during active borrow) → shares account for expected yield
+//! 4.  L1 redeems HALF their shares → may be immediate or queued
+//! 5.  Solver borrows 30 USDC (using L2's deposit)
+//! 6.  L3 deposits 20 USDC (during two active borrows)
+//! 7.  L2 redeems ALL shares → queued
+//! 8.  L1 redeems remaining shares → queued
+//! 9.  Solver repays first borrow + 1% yield
+//! 10. Process queue
+//! 11. Solver repays second borrow + 1% yield
+//! 12. Process queue
+//! 13. Verify all lenders received appropriate amounts
+//! ```
+//!
+//! ## Key Verification Points
+//!
+//! - Shares issued during borrow correctly account for expected yield
+//! - Partial redemptions work correctly
+//! - L3 (late depositor) receives less than deposited due to yield dilution
+//! - Queue processes in FIFO order
+//! - All assets eventually distributed
+
 mod helpers;
 
 use helpers::test_builder::{
@@ -9,6 +47,7 @@ use near_api::Data;
 use serde_json::json;
 use tokio::time::{sleep, Duration};
 
+/// Helper to process redemption queue.
 async fn process_redemption_queue(builder: &TestScenarioBuilder) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loop {
         let queue_length: Data<String> = builder.vault_contract()
@@ -48,7 +87,19 @@ async fn process_redemption_queue(builder: &TestScenarioBuilder) -> Result<(), B
     Ok(())
 }
 
-/// Test: Multiple lenders with multiple borrows and partial redemptions
+/// Tests a complex scenario with multiple lenders and interleaved operations.
+///
+/// # Scenario
+///
+/// Three lenders deposit at different times (before, during, and after borrows).
+/// Solver creates two separate borrows. Lenders redeem at various points.
+///
+/// # Expected Outcome
+///
+/// - L1: Receives at least 70% of deposit (participated in all yield)
+/// - L2: Receives at least 90% of deposit (participated in second borrow yield)
+/// - L3: Receives less than deposit (yield dilution from active borrows)
+/// - All assets eventually claimed
 #[tokio::test]
 async fn test_complex_multi_lender_scenario() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("=== Test: Complex Multi-Lender Scenario ===");
@@ -72,7 +123,9 @@ async fn test_complex_multi_lender_scenario() -> Result<(), Box<dyn std::error::
     let lender2_deposit = 30_000_000u128;
     let lender3_deposit = 20_000_000u128;
     
-    // Step 1: L1 deposits
+    // =========================================================================
+    // STEP 1: L1 DEPOSITS (EMPTY VAULT)
+    // =========================================================================
     println!("\n--- Step 1: L1 deposits {} ---", lender1_deposit);
     let expected_l1_shares = calculate_expected_shares_for_deposit(&builder, lender1_deposit).await?;
     let lender1_shares = deposit_to_vault(&builder, "lender1", lender1_deposit).await?;
@@ -80,12 +133,16 @@ async fn test_complex_multi_lender_scenario() -> Result<(), Box<dyn std::error::
     assert_eq!(lender1_shares, expected_l1_shares, 
         "L1 should receive correct shares for first deposit (empty vault)");
 
-    // Step 2: Solver borrows part of L1's deposit
+    // =========================================================================
+    // STEP 2: SOLVER BORROWS PART OF L1'S DEPOSIT
+    // =========================================================================
     println!("\n--- Step 2: Solver borrows {} (part of L1's deposit) ---", lender1_deposit / 2);
     let borrow1 = lender1_deposit / 2;
     solver_borrow(&builder, Some(borrow1), "hash-1").await?;
 
-    // Step 3: L2 deposits (while borrow is active)
+    // =========================================================================
+    // STEP 3: L2 DEPOSITS DURING ACTIVE BORROW
+    // =========================================================================
     println!("\n--- Step 3: L2 deposits {} (while borrow is active) ---", lender2_deposit);
     let total_assets_before_l2 = get_total_assets(&builder).await?;
     let total_supply_before_l2: Data<String> = builder.vault_contract()
@@ -109,7 +166,9 @@ async fn test_complex_multi_lender_scenario() -> Result<(), Box<dyn std::error::
         lender2_deposit, used_amount_l2);
     println!("L2 deposit: unused_amount = {} (returned to L2)", lender2_deposit - used_amount_l2);
 
-    // Step 4: L1 redeems half of their shares (partial redemption)
+    // =========================================================================
+    // STEP 4: L1 REDEEMS HALF THEIR SHARES (PARTIAL REDEMPTION)
+    // =========================================================================
     println!("\n--- Step 4: L1 redeems half of their shares ---");
     let lender1_half_shares = lender1_shares / 2;
     
@@ -157,11 +216,15 @@ async fn test_complex_multi_lender_scenario() -> Result<(), Box<dyn std::error::
     assert_eq!(total_supply_after_l1_redeem_u128, total_supply_before_l1_redeem_u128 - lender1_half_shares,
         "Total supply should decrease by redeemed shares");
 
-    // Step 5: Solver borrows more (using L2's deposit)
+    // =========================================================================
+    // STEP 5: SOLVER BORROWS MORE (USING L2'S DEPOSIT)
+    // =========================================================================
     println!("\n--- Step 5: Solver borrows {} (using L2's deposit) ---", lender2_deposit);
     solver_borrow(&builder, Some(lender2_deposit), "hash-2").await?;
 
-    // Step 6: L3 deposits (while two borrows are active)
+    // =========================================================================
+    // STEP 6: L3 DEPOSITS (TWO ACTIVE BORROWS)
+    // =========================================================================
     println!("\n--- Step 6: L3 deposits {} (while two borrows are active) ---", lender3_deposit);
     let total_assets_before_l3 = get_total_assets(&builder).await?;
     let total_supply_before_l3: Data<String> = builder.vault_contract()
@@ -186,30 +249,37 @@ async fn test_complex_multi_lender_scenario() -> Result<(), Box<dyn std::error::
     assert_eq!(lender3_shares, expected_l3_shares, 
         "L3 should receive correct shares accounting for both borrows and expected_yield");
 
-    // Step 7: L2 redeems all shares (will be queued)
+    // =========================================================================
+    // STEP 7 & 8: L2 AND L1 REDEEM (QUEUED)
+    // =========================================================================
     println!("\n--- Step 7: L2 redeems all shares (will be queued) ---");
     redeem_shares(&builder, "lender2", lender2_shares).await?;
 
-    // Step 8: L1 redeems remaining shares (will be queued)
     println!("\n--- Step 8: L1 redeems remaining shares (will be queued) ---");
     let lender1_remaining_shares = lender1_shares - lender1_half_shares;
     redeem_shares(&builder, "lender1", lender1_remaining_shares).await?;
 
-    // Step 9: Solver repays first borrow with yield
+    // =========================================================================
+    // STEP 9 & 10: SOLVER REPAYS FIRST BORROW + PROCESS QUEUE
+    // =========================================================================
     println!("\n--- Step 9: Solver repays first borrow with 1% yield ---");
     let intent_yield1 = borrow1 / 100;
     solver_repay(&builder, 0, borrow1, intent_yield1).await?;
     println!("Processing redemption queue after first repayment...");
     process_redemption_queue(&builder).await?;
 
-    // Step 10: Solver repays second borrow with yield
+    // =========================================================================
+    // STEP 10 & 11: SOLVER REPAYS SECOND BORROW + PROCESS QUEUE
+    // =========================================================================
     println!("\n--- Step 10: Solver repays second borrow with 1% yield ---");
     let intent_yield2 = lender2_deposit / 100;
     solver_repay(&builder, 1, lender2_deposit, intent_yield2).await?;
     println!("Processing redemption queue after second repayment...");
     process_redemption_queue(&builder).await?;
 
-    // Step 11: Verify all lenders received correct amounts
+    // =========================================================================
+    // STEP 11: VERIFY ALL LENDERS RECEIVED APPROPRIATE AMOUNTS
+    // =========================================================================
     println!("\n--- Step 11: Verify all lenders received correct amounts ---");
     
     let lender1_final = get_balance(&builder, "lender1").await?;
@@ -220,17 +290,20 @@ async fn test_complex_multi_lender_scenario() -> Result<(), Box<dyn std::error::
     println!("L2 final balance: {} (deposited: {})", lender2_final, lender2_deposit);
     println!("L3 final balance: {} (deposited: {})", lender3_final, lender3_deposit);
     
+    // L1 should receive reasonable amount
     let lender1_total_received = lender1_final;
     assert!(lender1_total_received > 0, "L1 should receive some assets");
     assert!(lender1_total_received >= lender1_deposit * 7 / 10, 
         "L1 should receive at least 70% of deposit (got {}, expected at least {})", 
         lender1_total_received, lender1_deposit * 7 / 10);
     
+    // L2 should receive most of deposit
     assert!(lender2_final > 0, "L2 should receive some assets");
     assert!(lender2_final >= lender2_deposit * 9 / 10, 
         "L2 should get at least 90% of deposit (got {}, expected at least {})", 
         lender2_final, lender2_deposit * 9 / 10);
     
+    // L3 may receive less due to yield dilution
     assert!(lender3_final > 0, "L3 should receive some assets");
     assert!(lender3_final < lender3_deposit, 
         "L3 should receive less than deposit due to expected_yield dilution (got {}, deposited {})", 
@@ -252,4 +325,3 @@ async fn test_complex_multi_lender_scenario() -> Result<(), Box<dyn std::error::
     println!("\n✅ Test passed! Complex multi-lender scenario works correctly");
     Ok(())
 }
-

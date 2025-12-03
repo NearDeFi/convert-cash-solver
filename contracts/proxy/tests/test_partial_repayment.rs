@@ -1,12 +1,35 @@
-// Test: Repayment validation
-// 
-// These tests verify that the contract correctly validates repayment amounts.
-// The contract requires: repayment >= borrow_amount + expected_yield (1%)
-//
-// Test cases:
-// 1. Partial repayment (50% of principal) → Should FAIL
-// 2. Exact principal (100%, no yield) → Should FAIL  
-// 3. Principal + yield (101%) → Should SUCCEED
+//! # Partial Repayment Validation Tests
+//!
+//! Tests that the contract correctly validates solver repayment amounts.
+//! Solvers must repay at least principal + 1% yield to protect lenders.
+//!
+//! ## Test Overview
+//!
+//! | Test | Description | Expected Outcome |
+//! |------|-------------|------------------|
+//! | `test_partial_repayment_less_than_principal` | Solver repays 50% of principal | Rejected, state unchanged |
+//! | `test_repayment_exact_principal_no_yield` | Solver repays 100% (no yield) | Rejected, state unchanged |
+//! | `test_repayment_with_yield` | Solver repays 101% (1% yield) | Accepted, state updated |
+//! | `test_repayment_with_extra_yield` | Solver repays 105% (5% yield) | Accepted, extra goes to lenders |
+//!
+//! ## Repayment Validation Rules
+//!
+//! ```text
+//! Minimum Required = borrow_amount + (borrow_amount / 100)
+//!                  = borrow_amount * 1.01
+//!
+//! - 50% of principal → FAIL (50,000,000 < 101,000,000)
+//! - 100% of principal → FAIL (100,000,000 < 101,000,000)
+//! - 101% of principal → PASS (101,000,000 >= 101,000,000)
+//! - 105% of principal → PASS (105,000,000 >= 101,000,000)
+//! ```
+//!
+//! ## Key Verification Points
+//!
+//! - Failed repayments revert via ft_resolve_transfer (tokens returned to solver)
+//! - State remains unchanged after failed repayment
+//! - Intent stays in "StpLiquidityBorrowed" state until valid repayment
+//! - Extra yield beyond 1% benefits lenders
 
 mod helpers;
 
@@ -18,8 +41,18 @@ use near_api::Data;
 use serde_json::json;
 use tokio::time::{sleep, Duration};
 
-/// Test: Solver tries to repay less than borrowed amount (50%)
-/// This should FAIL - partial repayments are not allowed
+/// Tests that repayment of less than principal is rejected.
+///
+/// # Scenario
+///
+/// Solver borrows 100 USDC, attempts to repay only 50 USDC.
+///
+/// # Expected Outcome
+///
+/// - Transaction fails or tokens are returned
+/// - Total assets remains 0 (borrow not repaid)
+/// - Solver retains their 100 USDC (returned via ft_resolve_transfer)
+/// - Intent state remains "StpLiquidityBorrowed"
 #[tokio::test]
 async fn test_partial_repayment_less_than_principal() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("=== Test: Partial Repayment (50% of principal) - Should FAIL ===\n");
@@ -37,7 +70,7 @@ async fn test_partial_repayment_less_than_principal() -> Result<(), Box<dyn std:
 
     let lender_deposit = 100_000_000u128; // 100 USDC
 
-    // Step 1: Lender deposits 100 USDC
+    // Lender deposits
     println!("=== Step 1: Lender deposits {} ===", lender_deposit);
     let _lender_shares = deposit_to_vault(&builder, "lender", lender_deposit).await?;
 
@@ -45,7 +78,7 @@ async fn test_partial_repayment_less_than_principal() -> Result<(), Box<dyn std:
     println!("Total assets after deposit: {}", total_assets_after_deposit);
     assert_eq!(total_assets_after_deposit, lender_deposit);
 
-    // Step 2: Solver borrows entire pool (100 USDC)
+    // Solver borrows entire pool
     let borrow_amount = lender_deposit;
     println!("\n=== Step 2: Solver borrows {} (entire pool) ===", borrow_amount);
     
@@ -74,7 +107,9 @@ async fn test_partial_repayment_less_than_principal() -> Result<(), Box<dyn std:
     println!("Total assets after borrow: {} (should be 0)", total_assets_after_borrow);
     assert_eq!(total_assets_after_borrow, 0);
 
-    // Step 3: Solver attempts to repay only HALF (50 USDC instead of 101 USDC minimum)
+    // =========================================================================
+    // SOLVER ATTEMPTS PARTIAL REPAYMENT (50%)
+    // =========================================================================
     let partial_repayment = borrow_amount / 2; // Only 50 USDC
     let expected_yield = borrow_amount / 100; // 1% = 1 USDC
     let minimum_required = borrow_amount + expected_yield; // 101 USDC
@@ -97,14 +132,10 @@ async fn test_partial_repayment_less_than_principal() -> Result<(), Box<dyn std:
         .send_to(builder.network_config())
         .await;
 
-    // Note: ft_transfer_call returns SuccessValue even when the receiver panics
-    // because ft_resolve_transfer handles the rollback. We need to check the
-    // contract state to verify the repayment was rejected.
     match &repay_result {
         Ok(outcome) => {
             let status_str = format!("{:?}", outcome.status);
             println!("\nTransaction status: {}", status_str);
-            // The status might be Success but tokens returned - we verify state below
         }
         Err(e) => {
             println!("Transaction error (expected): {:?}", e);
@@ -113,22 +144,21 @@ async fn test_partial_repayment_less_than_principal() -> Result<(), Box<dyn std:
 
     sleep(Duration::from_millis(1500)).await;
 
-    // Step 4: Verify state unchanged after failed repayment
+    // =========================================================================
+    // VERIFY STATE UNCHANGED
+    // =========================================================================
     println!("\n=== Step 4: Verify state unchanged (repayment was rejected) ===");
     
-    // Verify total_assets is still 0 (repayment was not accepted)
     let total_assets_after_failed_repay = get_total_assets(&builder).await?;
     println!("Total assets after failed repayment: {} (should still be 0)", total_assets_after_failed_repay);
     assert_eq!(total_assets_after_failed_repay, 0, "Total assets should remain 0 after failed repayment");
 
-    // Verify solver still has their tokens (they were returned via ft_resolve_transfer)
     let solver_balance_after_failed_repay = get_balance(&builder, "solver").await?;
     println!("Solver balance after failed repayment: {} (should still be {})", 
         solver_balance_after_failed_repay, borrow_amount);
     assert_eq!(solver_balance_after_failed_repay, borrow_amount, 
         "Solver should still have their tokens after failed repayment");
 
-    // Check intent state - should still be borrowed
     let intents: Data<Vec<serde_json::Value>> = builder.vault_contract()
         .call_function("get_intents_by_solver", json!({ "solver_id": solver_id }))?
         .read_only()
@@ -147,8 +177,16 @@ async fn test_partial_repayment_less_than_principal() -> Result<(), Box<dyn std:
     Ok(())
 }
 
-/// Test: Solver tries to repay exactly the principal (no yield)
-/// This should FAIL - must include 1% yield
+/// Tests that repayment of exact principal (no yield) is rejected.
+///
+/// # Scenario
+///
+/// Solver borrows 100 USDC, attempts to repay exactly 100 USDC (no yield).
+///
+/// # Expected Outcome
+///
+/// - Transaction fails (shortfall of 1 USDC yield)
+/// - State unchanged
 #[tokio::test]
 async fn test_repayment_exact_principal_no_yield() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("=== Test: Repayment exactly equal to principal (no yield) - Should FAIL ===\n");
@@ -164,13 +202,11 @@ async fn test_repayment_exact_principal_no_yield() -> Result<(), Box<dyn std::er
         .register_accounts()
         .await?;
 
-    let lender_deposit = 100_000_000u128; // 100 USDC
+    let lender_deposit = 100_000_000u128;
 
-    // Lender deposits
     println!("=== Lender deposits {} ===", lender_deposit);
     let _lender_shares = deposit_to_vault(&builder, "lender", lender_deposit).await?;
 
-    // Solver borrows
     let borrow_amount = lender_deposit;
     println!("\n=== Solver borrows {} ===", borrow_amount);
     
@@ -192,8 +228,8 @@ async fn test_repayment_exact_principal_no_yield() -> Result<(), Box<dyn std::er
     sleep(Duration::from_millis(1500)).await;
 
     // Solver tries to repay exactly what was borrowed (no yield)
-    let repayment = borrow_amount; // Exact principal, no yield
-    let expected_yield = borrow_amount / 100; // 1% = 1 USDC
+    let repayment = borrow_amount;
+    let expected_yield = borrow_amount / 100;
     let minimum_required = borrow_amount + expected_yield;
     
     println!("\n=== Solver attempts to repay exactly {} (no yield) ===", repayment);
@@ -212,7 +248,6 @@ async fn test_repayment_exact_principal_no_yield() -> Result<(), Box<dyn std::er
         .send_to(builder.network_config())
         .await;
 
-    // Note: ft_transfer_call may return Success even when receiver panics
     match &repay_result {
         Ok(outcome) => {
             let status_str = format!("{:?}", outcome.status);
@@ -225,12 +260,11 @@ async fn test_repayment_exact_principal_no_yield() -> Result<(), Box<dyn std::er
 
     sleep(Duration::from_millis(1500)).await;
 
-    // Verify state unchanged - this is the real test
+    // Verify state unchanged
     let total_assets_after = get_total_assets(&builder).await?;
     println!("\nTotal assets after failed repayment: {} (should be 0)", total_assets_after);
     assert_eq!(total_assets_after, 0, "Total assets should remain 0");
 
-    // Verify solver still has their tokens
     let solver_balance_after = get_balance(&builder, "solver").await?;
     println!("Solver balance after failed repayment: {} (should be {})", solver_balance_after, borrow_amount);
     assert_eq!(solver_balance_after, borrow_amount, "Solver should still have tokens");
@@ -239,8 +273,18 @@ async fn test_repayment_exact_principal_no_yield() -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-/// Test: Solver repays principal + yield (correct amount)
-/// This should SUCCEED
+/// Tests that repayment with 1% yield is accepted.
+///
+/// # Scenario
+///
+/// Solver borrows 100 USDC, repays 101 USDC (principal + 1% yield).
+///
+/// # Expected Outcome
+///
+/// - Transaction succeeds
+/// - Total assets = 101 USDC
+/// - Intent state = "StpLiquidityReturned"
+/// - Solver balance = 0
 #[tokio::test]
 async fn test_repayment_with_yield() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("=== Test: Repayment with yield (principal + 1%) - Should SUCCEED ===\n");
@@ -256,13 +300,11 @@ async fn test_repayment_with_yield() -> Result<(), Box<dyn std::error::Error + S
         .register_accounts()
         .await?;
 
-    let lender_deposit = 100_000_000u128; // 100 USDC
+    let lender_deposit = 100_000_000u128;
 
-    // Lender deposits
     println!("=== Lender deposits {} ===", lender_deposit);
     let _lender_shares = deposit_to_vault(&builder, "lender", lender_deposit).await?;
 
-    // Solver borrows
     let borrow_amount = lender_deposit;
     println!("\n=== Solver borrows {} ===", borrow_amount);
     
@@ -286,9 +328,9 @@ async fn test_repayment_with_yield() -> Result<(), Box<dyn std::error::Error + S
     let solver_balance_after_borrow = get_balance(&builder, "solver").await?;
     println!("Solver balance after borrow: {}", solver_balance_after_borrow);
 
-    // Solver needs extra tokens for the yield - transfer from genesis
-    let expected_yield = borrow_amount / 100; // 1% = 1,000,000 (1 USDC)
-    let repayment = borrow_amount + expected_yield; // 101,000,000 (101 USDC)
+    // Transfer yield tokens to solver
+    let expected_yield = borrow_amount / 100; // 1% = 1,000,000
+    let repayment = borrow_amount + expected_yield; // 101,000,000
     
     println!("\n=== Transfer yield tokens to solver ===");
     println!("Yield amount: {}", expected_yield);
@@ -325,7 +367,6 @@ async fn test_repayment_with_yield() -> Result<(), Box<dyn std::error::Error + S
         .send_to(builder.network_config())
         .await;
 
-    // Verify the transaction succeeded
     match &repay_result {
         Ok(outcome) => {
             let status_str = format!("{:?}", outcome.status);
@@ -343,12 +384,11 @@ async fn test_repayment_with_yield() -> Result<(), Box<dyn std::error::Error + S
 
     sleep(Duration::from_millis(1500)).await;
 
-    // Verify total_assets is restored with yield
+    // Verify state updated
     let total_assets_after = get_total_assets(&builder).await?;
     println!("\nTotal assets after repayment: {} (should be {})", total_assets_after, repayment);
     assert_eq!(total_assets_after, repayment, "Total assets should include principal + yield");
 
-    // Verify intent state is returned
     let intents: Data<Vec<serde_json::Value>> = builder.vault_contract()
         .call_function("get_intents_by_solver", json!({ "solver_id": solver_id }))?
         .read_only()
@@ -365,7 +405,6 @@ async fn test_repayment_with_yield() -> Result<(), Box<dyn std::error::Error + S
         println!("Repayment amount recorded: {}", repayment_amount);
     }
 
-    // Verify solver balance is 0 after repayment
     let solver_balance_final = get_balance(&builder, "solver").await?;
     println!("Solver final balance: {} (should be 0)", solver_balance_final);
     assert_eq!(solver_balance_final, 0, "Solver should have used all tokens for repayment");
@@ -374,8 +413,16 @@ async fn test_repayment_with_yield() -> Result<(), Box<dyn std::error::Error + S
     Ok(())
 }
 
-/// Test: Solver repays MORE than minimum (extra yield)
-/// This should SUCCEED - extra yield benefits lenders
+/// Tests that repayment with extra yield (5%) is accepted.
+///
+/// # Scenario
+///
+/// Solver borrows 100 USDC, repays 105 USDC (principal + 5% yield).
+///
+/// # Expected Outcome
+///
+/// - Transaction succeeds
+/// - Total assets = 105 USDC (extra yield benefits lenders)
 #[tokio::test]
 async fn test_repayment_with_extra_yield() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("=== Test: Repayment with extra yield (principal + 5%) - Should SUCCEED ===\n");
@@ -391,13 +438,11 @@ async fn test_repayment_with_extra_yield() -> Result<(), Box<dyn std::error::Err
         .register_accounts()
         .await?;
 
-    let lender_deposit = 100_000_000u128; // 100 USDC
+    let lender_deposit = 100_000_000u128;
 
-    // Lender deposits
     println!("=== Lender deposits {} ===", lender_deposit);
     let _lender_shares = deposit_to_vault(&builder, "lender", lender_deposit).await?;
 
-    // Solver borrows
     let borrow_amount = lender_deposit;
     println!("\n=== Solver borrows {} ===", borrow_amount);
     
@@ -419,8 +464,8 @@ async fn test_repayment_with_extra_yield() -> Result<(), Box<dyn std::error::Err
     sleep(Duration::from_millis(1500)).await;
 
     // Solver pays extra yield (5% instead of minimum 1%)
-    let extra_yield = borrow_amount / 20; // 5% = 5,000,000 (5 USDC)
-    let repayment = borrow_amount + extra_yield; // 105,000,000 (105 USDC)
+    let extra_yield = borrow_amount / 20; // 5% = 5,000,000
+    let repayment = borrow_amount + extra_yield; // 105,000,000
     
     println!("\n=== Transfer extra yield tokens to solver ===");
     println!("Extra yield amount: {} (5%)", extra_yield);
@@ -453,7 +498,6 @@ async fn test_repayment_with_extra_yield() -> Result<(), Box<dyn std::error::Err
         .send_to(builder.network_config())
         .await;
 
-    // Verify the transaction succeeded
     match &repay_result {
         Ok(outcome) => {
             let status_str = format!("{:?}", outcome.status);

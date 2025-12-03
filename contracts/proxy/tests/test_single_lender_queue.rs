@@ -1,3 +1,33 @@
+//! # Single Lender Queue Test
+//!
+//! Tests the basic redemption queue flow with a single lender. When a solver
+//! borrows all liquidity, the lender's redemption is queued until the solver
+//! repays.
+//!
+//! ## Test Overview
+//!
+//! | Test | Description | Expected Outcome |
+//! |------|-------------|------------------|
+//! | `test_single_lender_queue` | Lender redemption queued while solver has liquidity | Lender receives deposit + yield after repayment |
+//!
+//! ## Lender/Solver Interaction Flow
+//!
+//! ```text
+//! 1. Lender deposits 5 USDC → receives vault shares
+//! 2. Solver borrows 5 USDC (all liquidity)
+//! 3. Lender tries to redeem → gets QUEUED (no liquidity)
+//! 4. Solver repays 5.05 USDC (principal + 1% yield)
+//! 5. Queue is processed → lender receives 5.05 USDC
+//! 6. Vault empties: total_assets = 0, total_shares = 0
+//! ```
+//!
+//! ## Key Verification Points
+//!
+//! - Redemption is queued when liquidity is insufficient
+//! - Queue contains correct share amount
+//! - After repayment, lender receives full amount including yield
+//! - Vault is fully emptied after processing
+
 mod helpers;
 
 use helpers::*;
@@ -5,6 +35,19 @@ use near_api::{Contract, Data, NearToken};
 use serde_json::json;
 use tokio::time::{sleep, Duration};
 
+/// Tests the complete queue lifecycle with a single lender.
+///
+/// # Scenario
+///
+/// A single lender deposits, solver borrows all, lender redeems (queued),
+/// solver repays, and lender receives deposit + yield.
+///
+/// # Expected Outcome
+///
+/// - Lender receives SOLVER_BORROW_AMOUNT + 1% yield
+/// - Vault total_assets = 0
+/// - Vault total_shares = 0
+/// - Queue is empty
 #[tokio::test]
 async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
@@ -25,6 +68,7 @@ async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Se
     let ft_contract = Contract(ft_id.clone());
     let vault_contract = Contract(vault_id.clone());
 
+    // Register accounts
     for account_id in [&lender_id, &solver_id] {
         ft_contract
             .call_function("storage_deposit", json!({ "account_id": account_id }))?
@@ -54,6 +98,9 @@ async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Se
         .await?;
     println!("Vault storage_deposit completed for {}", solver_id);
 
+    // =========================================================================
+    // LENDER DEPOSITS
+    // =========================================================================
     let deposit_amount = SOLVER_BORROW_AMOUNT;
     ft_contract
         .call_function("ft_transfer", json!({
@@ -108,6 +155,9 @@ async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Se
         total_assets_before_borrow.data
     );
 
+    // =========================================================================
+    // SOLVER BORROWS ALL LIQUIDITY
+    // =========================================================================
     let _intent = vault_contract
         .call_function("new_intent", json!({
             "intent_data": "intent",
@@ -137,6 +187,9 @@ async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Se
         total_assets_after_borrow.data
     );
 
+    // =========================================================================
+    // LENDER REDEEMS (QUEUED)
+    // =========================================================================
     let redeem_outcome = vault_contract
         .call_function("redeem", json!({
             "shares": lender_shares_u128.to_string(),
@@ -173,7 +226,10 @@ async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Se
         pending_redemptions.data
     );
 
-    let intent_yield_amount = SOLVER_BORROW_AMOUNT / 100; // 1% intent_yield
+    // =========================================================================
+    // SOLVER REPAYS WITH YIELD
+    // =========================================================================
+    let intent_yield_amount = SOLVER_BORROW_AMOUNT / 100; // 1% yield
     let total_repayment = SOLVER_BORROW_AMOUNT + intent_yield_amount;
 
     ft_contract
@@ -207,10 +263,12 @@ async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Se
         solver_id, total_repayment
     );
 
-    // Wait for tokens to be transferred
+    // Wait for repayment to finalize
     sleep(Duration::from_millis(2000)).await;
     
-    // Process the redemption queue - call process_next_redemption until queue is empty
+    // =========================================================================
+    // PROCESS REDEMPTION QUEUE
+    // =========================================================================
     loop {
         let queue_length: Data<String> = vault_contract
             .call_function("get_pending_redemptions_length", json!([]))?
@@ -235,6 +293,9 @@ async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Se
         sleep(Duration::from_millis(1200)).await;
     }
 
+    // =========================================================================
+    // VERIFY FINAL STATE
+    // =========================================================================
     let lender_final_balance: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": lender_id }))?
         .read_only()
@@ -281,4 +342,3 @@ async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Se
 
     Ok(())
 }
-

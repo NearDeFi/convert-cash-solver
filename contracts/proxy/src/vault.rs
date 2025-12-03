@@ -1,3 +1,26 @@
+//! # Vault Module
+//!
+//! Implements the core vault functionality following the NEP-621 Fungible Token Vault standard.
+//! This module handles:
+//!
+//! - Deposit processing via `ft_on_transfer`
+//! - Redemption queuing and processing
+//! - Share-to-asset conversion calculations
+//! - Loan repayment from solvers
+//!
+//! ## Deposit Flow
+//!
+//! 1. User calls `ft_transfer_call` on the asset token with this contract as receiver
+//! 2. Contract receives `ft_on_transfer` callback with deposit message
+//! 3. Shares are minted based on current vault ratio
+//!
+//! ## Redemption Flow
+//!
+//! 1. User calls `redeem` with shares to burn
+//! 2. If liquidity available, assets are transferred immediately
+//! 3. If liquidity is borrowed, redemption is queued (FIFO)
+//! 4. When solvers repay, `process_next_redemption` fulfills queued requests
+
 use crate::intents::State;
 use crate::vault_standards::events::{VaultDeposit, VaultWithdraw};
 use crate::vault_standards::mul_div::{mul_div, Rounding};
@@ -17,20 +40,37 @@ use near_sdk::{
 };
 use schemars::JsonSchema;
 
+// ============================================================================
+// Data Structures
+// ============================================================================
+
+/// Represents a pending redemption request in the FIFO queue.
+///
+/// When a lender requests redemption but liquidity is borrowed by solvers,
+/// their request is queued until repayment occurs.
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
 pub struct PendingRedemption {
+    /// The account that owns the shares being redeemed.
     pub owner_id: AccountId,
+    /// The account that will receive the assets.
     pub receiver_id: AccountId,
+    /// Number of shares to burn.
     pub shares: u128,
+    /// Asset amount calculated at queue time (includes expected yield).
     pub assets: u128,
+    /// Optional memo for the transaction.
     pub memo: Option<String>,
 }
 
+/// JSON-serializable view of a pending redemption for API responses.
 #[derive(Serialize, JsonSchema, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct PendingRedemptionView {
+    /// The share owner's account ID.
     pub owner_id: String,
+    /// The asset receiver's account ID.
     pub receiver_id: String,
+    /// Number of shares pending redemption.
     pub shares: String,
 }
 
@@ -44,31 +84,51 @@ impl From<PendingRedemption> for PendingRedemptionView {
     }
 }
 
+/// Actions that can be performed when receiving tokens via `ft_transfer_call`.
 #[derive(Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 #[serde(rename_all = "snake_case")]
 pub enum FtTransferAction {
+    /// Deposit assets into the vault to receive shares.
     Deposit(DepositMessage),
+    /// Repay borrowed liquidity for a specific intent.
     Repay(LiquidityRepaymentMessage),
 }
 
+/// Message payload for deposit operations.
 #[derive(Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct DepositMessage {
+    /// Minimum shares to receive; transaction reverts if not met.
     pub min_shares: Option<U128>,
+    /// Maximum shares to receive; excess assets are returned.
     pub max_shares: Option<U128>,
+    /// Account to receive the minted shares (defaults to sender).
     pub receiver_id: Option<AccountId>,
+    /// Optional memo for the deposit event.
     pub memo: Option<String>,
+    /// If true, assets are donated to the vault without minting shares.
     pub donate: Option<bool>,
 }
 
+/// Message payload for loan repayment operations.
 #[derive(Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct LiquidityRepaymentMessage {
+    /// The intent index being repaid.
     pub intent_index: U128,
 }
 
+// ============================================================================
+// Internal Implementation
+// ============================================================================
+
 impl Contract {
+    /// Adds a redemption request to the FIFO queue.
+    ///
+    /// Called when liquidity is insufficient for immediate redemption.
+    /// The request will be processed when `process_next_redemption` is called
+    /// after solvers repay their borrowed funds.
     fn enqueue_redemption(
         &mut self,
         owner_id: AccountId,
@@ -92,30 +152,46 @@ impl Contract {
         ));
     }
 
+    /// Processes an incoming deposit via `ft_on_transfer`.
+    ///
+    /// Calculates shares based on the current vault ratio and mints them
+    /// to the receiver. Supports slippage protection via `min_shares`/`max_shares`.
+    ///
+    /// # Arguments
+    ///
+    /// * `sender_id` - The account that sent the tokens
+    /// * `amount` - The amount of tokens deposited
+    /// * `parsed_msg` - The parsed deposit message with options
+    ///
+    /// # Returns
+    ///
+    /// The amount of unused tokens to refund (0 if all used).
     fn handle_deposit(
         &mut self,
         sender_id: AccountId,
         amount: U128,
         parsed_msg: DepositMessage,
     ) -> PromiseOrValue<U128> {
+        // Handle donation mode - assets go to vault without minting shares
         if parsed_msg.donate.unwrap_or(false) {
             self.total_assets = self
                 .total_assets
                 .checked_add(amount.0)
                 .expect("total_assets overflow");
-            // Donations don't count as deposits for share calculations
             return PromiseOrValue::Value(U128(0));
         }
 
-        // Calculate shares based on total deposits, not available assets
+        // Calculate shares based on current vault ratio
         let calculated_shares = self.internal_convert_to_shares_deposit(amount.0);
 
+        // Check minimum shares slippage protection
         if let Some(min_shares) = parsed_msg.min_shares {
             if calculated_shares < min_shares.0 {
                 return PromiseOrValue::Value(amount);
             }
         }
 
+        // Apply maximum shares cap if specified
         let shares = if let Some(max_shares) = parsed_msg.max_shares {
             if calculated_shares > max_shares.0 {
                 max_shares.0
@@ -126,15 +202,13 @@ impl Contract {
             calculated_shares
         };
 
-        // Calculate used_amount based on shares and total_supply
+        // Calculate actual asset amount used based on final share count
         let total_supply = self.token.ft_total_supply().0;
         let used_amount = if total_supply == 0 || self.total_assets == 0 {
-            // First deposit or all assets are borrowed - accept the full deposit amount
-            // When total_assets is 0 (all borrowed), we can't use the normal calculation
-            // because it would result in used_amount = 0
+            // First deposit or all assets borrowed - accept full amount
             amount.0
         } else {
-            // Convert shares to assets using total_assets
+            // Convert shares back to assets for precise accounting
             mul_div(shares, self.total_assets, total_supply, Rounding::Up)
         };
 
@@ -151,9 +225,9 @@ impl Contract {
             self.total_assets
         );
 
+        // Mint shares to the receiver
         let owner_id = parsed_msg.receiver_id.unwrap_or(sender_id.clone());
         self.token.internal_deposit(&owner_id, shares);
-        // Track available assets
         self.total_assets = self
             .total_assets
             .checked_add(used_amount)
@@ -178,6 +252,20 @@ impl Contract {
         PromiseOrValue::Value(U128(unused_amount))
     }
 
+    /// Processes a loan repayment from a solver.
+    ///
+    /// Validates that the repayment meets the minimum required amount
+    /// (principal + 1% yield) and updates the intent state.
+    ///
+    /// # Arguments
+    ///
+    /// * `sender_id` - The solver account repaying the loan
+    /// * `amount` - The repayment amount
+    /// * `repay_msg` - The repayment message with intent index
+    ///
+    /// # Returns
+    ///
+    /// Always returns 0 (no refund) on success.
     fn handle_repayment(
         &mut self,
         sender_id: AccountId,
@@ -191,6 +279,7 @@ impl Contract {
 
         require!(amount.0 > 0, "Repayment amount must be positive");
 
+        // Verify solver owns this intent
         let intent_index: u128 = repay_msg.intent_index.0;
         let solver_indices = self
             .solver_id_to_indices
@@ -212,9 +301,9 @@ impl Contract {
             "Intent is not in borrow state"
         );
 
-        // Validate minimum repayment: principal + expected yield (1%)
-        // This protects lenders from partial repayments that would cause losses
-        let expected_yield = intent.borrow_amount / 100; // 1% yield
+        // Validate minimum repayment: principal + 1% yield
+        // This protects lenders from partial repayments
+        let expected_yield = intent.borrow_amount / 100;
         let minimum_repayment = intent
             .borrow_amount
             .checked_add(expected_yield)
@@ -228,16 +317,15 @@ impl Contract {
             )
         );
 
-        // Add repayment amount to total_assets
-        // Note: Tokens from ft_transfer_call are transferred after ft_resolve_transfer completes,
-        // but we update total_assets here since we know the amount being transferred
+        // Add repayment to vault assets
         self.total_assets = self
             .total_assets
             .checked_add(amount.0)
             .expect("total_assets overflow");
 
+        // Update intent state
         intent.state = State::StpLiquidityReturned;
-        intent.repayment_amount = Some(amount.0); // Track repayment amount for intent_yield attribution
+        intent.repayment_amount = Some(amount.0);
         self.index_to_intent.insert(intent_index, intent);
 
         VaultDeposit {
@@ -258,10 +346,22 @@ impl Contract {
     }
 }
 
+// ============================================================================
+// Redemption Queue Processing
+// ============================================================================
+
 #[near]
 impl Contract {
-    /// Process the next lender in the redemption queue (FIFO)
-    /// This method processes exactly one lender from the queue if liquidity is available
+    /// Processes the next pending redemption in the FIFO queue.
+    ///
+    /// This method should be called after solver repayments to fulfill
+    /// queued redemption requests. It processes exactly one redemption
+    /// per call if sufficient liquidity is available.
+    ///
+    /// # Returns
+    ///
+    /// * `true` - A redemption was processed (or skipped due to invalid state)
+    /// * `false` - Queue is empty or insufficient liquidity
     pub fn process_next_redemption(&mut self) -> bool {
         env::log_str(&format!(
             "process_next_redemption: start head={} len={} total_assets={}",
@@ -290,17 +390,17 @@ impl Contract {
             index, entry.owner_id, entry.shares
         ));
 
-        // Skip entries with 0 shares
+        // Skip zero-share entries
         if entry.shares == 0 {
             env::log_str(&format!(
                 "process_next_redemption: entry {} has 0 shares, skipping",
                 index
             ));
             self.pending_redemptions_head += 1;
-            return true; // Processed (skipped)
+            return true;
         }
 
-        // Check if owner still has sufficient shares
+        // Verify owner still has sufficient shares
         let owner_balance = self.token.ft_balance_of(entry.owner_id.clone()).0;
         if owner_balance < entry.shares {
             env::log_str(&format!(
@@ -308,11 +408,10 @@ impl Contract {
                 entry.owner_id, owner_balance, entry.shares
             ));
             self.pending_redemptions_head += 1;
-            return true; // Processed (skipped)
+            return true;
         }
 
-        // Use the assets value that was stored when the redemption was queued
-        // This ensures the lender gets the exact amount they were promised (deposit + intent_yield)
+        // Use the pre-calculated asset value from queue time
         let assets = entry.assets;
 
         env::log_str(&format!(
@@ -320,16 +419,16 @@ impl Contract {
             index, assets, self.total_assets
         ));
 
-        // Check if we have enough assets to process this redemption
+        // Check liquidity availability
         if assets == 0 || assets > self.total_assets {
             env::log_str(&format!(
                 "process_next_redemption: insufficient liquidity - stored_assets={} total_assets={}",
                 assets, self.total_assets
             ));
-            return false; // Cannot process, need to wait for more liquidity
+            return false;
         }
 
-        // Advance head before processing (in case of failure, we've already marked it as processed)
+        // Advance queue head before processing
         self.pending_redemptions_head += 1;
 
         env::log_str(&format!(
@@ -337,6 +436,7 @@ impl Contract {
             entry.owner_id, entry.shares, assets
         ));
 
+        // Execute the withdrawal
         let promise = self.internal_execute_withdrawal(
             entry.owner_id.clone(),
             Some(entry.receiver_id.clone()),
@@ -351,10 +451,10 @@ impl Contract {
             self.total_assets
         ));
 
-        true // Successfully processed
+        true
     }
 
-    /// Get the length of the pending redemption queue (remaining items)
+    /// Returns the number of pending redemptions in the queue.
     pub fn get_pending_redemptions_length(&self) -> U128 {
         let len = self.pending_redemptions.len();
         let head = self.pending_redemptions_head;
@@ -362,6 +462,11 @@ impl Contract {
         U128(remaining as u128)
     }
 
+    /// Callback to finalize or rollback a withdrawal after asset transfer.
+    ///
+    /// Called automatically after the cross-contract `ft_transfer` completes.
+    /// On success, emits the `VaultWithdraw` event. On failure, restores
+    /// the burned shares and asset balance.
     #[private]
     pub fn resolve_withdraw(
         &mut self,
@@ -371,12 +476,9 @@ impl Contract {
         assets: U128,
         memo: Option<String>,
     ) -> U128 {
-        // Check if the transfer succeeded
         match env::promise_result(0) {
             near_sdk::PromiseResult::Successful(_) => {
-                // Transfer succeeded - finalize withdrawal
-
-                // Emit VaultWithdraw event
+                // Transfer succeeded - emit withdrawal event
                 VaultWithdraw {
                     owner_id: &owner,
                     receiver_id: &receiver,
@@ -389,10 +491,8 @@ impl Contract {
                 assets
             }
             _ => {
-                // Transfer failed - rollback state changes using callback parameters
-                // Restore shares that were burned
+                // Transfer failed - rollback state changes
                 self.token.internal_deposit(&owner, shares.0);
-                // Restore total_assets that was reduced
                 self.total_assets = self
                     .total_assets
                     .checked_add(assets.0)
@@ -411,8 +511,15 @@ impl Contract {
     }
 }
 
+// ============================================================================
+// View Methods
+// ============================================================================
+
 #[near]
 impl Contract {
+    /// Returns all pending redemptions in the queue.
+    ///
+    /// Useful for UI display and monitoring queue status.
     pub fn get_pending_redemptions(&self) -> Vec<PendingRedemptionView> {
         let mut result = Vec::new();
         let len = self.pending_redemptions.len();
@@ -429,17 +536,37 @@ impl Contract {
     }
 }
 
-// ===== Implement FungibleTokenVaultCore Trait =====
+// ============================================================================
+// NEP-621 Vault Core Implementation
+// ============================================================================
+
 #[near]
 impl VaultCore for Contract {
+    /// Returns the underlying asset token account ID.
     fn asset(&self) -> AccountId {
         self.asset.clone()
     }
 
+    /// Returns the total available assets in the vault.
     fn total_assets(&self) -> U128 {
         U128(self.total_assets)
     }
 
+    /// Redeems shares for underlying assets.
+    ///
+    /// Burns the specified shares and transfers the corresponding assets
+    /// to the receiver. If liquidity is insufficient (borrowed by solvers),
+    /// the redemption is queued for later processing.
+    ///
+    /// # Arguments
+    ///
+    /// * `shares` - Number of shares to redeem
+    /// * `receiver_id` - Account to receive assets (defaults to caller)
+    /// * `memo` - Optional memo for the transaction
+    ///
+    /// # Returns
+    ///
+    /// The amount of assets transferred, or 0 if queued.
     #[payable]
     fn redeem(
         &mut self,
@@ -456,7 +583,7 @@ impl VaultCore for Contract {
             "Exceeds max redeem"
         );
 
-        // Check if the lender is already in the redemption queue
+        // Prevent duplicate queue entries for same owner
         let len = self.pending_redemptions.len();
         let mut index = self.pending_redemptions_head;
         while index < len {
@@ -470,9 +597,7 @@ impl VaultCore for Contract {
 
         let receiver = receiver_id.clone().unwrap_or_else(|| owner.clone());
 
-        // Calculate what the shares are worth based on available assets
-        // This includes expected yield from current borrows, calculated at redemption time
-        // The value is stored and will be used when processing the redemption later
+        // Calculate asset value including expected yield from active borrows
         let assets = self.internal_convert_to_assets(shares.0, Rounding::Down);
 
         env::log_str(&format!(
@@ -480,17 +605,13 @@ impl VaultCore for Contract {
             owner, shares.0, assets, self.total_assets
         ));
 
-        // Queue redemption if there are not enough assets
-        // This happens when liquidity is borrowed and hasn't been repaid yet
-        // The calculated assets value (including expected yield) is stored here
-        // When the redemption is processed later, this stored value will be used
+        // Queue if insufficient liquidity
         if self.total_assets == 0 || assets == 0 || assets > self.total_assets {
             self.enqueue_redemption(owner, receiver, shares.0, assets, memo);
             return PromiseOrValue::Value(U128(0));
         }
 
-        // Pay back assets based on the lender's share amount and total assets available
-        // Yield is already included in total_assets when solvers repay
+        // Execute immediate withdrawal
         PromiseOrValue::Promise(self.internal_execute_withdrawal(
             owner,
             Some(receiver),
@@ -500,6 +621,16 @@ impl VaultCore for Contract {
         ))
     }
 
+    /// Withdraws a specific amount of assets.
+    ///
+    /// Calculates and burns the required shares to withdraw the
+    /// specified asset amount.
+    ///
+    /// # Arguments
+    ///
+    /// * `assets` - Amount of assets to withdraw
+    /// * `receiver_id` - Account to receive assets (defaults to caller)
+    /// * `memo` - Optional memo for the transaction
     #[payable]
     fn withdraw(
         &mut self,
@@ -526,29 +657,47 @@ impl VaultCore for Contract {
         ))
     }
 
+    /// Converts an asset amount to shares for deposit preview.
     fn convert_to_shares(&self, assets: U128) -> U128 {
-        // Use available assets for share conversion
-        // This is the default implementation for preview_deposit and max_mint
-        // which should show what shares would be received based on deposits
         U128(self.internal_convert_to_shares_deposit(assets.0))
     }
 
+    /// Converts a share amount to assets.
     fn convert_to_assets(&self, shares: U128) -> U128 {
         U128(self.internal_convert_to_assets(shares.0, Rounding::Down))
     }
 
+    /// Previews the shares that would be minted for a given deposit.
     fn preview_deposit(&self, assets: U128) -> U128 {
-        // Preview should show shares based on total deposits, not available assets
         U128(self.internal_convert_to_shares_deposit(assets.0))
     }
 
+    /// Previews the shares required for a given withdrawal amount.
     fn preview_withdraw(&self, assets: U128) -> U128 {
         U128(self.internal_convert_to_shares(assets.0, Rounding::Up))
     }
 }
 
+// ============================================================================
+// NEP-141 Fungible Token Receiver
+// ============================================================================
+
 #[near]
 impl FungibleTokenReceiver for Contract {
+    /// Handles incoming token transfers via `ft_transfer_call`.
+    ///
+    /// Routes the transfer to either deposit or repayment handling
+    /// based on the message content.
+    ///
+    /// # Arguments
+    ///
+    /// * `sender_id` - The account that initiated the transfer
+    /// * `amount` - The amount of tokens transferred
+    /// * `msg` - JSON message specifying the action (deposit or repay)
+    ///
+    /// # Returns
+    ///
+    /// The amount of tokens to refund (unused portion).
     fn ft_on_transfer(
         &mut self,
         sender_id: AccountId,
@@ -564,12 +713,14 @@ impl FungibleTokenReceiver for Contract {
             self.asset
         ));
 
+        // Only accept transfers from the underlying asset contract
         assert_eq!(
             env::predecessor_account_id(),
             self.asset.clone(),
             "Only the underlying asset can call ft_on_transfer"
         );
 
+        // Parse and route the action
         if let Ok(action) = serde_json::from_str::<FtTransferAction>(&msg) {
             env::log_str(&format!("ft_on_transfer: parsed action successfully"));
             match action {
@@ -586,7 +737,7 @@ impl FungibleTokenReceiver for Contract {
             env::log_str(&format!(
                 "ft_on_transfer: failed to parse action, trying default deposit"
             ));
-            // can send a default deposit message to match vault standards
+            // Fallback: try parsing as a deposit message directly
             let deposit: DepositMessage = serde_json::from_str(&msg).unwrap_or_else(|_| {
                 env::panic_str("Invalid ft_on_transfer message");
             });
@@ -595,14 +746,19 @@ impl FungibleTokenReceiver for Contract {
     }
 }
 
-// ===== Implement Fungible Token Traits for Vault Shares =====
+// ============================================================================
+// NEP-141 Fungible Token Core (Vault Shares)
+// ============================================================================
+
 #[near]
 impl FungibleTokenCore for Contract {
+    /// Transfers vault shares to another account.
     #[payable]
     fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>) {
         self.token.ft_transfer(receiver_id, amount, memo)
     }
 
+    /// Transfers vault shares with a callback to the receiver.
     #[payable]
     fn ft_transfer_call(
         &mut self,
@@ -614,10 +770,12 @@ impl FungibleTokenCore for Contract {
         self.token.ft_transfer_call(receiver_id, amount, memo, msg)
     }
 
+    /// Returns the total supply of vault shares.
     fn ft_total_supply(&self) -> U128 {
         self.token.ft_total_supply()
     }
 
+    /// Returns the share balance of an account.
     fn ft_balance_of(&self, account_id: AccountId) -> U128 {
         self.token.ft_balance_of(account_id)
     }
@@ -625,6 +783,7 @@ impl FungibleTokenCore for Contract {
 
 #[near]
 impl FungibleTokenResolver for Contract {
+    /// Resolves the result of `ft_transfer_call` on shares.
     #[private]
     fn ft_resolve_transfer(
         &mut self,
@@ -637,8 +796,13 @@ impl FungibleTokenResolver for Contract {
     }
 }
 
+// ============================================================================
+// Storage Management
+// ============================================================================
+
 #[near]
 impl StorageManagement for Contract {
+    /// Registers an account for holding vault shares.
     #[payable]
     fn storage_deposit(
         &mut self,
@@ -648,6 +812,7 @@ impl StorageManagement for Contract {
         self.token.storage_deposit(account_id, registration_only)
     }
 
+    /// Withdraws unused storage deposit.
     #[payable]
     fn storage_withdraw(
         &mut self,
@@ -656,12 +821,14 @@ impl StorageManagement for Contract {
         self.token.storage_withdraw(amount)
     }
 
+    /// Returns the storage balance bounds for this contract.
     fn storage_balance_bounds(
         &self,
     ) -> near_contract_standards::storage_management::StorageBalanceBounds {
         self.token.storage_balance_bounds()
     }
 
+    /// Returns the storage balance for an account.
     fn storage_balance_of(
         &self,
         account_id: AccountId,
@@ -669,18 +836,28 @@ impl StorageManagement for Contract {
         self.token.storage_balance_of(account_id)
     }
 
+    /// Unregisters the caller and refunds storage deposit.
     #[payable]
     fn storage_unregister(&mut self, force: Option<bool>) -> bool {
         self.token.storage_unregister(force)
     }
 }
 
+// ============================================================================
+// Metadata Provider
+// ============================================================================
+
 #[near]
 impl FungibleTokenMetadataProvider for Contract {
+    /// Returns the vault share token metadata.
     fn ft_metadata(&self) -> FungibleTokenMetadata {
         self.metadata.clone()
     }
 }
+
+// ============================================================================
+// Unit Tests
+// ============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -695,8 +872,7 @@ mod tests {
         let owner = "owner.test";
         let asset = "usdc.test";
         let contract = init_contract(owner, asset, 3);
-        // total_supply == 0 -> first deposit path
-        let assets = U128(50_000_000); // 50 USDC @ 6 dec
+        let assets = U128(50_000_000);
         let shares = <Contract as VaultCore>::convert_to_shares(&contract, assets).0;
         assert_eq!(shares, 50_000_000 * 1_000);
     }
@@ -706,8 +882,7 @@ mod tests {
         let owner = "owner.test";
         let asset = "usdc.test";
         let contract = init_contract(owner, asset, 3);
-        // total_supply == 0 -> shares / 10^extra
-        let shares = U128(1_000); // corresponds to 1 asset unit
+        let shares = U128(1_000);
         let assets = <Contract as VaultCore>::convert_to_assets(&contract, shares).0;
         assert_eq!(assets, 1);
     }
@@ -717,14 +892,12 @@ mod tests {
         let owner = "owner.test";
         let asset = "usdc.test";
         let mut contract = init_contract(owner, asset, 3);
-        // Mint some shares to create supply
         contract
             .token
             .internal_register_account(&owner.parse().unwrap());
         contract
             .token
             .internal_deposit(&owner.parse().unwrap(), 1_000_000);
-        // Set total assets
         contract.total_assets = 500_000;
         let assets = <Contract as VaultCore>::convert_to_assets(&contract, U128(1_000_000)).0;
         assert_eq!(assets, 500_000);
@@ -735,17 +908,14 @@ mod tests {
         let owner = "owner.test";
         let asset = "usdc.test";
         let mut contract = init_contract(owner, asset, 3);
-        // existing supply and assets
         contract
             .token
             .internal_register_account(&owner.parse().unwrap());
         contract
             .token
-            .internal_deposit(&owner.parse().unwrap(), 1_000_000); // supply
-        contract.total_assets = 2_000_000; // Set total_assets for the new calculation logic
+            .internal_deposit(&owner.parse().unwrap(), 1_000_000);
+        contract.total_assets = 2_000_000;
         let out = contract.internal_convert_to_shares_deposit(100);
-        // With new logic: shares = assets * supply / (total_assets + total_borrowed + expected_yield)
-        // shares = 100 * 1_000_000 / (2_000_000 + 0 + 0) = 50
         assert_eq!(out, 50);
     }
 
@@ -754,17 +924,12 @@ mod tests {
         let owner = "owner.test";
         let asset = "usdc.test";
         let mut contract = init_contract(owner, asset, 3);
-        // User holds shares
         let user: AccountId = "alice.test".parse().unwrap();
         contract.token.internal_register_account(&user);
         contract.token.internal_deposit(&user, 1_000);
-        // No assets available
         contract.total_assets = 0;
-        // Some deposits to compute deposit_based_assets later
 
-        // enqueue redemption
         contract.enqueue_redemption(user.clone(), user.clone(), 100, 0, None);
-        // attempt to process -> should return false and not advance head
         let processed = contract.process_next_redemption();
         assert!(!processed, "Should not process when no liquidity");
         assert_eq!(contract.pending_redemptions_head, 0);
@@ -775,17 +940,12 @@ mod tests {
         let owner = "owner.test";
         let asset = "usdc.test";
         let mut contract = init_contract(owner, asset, 3);
-        // State for deterministic math:
         let user: AccountId = "alice.test".parse().unwrap();
         contract.token.internal_register_account(&user);
-        contract.token.internal_deposit(&user, 1_000); // total supply
-        contract.total_assets = 200; // available assets
-                                     // deposits for deposit_value computation
+        contract.token.internal_deposit(&user, 1_000);
+        contract.total_assets = 200;
 
-        // enqueue 100 shares redemption with expected assets value
-        // Calculate assets: (100 * 200) / 1000 = 20
         contract.enqueue_redemption(user.clone(), user.clone(), 100, 20, None);
-        // process should advance head to 1 (one entry processed)
         let processed = contract.process_next_redemption();
         assert!(processed, "Should process when liquidity is available");
         assert_eq!(contract.pending_redemptions_head, 1);
@@ -806,7 +966,6 @@ mod tests {
             donate: Some(true),
         };
         let res = contract.handle_deposit(sender, U128(1_000), msg);
-        // donate -> returns Value(U128(0)) and increments total_assets
         match res {
             PromiseOrValue::Value(v) => assert_eq!(v.0, 0),
             _ => panic!("expected Value"),
@@ -819,7 +978,6 @@ mod tests {
         let owner = "owner.test";
         let asset = "usdc.test";
         let mut contract = init_contract(owner, asset, 3);
-        // create some supply/deposits
         contract
             .token
             .internal_register_account(&owner.parse().unwrap());
@@ -829,14 +987,12 @@ mod tests {
         contract.total_assets = 2_000_000;
 
         let assets = U128(100);
-        // preview_deposit uses internal_convert_to_shares_deposit
         let preview_shares = <Contract as VaultCore>::preview_deposit(&contract, assets).0;
         assert_eq!(
             preview_shares,
             contract.internal_convert_to_shares_deposit(100)
         );
 
-        // preview_withdraw uses internal_convert_to_shares with Rounding::Up indirectly
         let preview_withdraw_shares =
             <Contract as VaultCore>::preview_withdraw(&contract, U128(100)).0;
         let expected = contract.internal_convert_to_shares(100, Rounding::Up);
@@ -850,14 +1006,12 @@ mod tests {
         let mut contract = init_contract(owner, asset, 3);
         let user: AccountId = "alice.test".parse().unwrap();
         contract.token.internal_register_account(&user);
-        // predecessor must be underlying asset
         let mut builder = VMContextBuilder::new();
         builder.predecessor_account_id(asset.parse().unwrap());
         testing_env!(builder.build());
         let msg = serde_json::json!({ "deposit": { "receiver_id": user } }).to_string();
         let amount = U128(1_000);
         let _ = contract.ft_on_transfer(user.clone(), amount, msg);
-        // user should have received shares
         let bal = contract.token.ft_balance_of(user).0;
         assert!(bal > 0);
         assert!(contract.total_assets >= amount.0);
@@ -869,12 +1023,9 @@ mod tests {
         let asset = "usdc.test";
         let mut contract = init_contract(owner, asset, 3);
         let owner_id: AccountId = owner.parse().unwrap();
-        // owner has shares
         contract.token.internal_register_account(&owner_id);
         contract.token.internal_deposit(&owner_id, 1_000);
-        // vault has assets
         contract.total_assets = 500;
-        // call internal_execute_withdrawal (pre-callback mutations must occur)
         let _ = contract.internal_execute_withdrawal(
             owner_id.clone(),
             Some(owner_id.clone()),
@@ -882,9 +1033,7 @@ mod tests {
             100,
             None,
         );
-        // shares burned
         assert_eq!(contract.token.ft_balance_of(owner_id.clone()).0, 800);
-        // assets decreased
         assert_eq!(contract.total_assets, 400);
     }
 
@@ -893,13 +1042,10 @@ mod tests {
         let owner = "owner.test";
         let asset = "usdc.test";
         let mut contract = init_contract(owner, asset, 3);
-        // Prepare intent owned by solver
         let solver: AccountId = "solver.test".parse().unwrap();
-        // Insert mapping solver -> [0]
         contract
             .solver_id_to_indices
             .insert(solver.clone(), vec![0]);
-        // Insert intent in borrow state
         contract.index_to_intent.insert(
             0,
             crate::intents::Intent {
@@ -912,22 +1058,17 @@ mod tests {
                 repayment_amount: None,
             },
         );
-        // predecessor must be the asset contract
         let mut builder = VMContextBuilder::new();
         builder.predecessor_account_id(asset.parse().unwrap());
         testing_env!(builder.build());
-        // repay 100
         let msg = serde_json::json!({ "repay": { "intent_index": "0" } }).to_string();
         let result = contract.ft_on_transfer(solver.clone(), U128(101), msg);
 
-        // handle_repayment now returns PromiseOrValue::Value(U128(0)) synchronously
-        // Verify that the repayment was processed correctly
         match result {
             PromiseOrValue::Value(v) => assert_eq!(v.0, 0),
             _ => panic!("expected PromiseOrValue::Value(U128(0))"),
         }
-        
-        // Now: total_assets increased and the intent updated
+
         assert_eq!(contract.total_assets, 101);
         let intent = contract.index_to_intent.get(&0).unwrap();
         assert!(matches!(

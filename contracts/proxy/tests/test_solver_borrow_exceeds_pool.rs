@@ -1,5 +1,29 @@
-// Test: Solver tries to borrow more than total_assets in the pool
-// This should fail with "Insufficient assets for solver borrow"
+//! # Solver Borrow Exceeds Pool Test
+//!
+//! Tests the edge case where a solver attempts to borrow more than the
+//! available liquidity (total_assets + 1). This should fail.
+//!
+//! ## Test Overview
+//!
+//! | Test | Description | Expected Outcome |
+//! |------|-------------|------------------|
+//! | `test_solver_borrow_exceeds_pool_size` | Solver borrows total_assets + 1 | Transaction fails, state unchanged |
+//!
+//! ## Scenario
+//!
+//! ```text
+//! 1. Lender deposits 50 USDC (total_assets = 50,000,000)
+//! 2. Solver tries to borrow 50,000,001 (just 1 unit over)
+//! 3. Contract panics with "Insufficient assets for solver borrow"
+//! 4. No state changes occur
+//! ```
+//!
+//! ## Key Verification Points
+//!
+//! - Transaction fails even with 1 unit over limit
+//! - Vault total_assets remains unchanged
+//! - Solver receives no tokens
+//! - Lender's deposit is protected
 
 mod helpers;
 
@@ -10,8 +34,18 @@ use helpers::test_builder::{
 use serde_json::json;
 use tokio::time::{sleep, Duration};
 
-/// Test that solver cannot borrow more than total_assets in the pool
-/// This should fail with "Insufficient assets for solver borrow"
+/// Tests that borrowing more than total_assets fails.
+///
+/// # Scenario
+///
+/// 1. Lender deposits 50 USDC
+/// 2. Solver tries to borrow 50,000,001 (1 unit more than available)
+///
+/// # Expected Outcome
+///
+/// - Transaction fails with "Insufficient assets" error
+/// - Vault total_assets = 50,000,000 (unchanged)
+/// - Solver balance = 0
 #[tokio::test]
 async fn test_solver_borrow_exceeds_pool_size() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("=== Test: Solver borrow exceeds pool size - Should FAIL ===");
@@ -29,16 +63,19 @@ async fn test_solver_borrow_exceeds_pool_size() -> Result<(), Box<dyn std::error
 
     let lender_deposit = 50_000_000u128; // 50 USDC
 
-    // Step 1: Lender deposits 50 USDC
+    // =========================================================================
+    // LENDER DEPOSITS
+    // =========================================================================
     println!("\n=== Step 1: Lender deposits {} ===", lender_deposit);
     let _lender_shares = deposit_to_vault(&builder, "lender", lender_deposit).await?;
 
-    // Verify total_assets
     let total_assets_before = get_total_assets(&builder).await?;
     println!("Total assets in pool: {}", total_assets_before);
     assert_eq!(total_assets_before, lender_deposit, "Total assets should equal deposit");
 
-    // Step 2: Solver tries to borrow MORE than total_assets (should FAIL)
+    // =========================================================================
+    // SOLVER ATTEMPTS TO BORROW MORE THAN AVAILABLE
+    // =========================================================================
     let excessive_borrow = lender_deposit + 1; // 50,000,001 - one more than available
     println!("\n=== Step 2: Solver tries to borrow {} (more than pool size {}) ===", 
         excessive_borrow, lender_deposit);
@@ -46,7 +83,6 @@ async fn test_solver_borrow_exceeds_pool_size() -> Result<(), Box<dyn std::error
     let (solver_id, solver_signer, _) = builder.get_account("solver")
         .ok_or_else(|| "Solver account not found".to_string())?;
     
-    // Attempt to borrow more than available - this should fail
     let intent_result = builder.vault_contract()
         .call_function("new_intent", json!({
             "intent_data": "intent-excessive",
@@ -59,12 +95,11 @@ async fn test_solver_borrow_exceeds_pool_size() -> Result<(), Box<dyn std::error
         .send_to(builder.network_config())
         .await;
 
-    // Verify the transaction failed or returned an error
+    // Verify failure
     match &intent_result {
         Ok(outcome) => {
             let status_str = format!("{:?}", outcome.status);
             println!("Transaction status: {}", status_str);
-            // Check if status indicates failure
             assert!(
                 status_str.contains("Failure") || status_str.contains("Error"),
                 "Transaction should have failed but got: {}", status_str
@@ -74,7 +109,6 @@ async fn test_solver_borrow_exceeds_pool_size() -> Result<(), Box<dyn std::error
         Err(e) => {
             let error_str = format!("{:?}", e);
             println!("✅ Transaction correctly returned error: {}", error_str);
-            // Verify it's the expected error message
             assert!(
                 error_str.contains("Insufficient assets") || error_str.contains("panic"),
                 "Expected 'Insufficient assets' error but got: {}", error_str
@@ -84,7 +118,9 @@ async fn test_solver_borrow_exceeds_pool_size() -> Result<(), Box<dyn std::error
 
     sleep(Duration::from_millis(1000)).await;
 
-    // Verify total_assets unchanged (borrow should have failed)
+    // =========================================================================
+    // VERIFY NO STATE CHANGES
+    // =========================================================================
     let total_assets_after = get_total_assets(&builder).await?;
     
     println!("Total assets after excessive borrow attempt: {} (should still be {})", 
@@ -92,7 +128,6 @@ async fn test_solver_borrow_exceeds_pool_size() -> Result<(), Box<dyn std::error
     assert_eq!(total_assets_after, lender_deposit, 
         "Borrow should have failed - total_assets should be unchanged");
 
-    // Verify solver didn't receive any tokens
     let solver_balance = get_balance(&builder, "solver").await?;
     println!("Solver balance: {} (should be 0)", solver_balance);
     assert_eq!(solver_balance, 0, "Solver should not have received any tokens");

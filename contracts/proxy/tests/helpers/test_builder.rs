@@ -1,8 +1,36 @@
-// Test builder pattern for integration tests
-// This builder helps simplify the creation of complex test scenarios
-//
-// Note: #![allow(dead_code)] is used because not all helper functions are used
-// by every test file, but they are available for use across all integration tests.
+//! # Test Scenario Builder
+//!
+//! Provides a fluent builder pattern for constructing complex integration test
+//! scenarios. This simplifies test setup by chaining account creation, contract
+//! deployment, and registration steps.
+//!
+//! ## Usage Example
+//!
+//! ```ignore
+//! let builder = TestScenarioBuilder::new()
+//!     .await?
+//!     .deploy_vault()
+//!     .await?
+//!     .create_account("lender1")
+//!     .await?
+//!     .create_account("solver")
+//!     .await?
+//!     .register_accounts()
+//!     .await?;
+//!
+//! // Now use builder to access contracts and accounts
+//! let shares = deposit_to_vault(&builder, "lender1", 100_000_000).await?;
+//! ```
+//!
+//! ## Helper Functions
+//!
+//! The module also provides standalone helper functions for common operations:
+//! - [`deposit_to_vault`]: Transfer tokens to vault and receive shares
+//! - [`solver_borrow`]: Create intent and borrow liquidity
+//! - [`solver_repay`]: Repay borrowed liquidity with yield
+//! - [`redeem_shares`]: Burn shares to receive assets
+//! - [`process_redemption_queue`]: Process pending redemptions
+//! - [`get_balance`] / [`get_shares`] / [`get_total_assets`]: View functions
 
 #![allow(dead_code)]
 
@@ -15,26 +43,44 @@ use std::sync::Arc;
 
 use super::*;
 
+// ============================================================================
+// Test Scenario Builder
+// ============================================================================
+
+/// Builder for constructing test scenarios with multiple accounts and contracts.
+///
+/// Manages the lifecycle of sandbox, network config, and test accounts.
+/// The sandbox is kept alive for the entire test duration.
 pub struct TestScenarioBuilder {
-    _sandbox: Sandbox, // Keep sandbox alive for the entire test duration
+    /// The sandbox instance (kept alive for test duration).
+    _sandbox: Sandbox,
+    /// Network configuration for RPC calls.
     network_config: NetworkConfig,
+    /// Genesis account ID (has initial NEAR balance).
     genesis_account_id: AccountId,
+    /// Signer for the genesis account.
     genesis_signer: Arc<Signer>,
+    /// Deployed vault contract account ID.
     vault_id: Option<AccountId>,
+    /// Deployed FT contract account ID.
     ft_id: Option<AccountId>,
+    /// FT contract handle.
     ft_contract: Option<Contract>,
+    /// Vault contract handle.
     vault_contract: Option<Contract>,
-    accounts: Vec<(AccountId, Arc<Signer>, String)>, // (account_id, signer, name)
+    /// Created test accounts: (account_id, signer, name).
+    accounts: Vec<(AccountId, Arc<Signer>, String)>,
 }
 
 impl TestScenarioBuilder {
+    /// Creates a new test scenario builder with a fresh sandbox.
     pub async fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
         let network_config = create_network_config(&sandbox);
         let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
 
         Ok(Self {
-            _sandbox: sandbox, // Keep sandbox alive
+            _sandbox: sandbox,
             network_config,
             genesis_account_id,
             genesis_signer,
@@ -46,6 +92,7 @@ impl TestScenarioBuilder {
         })
     }
 
+    /// Deploys the vault contract (and mock FT).
     pub async fn deploy_vault(mut self) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let vault_id = deploy_vault_contract(&self.network_config, &self.genesis_account_id, &self.genesis_signer).await?;
         let ft_id: AccountId = format!("usdc.{}", self.genesis_account_id).parse()?;
@@ -61,6 +108,7 @@ impl TestScenarioBuilder {
         Ok(self)
     }
 
+    /// Creates a new test account with the given name.
     pub async fn create_account(mut self, name: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let (account_id, signer) = create_user_account(
             &self.network_config,
@@ -73,6 +121,10 @@ impl TestScenarioBuilder {
         Ok(self)
     }
 
+    /// Registers all created accounts with FT and vault contracts.
+    ///
+    /// Lenders (non-"solver" accounts) are registered with both contracts.
+    /// Solvers are only registered with FT to receive borrowed tokens.
     pub async fn register_accounts(self) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let ft_contract = self.ft_contract.as_ref().unwrap();
         let vault_contract = self.vault_contract.as_ref().unwrap();
@@ -115,36 +167,59 @@ impl TestScenarioBuilder {
         Ok(self)
     }
 
+    /// Retrieves an account by name.
     pub fn get_account(&self, name: &str) -> Option<&(AccountId, Arc<Signer>, String)> {
         self.accounts.iter().find(|(_, _, n)| n == name)
     }
 
+    /// Returns the FT contract handle.
     pub fn ft_contract(&self) -> &Contract {
         self.ft_contract.as_ref().unwrap()
     }
 
+    /// Returns the vault contract handle.
     pub fn vault_contract(&self) -> &Contract {
         self.vault_contract.as_ref().unwrap()
     }
 
+    /// Returns the vault account ID.
     pub fn vault_id(&self) -> &AccountId {
         self.vault_id.as_ref().unwrap()
     }
 
+    /// Returns the network configuration.
     pub fn network_config(&self) -> &NetworkConfig {
         &self.network_config
     }
 
+    /// Returns the genesis account ID.
     pub fn genesis_account_id(&self) -> &AccountId {
         &self.genesis_account_id
     }
 
+    /// Returns the genesis account signer.
     pub fn genesis_signer(&self) -> &Arc<Signer> {
         &self.genesis_signer
     }
 }
 
-// Helper functions for common operations
+// ============================================================================
+// Operation Helpers
+// ============================================================================
+
+/// Deposits tokens to the vault and returns the shares received.
+///
+/// Transfers USDC from genesis to the lender, then deposits to vault.
+///
+/// # Arguments
+///
+/// * `builder` - The test scenario builder
+/// * `lender_name` - Name of the lender account
+/// * `amount` - Amount of USDC to deposit
+///
+/// # Returns
+///
+/// The number of vault shares received.
 pub async fn deposit_to_vault(
     builder: &TestScenarioBuilder,
     lender_name: &str,
@@ -171,7 +246,7 @@ pub async fn deposit_to_vault(
         .send_to(network_config)
         .await?;
 
-    // Deposit to vault (using simple format like test_half_redemptions.rs)
+    // Deposit to vault
     ft_contract
         .call_function("ft_transfer_call", json!({
             "receiver_id": vault_id,
@@ -197,6 +272,17 @@ pub async fn deposit_to_vault(
     Ok(shares.data.parse::<u128>().unwrap())
 }
 
+/// Creates an intent and borrows liquidity from the vault.
+///
+/// # Arguments
+///
+/// * `builder` - The test scenario builder
+/// * `amount` - Optional borrow amount (defaults to SOLVER_BORROW_AMOUNT)
+/// * `intent_hash` - Unique hash for the intent
+///
+/// # Returns
+///
+/// The amount borrowed.
 pub async fn solver_borrow(
     builder: &TestScenarioBuilder,
     amount: Option<u128>,
@@ -232,6 +318,16 @@ pub async fn solver_borrow(
     Ok(borrow_amount)
 }
 
+/// Repays borrowed liquidity with yield.
+///
+/// Transfers yield tokens to solver, then repays principal + yield.
+///
+/// # Arguments
+///
+/// * `builder` - The test scenario builder
+/// * `intent_index` - Index of the intent to repay
+/// * `principal` - Borrowed principal amount
+/// * `intent_yield` - Yield amount to pay
 pub async fn solver_repay(
     builder: &TestScenarioBuilder,
     intent_index: u128,
@@ -247,7 +343,7 @@ pub async fn solver_repay(
     let genesis_signer = builder.genesis_signer();
     let network_config = builder.network_config();
 
-    // Transfer intent_yield to solver
+    // Transfer yield to solver
     ft_contract
         .call_function("ft_transfer", json!({
             "receiver_id": solver_id,
@@ -261,7 +357,7 @@ pub async fn solver_repay(
 
     sleep(Duration::from_millis(500)).await;
 
-    // Solver repays
+    // Solver repays principal + yield
     let total_repayment = principal + intent_yield;
     ft_contract
         .call_function("ft_transfer_call", json!({
@@ -280,6 +376,13 @@ pub async fn solver_repay(
     Ok(())
 }
 
+/// Redeems vault shares for underlying assets.
+///
+/// # Arguments
+///
+/// * `builder` - The test scenario builder
+/// * `lender_name` - Name of the lender account
+/// * `shares` - Number of shares to redeem
 pub async fn redeem_shares(
     builder: &TestScenarioBuilder,
     lender_name: &str,
@@ -308,6 +411,10 @@ pub async fn redeem_shares(
     Ok(())
 }
 
+/// Processes all pending redemptions in the queue.
+///
+/// Continues calling `process_next_redemption` until the queue is empty
+/// or processing stalls due to insufficient liquidity.
 pub async fn process_redemption_queue(
     builder: &TestScenarioBuilder,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -340,7 +447,7 @@ pub async fn process_redemption_queue(
         
         sleep(Duration::from_millis(2000)).await;
         
-        // Check if processing succeeded (like test_half_redemptions.rs)
+        // Check if processing succeeded
         let queue_length_after: Data<String> = vault_contract
             .call_function("get_pending_redemptions_length", json!([]))?
             .read_only()
@@ -357,6 +464,11 @@ pub async fn process_redemption_queue(
     Ok(())
 }
 
+// ============================================================================
+// View Function Helpers
+// ============================================================================
+
+/// Gets the FT balance of an account.
 pub async fn get_balance(
     builder: &TestScenarioBuilder,
     account_name: &str,
@@ -376,6 +488,7 @@ pub async fn get_balance(
     Ok(balance.data.parse::<u128>().unwrap())
 }
 
+/// Gets the vault share balance of an account.
 pub async fn get_shares(
     builder: &TestScenarioBuilder,
     account_name: &str,
@@ -395,6 +508,7 @@ pub async fn get_shares(
     Ok(shares.data.parse::<u128>().unwrap())
 }
 
+/// Gets the total assets in the vault.
 pub async fn get_total_assets(
     builder: &TestScenarioBuilder,
 ) -> Result<u128, Box<dyn std::error::Error + Send + Sync>> {
@@ -410,9 +524,18 @@ pub async fn get_total_assets(
     Ok(total_assets.data.parse::<u128>().unwrap())
 }
 
-/// Calculate expected shares for a deposit based on current vault state
-/// Formula: shares = (assets * total_supply) / (total_assets + total_borrowed + expected_yield)
-/// where expected_yield = sum of (borrow_amount / 100) for all active borrows
+/// Calculates expected shares for a deposit based on current vault state.
+///
+/// Uses the formula: shares = (assets * total_supply) / (total_assets + total_borrowed + expected_yield)
+///
+/// # Arguments
+///
+/// * `builder` - The test scenario builder
+/// * `deposit_amount` - Amount of assets to deposit
+///
+/// # Returns
+///
+/// The expected number of shares to receive.
 pub async fn calculate_expected_shares_for_deposit(
     builder: &TestScenarioBuilder,
     deposit_amount: u128,
@@ -429,12 +552,12 @@ pub async fn calculate_expected_shares_for_deposit(
         .await?;
     let total_supply_u128 = total_supply.data.parse::<u128>().unwrap();
 
-    // If vault is empty, first deposit uses extra_decimals multiplier
+    // First deposit uses extra_decimals multiplier
     if total_supply_u128 == 0 {
-        return Ok(deposit_amount * 1000u128); // extra_decimals = 3, so 10^3 = 1000
+        return Ok(deposit_amount * 1000u128); // extra_decimals = 3
     }
 
-    // Get all intents to calculate total_borrowed and expected_yield
+    // Get intents to calculate total_borrowed and expected_yield
     let intents: Data<Vec<serde_json::Value>> = vault_contract
         .call_function("get_intents", json!([]))?
         .read_only()
@@ -445,12 +568,9 @@ pub async fn calculate_expected_shares_for_deposit(
     let mut expected_yield = 0u128;
 
     for intent in intents.data {
-        // Only count active borrows (StpLiquidityBorrowed state)
-        // State is serialized as string in JSON
         let state_str = intent["state"].as_str().unwrap_or("");
         
         if state_str == "StpLiquidityBorrowed" {
-            // borrow_amount is serialized as string for large numbers in NEAR
             let borrow_amount = if let Some(amt_str) = intent["borrow_amount"].as_str() {
                 amt_str.parse::<u128>().unwrap_or(0)
             } else if let Some(amt_num) = intent["borrow_amount"].as_u64() {
@@ -460,7 +580,7 @@ pub async fn calculate_expected_shares_for_deposit(
             };
             
             total_borrowed += borrow_amount;
-            expected_yield += borrow_amount / 100; // 1% intent_yield
+            expected_yield += borrow_amount / 100; // 1% yield
         }
     }
 
@@ -472,8 +592,7 @@ pub async fn calculate_expected_shares_for_deposit(
         .unwrap_or(u128::MAX)
         .max(1);
 
-    // Calculate shares: (deposit_amount * total_supply) / denominator
-    // Using integer division with rounding down (same as mul_div with Rounding::Down)
+    // Calculate shares
     let shares = (deposit_amount as u128)
         .checked_mul(total_supply_u128)
         .unwrap_or(0)
@@ -482,4 +601,3 @@ pub async fn calculate_expected_shares_for_deposit(
 
     Ok(shares)
 }
-

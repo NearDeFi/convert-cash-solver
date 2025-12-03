@@ -1,3 +1,35 @@
+//! # FIFO Redemption Queue Test
+//!
+//! Tests that the redemption queue processes requests in First-In-First-Out order
+//! and distributes yield proportionally to each lender's share of the pool.
+//!
+//! ## Test Overview
+//!
+//! | Test | Description | Expected Outcome |
+//! |------|-------------|------------------|
+//! | `test_fifo_redemption_queue` | L2 redeems first, then L1 - both queued | L2 paid first with 1/3 yield, L1 paid second with 2/3 yield |
+//!
+//! ## Lender/Solver Interaction Flow
+//!
+//! ```text
+//! 1. L1 deposits 50 USDC → receives shares
+//! 2. L2 deposits 25 USDC → receives shares
+//! 3. Solver borrows 75 USDC (all liquidity)
+//! 4. L2 redeems (queued FIRST despite smaller deposit)
+//! 5. L1 redeems (queued SECOND despite larger deposit)
+//! 6. Solver repays 75.75 USDC (principal + 1% yield)
+//! 7. Queue processes: L2 first → receives 25 + 0.25 USDC (1/3 of yield)
+//! 8. Queue processes: L1 second → receives 50 + 0.50 USDC (2/3 of yield)
+//! ```
+//!
+//! ## Key Verification Points
+//!
+//! - Queue order is by redemption request time, NOT by deposit size
+//! - Yield is distributed proportionally to each lender's share ownership
+//! - L2 gets 1/3 of yield (25/75 of pool)
+//! - L1 gets 2/3 of yield (50/75 of pool)
+//! - Final vault state: 0 assets, 0 shares
+
 mod helpers;
 
 use helpers::*;
@@ -5,6 +37,19 @@ use near_api::{Contract, Data, NearToken};
 use serde_json::json;
 use tokio::time::{sleep, Duration};
 
+/// Tests FIFO queue order and proportional yield distribution.
+///
+/// # Scenario
+///
+/// Two lenders deposit different amounts. When redeeming during a borrow,
+/// they are queued in request order. Yield is distributed based on share
+/// ownership, not queue position.
+///
+/// # Expected Outcome
+///
+/// - L2 (25 USDC depositor) receives 27.5 USDC (25 + 2.5 = 1/3 of 0.75 yield)
+/// - L1 (50 USDC depositor) receives 55 USDC (50 + 5 = 2/3 of 0.75 yield)
+/// - L2 is processed before L1 (FIFO order)
 #[tokio::test]
 async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
@@ -28,7 +73,7 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     let ft_contract = Contract(ft_id.clone());
     let vault_contract = Contract(vault_id.clone());
 
-    // Register all accounts with FT contract
+    // Register accounts
     for account_id in [&lender1_id, &lender2_id, &solver_id] {
         ft_contract
             .call_function("storage_deposit", json!({ "account_id": account_id }))?
@@ -39,11 +84,7 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
             .await?;
         println!("FT storage_deposit completed for {}", account_id);
     }
-    
-    // Note: Vault doesn't need to be registered with FT contract to receive tokens via ft_transfer_call
-    // The FT contract will automatically handle the transfer
 
-    // Register lenders with vault
     for (lender_id, lender_signer) in [(&lender1_id, &lender1_signer), (&lender2_id, &lender2_signer)] {
         vault_contract
             .call_function("storage_deposit", json!({ "account_id": lender_id }))?
@@ -57,8 +98,12 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
 
     println!("\n=== Test: FIFO Redemption Queue with Proportional Yield ===\n");
 
-    // Step 1: Lender 1 deposits 50,000,000
-    let lender1_deposit = 50_000_000u128;
+    // =========================================================================
+    // STEP 1 & 2: LENDERS DEPOSIT (DIFFERENT AMOUNTS)
+    // =========================================================================
+    let lender1_deposit = 50_000_000u128; // L1 deposits MORE
+    let lender2_deposit = 25_000_000u128; // L2 deposits LESS
+    
     println!("\n--- Step 1: Lender 1 deposits {} ---", lender1_deposit);
     ft_contract
         .call_function("ft_transfer", json!({
@@ -96,8 +141,6 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     
     sleep(Duration::from_millis(1200)).await;
 
-    // Step 2: Lender 2 deposits 25,000,000
-    let lender2_deposit = 25_000_000u128;
     println!("\n--- Step 2: Lender 2 deposits {} ---", lender2_deposit);
     ft_contract
         .call_function("ft_transfer", json!({
@@ -142,7 +185,9 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
         .await?;
     println!("Total assets before solver borrow: {}", total_assets_before_borrow.data);
 
-    // Step 3: Solver borrows 75,000,000 (all liquidity)
+    // =========================================================================
+    // STEP 3: SOLVER BORROWS ALL LIQUIDITY
+    // =========================================================================
     let solver_borrow_amount = lender1_deposit + lender2_deposit; // 75,000,000
     println!("\n--- Step 3: Solver borrows {} (all liquidity) ---", solver_borrow_amount);
     let intent_outcome = vault_contract
@@ -168,7 +213,9 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     println!("Total assets after solver borrow: {} (should be 0)", total_assets_after_borrow.data);
     assert_eq!(total_assets_after_borrow.data, "0", "All assets should be borrowed");
 
-    // Step 4: Lender 2 redeems (queued first)
+    // =========================================================================
+    // STEP 4 & 5: LENDERS REDEEM (L2 FIRST, THEN L1 - FIFO ORDER)
+    // =========================================================================
     println!("\n--- Step 4: Lender 2 attempts redemption (will be queued first) ---");
     let lender2_redeem_outcome = vault_contract
         .call_function("redeem", json!({
@@ -193,7 +240,6 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     println!("Pending redemptions after lender2 redemption attempt: {}", pending_redemptions_after_l2.data.len());
     assert_eq!(pending_redemptions_after_l2.data.len(), 1, "Lender2 should be queued");
 
-    // Step 5: Lender 1 redeems (queued after Lender 2)
     println!("\n--- Step 5: Lender 1 attempts redemption (will be queued after Lender 2) ---");
     let lender1_redeem_outcome = vault_contract
         .call_function("redeem", json!({
@@ -218,7 +264,7 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     println!("Pending redemptions after lender1 redemption attempt: {}", pending_redemptions_after_l1.data.len());
     assert_eq!(pending_redemptions_after_l1.data.len(), 2, "Both lenders should be queued");
 
-    // Verify queue order: Lender2 should be first, Lender1 second
+    // Verify queue order: L2 first, L1 second
     if pending_redemptions_after_l1.data.len() >= 2 {
         let first_owner = pending_redemptions_after_l1.data[0]["owner_id"].as_str().unwrap();
         let second_owner = pending_redemptions_after_l1.data[1]["owner_id"].as_str().unwrap();
@@ -227,13 +273,14 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
         assert_eq!(second_owner, lender1_id.to_string(), "Lender1 should be second in queue");
     }
 
-    // Step 6: Solver repays 75,000,000 + 1% intent_yield
-    let intent_yield = solver_borrow_amount / 100; // 1% intent_yield
-    let total_repayment = solver_borrow_amount + intent_yield; // 82,500,000
+    // =========================================================================
+    // STEP 6: SOLVER REPAYS WITH 1% YIELD
+    // =========================================================================
+    let intent_yield = solver_borrow_amount / 100; // 1% yield = 750,000
+    let total_repayment = solver_borrow_amount + intent_yield; // 75,750,000
     println!("\n--- Step 6: Solver repays {} (principal + 1% intent_yield) ---", total_repayment);
     println!("Intent yield: {}, Total repayment: {}", intent_yield, total_repayment);
 
-    // Check solver's balance before repayment
     let solver_balance_before: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": solver_id }))?
         .read_only()
@@ -242,8 +289,7 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     let solver_balance_before_u128 = solver_balance_before.data.parse::<u128>().unwrap();
     println!("Solver balance before repayment: {} (should have {} from borrow)", solver_balance_before_u128, solver_borrow_amount);
 
-    // Solver already has the principal (75,000,000) from the borrow
-    // We only need to transfer the intent_yield (7,500,000) to the solver
+    // Transfer yield to solver
     ft_contract
         .call_function("ft_transfer", json!({
             "receiver_id": solver_id,
@@ -258,7 +304,6 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     
     sleep(Duration::from_millis(500)).await;
     
-    // Check solver's balance after intent_yield transfer
     let solver_balance_after_intent_yield: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": solver_id }))?
         .read_only()
@@ -267,7 +312,7 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     let solver_balance_after_intent_yield_u128 = solver_balance_after_intent_yield.data.parse::<u128>().unwrap();
     println!("Solver balance after intent_yield transfer: {} (should be {})", solver_balance_after_intent_yield_u128, solver_borrow_amount + intent_yield);
 
-    // Solver repays the full amount (principal + intent_yield)
+    // Solver repays
     let repay_outcome = ft_contract
         .call_function("ft_transfer_call", json!({
             "receiver_id": vault_id,
@@ -281,10 +326,8 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
         .await?;
     println!("Solver repaid {} (principal + 1% intent_yield), outcome: {:?}", total_repayment, repay_outcome.status);
 
-    // Wait for tokens to be transferred and ft_resolve_transfer to complete
     sleep(Duration::from_millis(3000)).await;
     
-    // Verify vault actually received the repayment tokens
     let vault_balance_check: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": vault_id }))?
         .read_only()
@@ -293,7 +336,7 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     let vault_balance_check_u128 = vault_balance_check.data.parse::<u128>().unwrap();
     println!("Vault balance after repayment (before processing queue): {}", vault_balance_check_u128);
     
-    // Process the redemption queue - call process_next_redemption until queue is empty
+    // Process redemption queue
     loop {
         let queue_length: Data<String> = vault_contract
             .call_function("get_pending_redemptions_length", json!([]))?
@@ -315,11 +358,9 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
             .send_to(&network_config)
             .await?;
         
-        // Wait for FT transfer to complete and lender balance to update
         sleep(Duration::from_millis(2000)).await;
     }
     
-    // Check solver's balance after repayment
     let solver_balance_after: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": solver_id }))?
         .read_only()
@@ -328,7 +369,6 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     let solver_balance_after_u128 = solver_balance_after.data.parse::<u128>().unwrap();
     println!("Solver balance after repayment: {} (should be 0)", solver_balance_after_u128);
     
-    // Check vault's balance after repayment
     let vault_balance_after: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": vault_id }))?
         .read_only()
@@ -337,7 +377,6 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     let vault_balance_after_u128 = vault_balance_after.data.parse::<u128>().unwrap();
     println!("Vault balance after repayment: {} (should be {})", vault_balance_after_u128, total_repayment);
 
-    // Check pending redemptions and total assets after repayment
     let pending_redemptions_after_repay: Data<Vec<serde_json::Value>> = vault_contract
         .call_function("get_pending_redemptions", json!({}))?
         .read_only()
@@ -352,7 +391,9 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
         .await?;
     println!("Total assets after repayment: {}", total_assets_after_repay.data);
 
-    // Step 7: Verify Lender 2 is paid out first (FIFO)
+    // =========================================================================
+    // STEP 7: VERIFY L2 PAID FIRST WITH PROPORTIONAL YIELD (1/3)
+    // =========================================================================
     println!("\n--- Step 7: Verify Lender 2 is paid out first (FIFO) ---");
     let lender2_balance_after_repay: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": lender2_id }))?
@@ -361,14 +402,16 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
         .await?;
     let lender2_balance_u128 = lender2_balance_after_repay.data.parse::<u128>().unwrap();
     
-    // Lender2 should get deposit + proportional intent_yield (1/3 of intent_yield since 25/75 = 1/3)
-    let lender2_intent_yield_share = intent_yield / 3; // 25,000,000 / 75,000,000 = 1/3
-    let lender2_expected = lender2_deposit + lender2_intent_yield_share; // 25,000,000 + 2,500,000 = 27,500,000
+    // L2 gets 1/3 of yield (25/75 share of pool)
+    let lender2_intent_yield_share = intent_yield / 3;
+    let lender2_expected = lender2_deposit + lender2_intent_yield_share;
     println!("Lender2 balance: {} (expected: {}, deposit: {}, intent_yield share: {})", 
         lender2_balance_u128, lender2_expected, lender2_deposit, lender2_intent_yield_share);
     assert_eq!(lender2_balance_u128, lender2_expected, "Lender2 should receive deposit + proportional intent_yield");
 
-    // Step 8: Verify Lender 1 is paid out second
+    // =========================================================================
+    // STEP 8: VERIFY L1 PAID SECOND WITH PROPORTIONAL YIELD (2/3)
+    // =========================================================================
     println!("\n--- Step 8: Verify Lender 1 is paid out second ---");
     let lender1_balance_after_repay: Data<String> = ft_contract
         .call_function("ft_balance_of", json!({ "account_id": lender1_id }))?
@@ -377,14 +420,16 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
         .await?;
     let lender1_balance_u128 = lender1_balance_after_repay.data.parse::<u128>().unwrap();
     
-    // Lender1 should get deposit + proportional intent_yield (2/3 of intent_yield since 50/75 = 2/3)
-    let lender1_intent_yield_share = (intent_yield * 2) / 3; // 50,000,000 / 75,000,000 = 2/3
-    let lender1_expected = lender1_deposit + lender1_intent_yield_share; // 50,000,000 + 5,000,000 = 55,000,000
+    // L1 gets 2/3 of yield (50/75 share of pool)
+    let lender1_intent_yield_share = (intent_yield * 2) / 3;
+    let lender1_expected = lender1_deposit + lender1_intent_yield_share;
     println!("Lender1 balance: {} (expected: {}, deposit: {}, intent_yield share: {})", 
         lender1_balance_u128, lender1_expected, lender1_deposit, lender1_intent_yield_share);
     assert_eq!(lender1_balance_u128, lender1_expected, "Lender1 should receive deposit + proportional intent_yield");
 
-    // Verify queue is empty
+    // =========================================================================
+    // FINAL STATE VERIFICATION
+    // =========================================================================
     let pending_redemptions_final: Data<Vec<serde_json::Value>> = vault_contract
         .call_function("get_pending_redemptions", json!({}))?
         .read_only()
@@ -393,7 +438,6 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
     println!("Pending redemptions after repayment: {}", pending_redemptions_final.data.len());
     assert!(pending_redemptions_final.data.is_empty(), "All redemptions should be processed");
 
-    // Final assertions
     println!("\n--- Final State Verification ---");
     let total_assets_final: Data<String> = vault_contract
         .call_function("total_assets", json!([]))?
@@ -418,4 +462,3 @@ async fn test_fifo_redemption_queue() -> Result<(), Box<dyn std::error::Error + 
 
     Ok(())
 }
-

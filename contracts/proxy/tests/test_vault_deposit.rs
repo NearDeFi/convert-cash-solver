@@ -1,4 +1,29 @@
-// Test for vault deposit functionality
+//! # Vault Deposit Test
+//!
+//! Tests the fundamental deposit flow where a user deposits underlying assets
+//! (USDC) into the vault and receives vault shares in return.
+//!
+//! ## Test Overview
+//!
+//! | Test | Description | Expected Outcome |
+//! |------|-------------|------------------|
+//! | `test_vault_deposit` | User deposits USDC via ft_transfer_call | User receives vault shares proportional to deposit |
+//!
+//! ## Lender/Vault Interaction
+//!
+//! ```text
+//! 1. User starts with 100 USDC
+//! 2. User deposits 50 USDC to vault via ft_transfer_call
+//! 3. Vault mints shares using extra_decimals multiplier (first deposit)
+//! 4. User receives 50 USDC × 10^3 = 50,000,000,000 shares
+//! ```
+//!
+//! ## Key Verification Points
+//!
+//! - User's FT balance decreases by deposit amount
+//! - User receives shares with extra_decimals precision
+//! - Vault's total_assets reflects the deposit
+//! - Vault's total_supply matches minted shares
 
 mod helpers;
 
@@ -6,23 +31,33 @@ use helpers::*;
 use near_api::{Contract, Data, NearToken};
 use serde_json::json;
 
+/// Tests the complete deposit flow from USDC to vault shares.
+///
+/// # Scenario
+///
+/// A user receives 100 USDC, then deposits 50 USDC into the vault.
+/// This is the first deposit, so shares are minted with the extra_decimals
+/// multiplier (10^3 = 1000).
+///
+/// # Expected Outcome
+///
+/// - User receives 50,000,000 × 1000 = 50,000,000,000 shares
+/// - Vault total_assets = 50,000,000 (50 USDC)
+/// - Vault total_supply = 50,000,000,000 shares
 #[tokio::test]
 async fn test_vault_deposit() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Start sandbox
+    // Start sandbox and deploy contracts
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network_config = create_network_config(&sandbox);
-
-    // Setup genesis account
     let (genesis_account_id, genesis_signer) = setup_genesis_account().await;
 
-    // Deploy vault (which also deploys mock FT)
     let vault_id = deploy_vault_contract(&network_config, &genesis_account_id, &genesis_signer).await?;
     let ft_id: near_api::AccountId = format!("usdc.{}", genesis_account_id).parse()?;
     
-    // Create a user account
+    // Create user account
     let (user_id, user_signer) = create_user_account(&network_config, &genesis_account_id, &genesis_signer, "alice").await?;
 
-    // Register user with FT contract (storage deposit)
+    // Register user with FT contract
     let ft_contract = Contract(ft_id.clone());
     ft_contract
         .call_function("storage_deposit", json!({
@@ -36,8 +71,8 @@ async fn test_vault_deposit() -> Result<(), Box<dyn std::error::Error + Send + S
 
     println!("User registered with FT contract");
 
-    // Transfer some USDC to user (100 USDC = 100,000,000 base units with 6 decimals)
-    let transfer_amount = "100000000"; // 100 USDC
+    // Transfer USDC to user (100 USDC = 100,000,000 with 6 decimals)
+    let transfer_amount = "100000000";
     ft_contract
         .call_function("ft_transfer", json!({
             "receiver_id": user_id,
@@ -64,7 +99,7 @@ async fn test_vault_deposit() -> Result<(), Box<dyn std::error::Error + Send + S
     println!("User FT balance: {}", user_ft_balance.data);
     assert_eq!(user_ft_balance.data, transfer_amount);
 
-    // Register user with vault contract (storage deposit)
+    // Register user with vault contract
     let vault_contract = Contract(vault_id.clone());
     vault_contract
         .call_function("storage_deposit", json!({
@@ -78,7 +113,9 @@ async fn test_vault_deposit() -> Result<(), Box<dyn std::error::Error + Send + S
 
     println!("User registered with vault contract");
 
-    // User deposits USDC into vault via ft_transfer_call
+    // =========================================================================
+    // DEPOSIT: User deposits 50 USDC to vault
+    // =========================================================================
     let deposit_amount = "50000000"; // 50 USDC
     let deposit_result = ft_contract
         .call_function("ft_transfer_call", json!({
@@ -97,7 +134,9 @@ async fn test_vault_deposit() -> Result<(), Box<dyn std::error::Error + Send + S
 
     println!("User deposited {} USDC to vault: {:?}", deposit_amount, deposit_result.status);
 
-    // Check user's vault share balance
+    // =========================================================================
+    // VERIFY: Check shares received
+    // =========================================================================
     let user_shares: Data<String> = vault_contract
         .call_function("ft_balance_of", json!({
             "account_id": user_id
@@ -108,7 +147,7 @@ async fn test_vault_deposit() -> Result<(), Box<dyn std::error::Error + Send + S
 
     println!("User vault shares received: {}", user_shares.data);
 
-    // Calculate expected shares (first deposit with extra_decimals)
+    // First deposit uses extra_decimals multiplier
     let multiplier = 10u128.pow(EXTRA_DECIMALS as u32);
     let expected_shares = (deposit_amount.parse::<u128>().unwrap() * multiplier).to_string();
     println!("Expected shares: {} (deposit × {})", expected_shares, multiplier);
@@ -125,7 +164,7 @@ async fn test_vault_deposit() -> Result<(), Box<dyn std::error::Error + Send + S
     println!("Vault total assets: {}", vault_total_assets.data);
     assert_eq!(vault_total_assets.data, deposit_amount, "Vault should track deposited assets");
 
-    // Verify vault's total supply of shares
+    // Verify vault's total supply
     let vault_total_supply: Data<String> = vault_contract
         .call_function("ft_total_supply", json!([]))?
         .read_only()
@@ -144,4 +183,3 @@ async fn test_vault_deposit() -> Result<(), Box<dyn std::error::Error + Send + S
 
     Ok(())
 }
-

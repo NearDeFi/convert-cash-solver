@@ -3,6 +3,23 @@
  * Equivalent to the Python dataclasses and types
  */
 
+export interface TrustedMetadata {
+    source?: string;
+    upstream_metadata?: {
+        traceparent?: string;
+        partner_id?: string;
+    };
+    upstream_trusted_metadata?: {
+        source?: string;
+        quote_type?: string;
+        partner_id?: string;
+        quote_request_data?: {
+            dry?: boolean;
+            slippageTolerance?: number;
+        };
+    };
+}
+
 export interface QuoteRequest {
     quote_id: string;
     defuse_asset_identifier_in: string;
@@ -10,6 +27,10 @@ export interface QuoteRequest {
     exact_amount_in?: string;
     exact_amount_out?: string;
     min_deadline_ms?: number;
+    min_wait_ms?: number;
+    max_wait_ms?: number;
+    protocol_fee_included?: boolean;
+    trusted_metadata?: TrustedMetadata;
 }
 
 export interface WebSocketMessage {

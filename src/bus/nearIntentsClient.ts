@@ -13,7 +13,7 @@ import {
     SignedData,
     IntentMessage,
 } from './types.js';
-
+import { NearClient } from './nearClient.js';
 import { erc191SignMessage } from '../key/erc191.js';
 
 dotenv.config({ path: './env.development.local' });
@@ -37,7 +37,22 @@ export class NearIntentsClient {
 
     async connect(): Promise<boolean> {
         try {
-            this.websocket = new WebSocket(this.websocketUrl);
+            // Get JWT token from environment
+            const jwtToken = process.env.JWT_INTENTS;
+            
+            // Create headers with JWT if available
+            const headers = jwtToken ? { Authorization: `Bearer ${jwtToken}` } : undefined;
+            
+            console.log('🔐 JWT Authentication Status:');
+            if (jwtToken) {
+                console.log('   ✅ JWT Token found - Using authentication');
+                console.log(`   📝 Token: ${jwtToken.substring(0, 50)}...`);
+            } else {
+                console.log('   ❌ JWT Token NOT found - Connection without authentication');
+            }
+            console.log('=====================================');
+
+            this.websocket = new WebSocket(this.websocketUrl, { headers });
 
             return new Promise((resolve, reject) => {
                 if (!this.websocket) {
@@ -46,12 +61,17 @@ export class NearIntentsClient {
                 }
 
                 this.websocket.on('open', () => {
-                    console.log(`Connected to ${this.websocketUrl}`);
+                    console.log(`🔗 Connected to ${this.websocketUrl}`);
+                    if (jwtToken) {
+                        console.log('🔐 Authenticated connection with JWT');
+                    } else {
+                        console.log('⚠️ Connection WITHOUT JWT authentication');
+                    }
                     resolve(true);
                 });
 
                 this.websocket.on('error', (error: Error) => {
-                    console.error(`Failed to connect: ${error}`);
+                    console.error(`❌ Failed to connect: ${error}`);
                     reject(error);
                 });
 
@@ -153,6 +173,10 @@ export class NearIntentsClient {
                 exact_amount_in: data.exact_amount_in,
                 exact_amount_out: data.exact_amount_out,
                 min_deadline_ms: data.min_deadline_ms || 60000,
+                min_wait_ms: data.min_wait_ms,
+                max_wait_ms: data.max_wait_ms,
+                protocol_fee_included: data.protocol_fee_included,
+                trusted_metadata: data.trusted_metadata,
             };
         } catch (error) {
             console.error(`Error parsing quote request: ${error}`);
@@ -171,6 +195,7 @@ export class NearIntentsClient {
         this.websocket.on('message', async (data: WebSocket.Data) => {
             try {
                 const message = JSON.parse(data.toString());
+                const jwtStatus = process.env.JWT_INTENTS ? 'WITH JWT' : 'WITHOUT JWT';
 
                 // Handle quote requests - these come as "event" method with subscription ID
                 if (
@@ -182,29 +207,29 @@ export class NearIntentsClient {
                         await this.handleQuoteRequest(quoteRequest);
                     }
                 }
-                // Handle subscription responses
-                else if (message.id && message.result) {
-                    console.log(
-                        `Subscription response: ${JSON.stringify(message)}`,
-                    );
-                }
-                // Handle quote response results
+                // Handle quote response results (show complete response)
                 else if (message.result === 'OK') {
-                    console.log('✅ Quote response accepted by relay!');
+                    console.log(`✅ [${jwtStatus}] Quote response accepted by relay!`);
+                    console.log(`📋 Complete response from relay:`);
+                    console.log(`   📊 Full message: ${JSON.stringify(message, null, 2)}`);
                 } else if (message.error) {
                     const errorData = message.error;
                     const errorMsg =
                         typeof errorData === 'object'
                             ? errorData.message || 'Unknown error'
                             : String(errorData);
-                    console.warn(`⚠️ Quote response error: ${errorMsg}`);
-                } else {
-                    console.log(
-                        `Received other message: ${JSON.stringify(message)}`,
-                    );
+                    console.warn(`⚠️ [${jwtStatus}] Quote response error: ${errorMsg}`);
+                    console.log(`📋 Complete error response:`);
+                    console.log(`   📊 Full message: ${JSON.stringify(message, null, 2)}`);
                 }
+                // Show any other important responses from relay
+                else if (message.id && message.result) {
+                    console.log(`📝 [${jwtStatus}] Other response from relay:`);
+                    console.log(`   📊 Full message: ${JSON.stringify(message, null, 2)}`);
+                }
+                // Silently ignore all other messages
             } catch (error) {
-                console.error(`Error processing message: ${error}`);
+                console.error(`❌ Error processing message: ${error}`);
             }
         });
 
@@ -239,39 +264,70 @@ export class NearIntentsClient {
         const tokenIdUsdtOnTron =
             'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near';
 
-        // TODO add fee calculation here
-        const defineAmountIn = 4685835; // After deducting fees
-
-        // Check if this is the swap we want to handle
+        // Check if this is the swap we want to handle (USDT ETH -> USDT TRON)
         const isEthToTronSwap =
             quoteRequest.defuse_asset_identifier_in === tokenIdUsdtOnEth &&
             quoteRequest.defuse_asset_identifier_out === tokenIdUsdtOnTron;
 
-        // if (isEthToTronSwap) {
-        //     console.log('Amount in: ', quoteRequest.exact_amount_in);
-        // }
-        // Check if exact_amount_in is provided and meets minimum
-
-        // debugging to see all amounts in case we don't have the right amount in (minus fees)
-        // if (isEthToTronSwap) {
-        //     console.log(parseInt(quoteRequest.exact_amount_in!));
-        // }
-
+        // Check if exact_amount_in matches the specific amount we want
+        //const defineAmountIn = 4685835; // After deducting fees
         const hasValidAmount =
             quoteRequest.exact_amount_in !== undefined &&
-            parseInt(quoteRequest.exact_amount_in) == defineAmountIn;
+            parseInt(quoteRequest.exact_amount_in) === 4999995;//4685835;
+
+        // Only process and log USDT ETH -> USDT TRON swaps with exact amount
+        if (isEthToTronSwap && hasValidAmount) {
+            const jwtStatus = process.env.JWT_INTENTS ? 'WITH JWT' : 'WITHOUT JWT';
+            console.log(
+                `\n🔄 [${jwtStatus}] Processing USDT ETH->TRON swap: ${quoteRequest.quote_id}`,
+            );
+            
+            // Show all quote request fields
+            console.log(`📋 Complete Quote Request Data:`);
+            console.log(`   🆔 Quote ID: ${quoteRequest.quote_id}`);
+            console.log(`   📤 From: ${quoteRequest.defuse_asset_identifier_in}`);
+            console.log(`   📥 To: ${quoteRequest.defuse_asset_identifier_out}`);
+            console.log(`   💰 Amount in: ${quoteRequest.exact_amount_in} ($${(
+                parseInt(quoteRequest.exact_amount_in!) / 1000000
+            ).toFixed(2)})`);
+            console.log(`   💰 Amount out: ${quoteRequest.exact_amount_out || 'N/A'}`);
+            console.log(`   ⏰ Min deadline: ${quoteRequest.min_deadline_ms}ms`);
+            console.log(`   ⏱️ Min wait: ${quoteRequest.min_wait_ms || 'N/A'}ms`);
+            console.log(`   ⏱️ Max wait: ${quoteRequest.max_wait_ms || 'N/A'}ms`);
+            console.log(`   💳 Protocol fee included: ${quoteRequest.protocol_fee_included || 'N/A'}`);
+            
+            // Show trusted metadata if available
+            if (quoteRequest.trusted_metadata) {
+                console.log(`🔐 Trusted Metadata:`);
+                console.log(`   📍 Source: ${quoteRequest.trusted_metadata.source || 'N/A'}`);
+                
+                if (quoteRequest.trusted_metadata.upstream_metadata) {
+                    console.log(`   🔗 Upstream Metadata:`);
+                    console.log(`     📊 Traceparent: ${quoteRequest.trusted_metadata.upstream_metadata.traceparent || 'N/A'}`);
+                    console.log(`     👥 Partner ID: ${quoteRequest.trusted_metadata.upstream_metadata.partner_id || 'N/A'}`);
+                }
+                
+                if (quoteRequest.trusted_metadata.upstream_trusted_metadata) {
+                    console.log(`   🔐 Upstream Trusted Metadata:`);
+                    console.log(`     📍 Source: ${quoteRequest.trusted_metadata.upstream_trusted_metadata.source || 'N/A'}`);
+                    console.log(`     📋 Quote type: ${quoteRequest.trusted_metadata.upstream_trusted_metadata.quote_type || 'N/A'}`);
+                    console.log(`     👥 Partner ID: ${quoteRequest.trusted_metadata.upstream_trusted_metadata.partner_id || 'N/A'}`);
+                    
+                    if (quoteRequest.trusted_metadata.upstream_trusted_metadata.quote_request_data) {
+                        console.log(`     📊 Quote request data:`);
+                        console.log(`       🔍 Dry run: ${quoteRequest.trusted_metadata.upstream_trusted_metadata.quote_request_data.dry || 'N/A'}`);
+                        console.log(`       📈 Slippage tolerance: ${quoteRequest.trusted_metadata.upstream_trusted_metadata.quote_request_data.slippageTolerance || 'N/A'}`);
+                    }
+                }
+            } else {
+                console.log(`🔐 Trusted Metadata: N/A`);
+            }
+        } else {
+            // Silently ignore all other swaps (wrong tokens or wrong amount)
+            return;
+        }
 
         if (isEthToTronSwap && hasValidAmount) {
-            console.log(
-                `\n\n Processing USDT ETH->TRON swap: ${quoteRequest.quote_id}`,
-            );
-            console.log(`From: ${quoteRequest.defuse_asset_identifier_in}`);
-            console.log(`To: ${quoteRequest.defuse_asset_identifier_out}`);
-            console.log(
-                `Amount in: ${quoteRequest.exact_amount_in} ($${(
-                    parseInt(quoteRequest.exact_amount_in!) / 1000000
-                ).toFixed(2)})`,
-            );
 
             // Calculate quote with proper fee structure
             const amountIn = parseInt(quoteRequest.exact_amount_in!);
@@ -322,7 +378,8 @@ export class NearIntentsClient {
             );
 
             if (success) {
-                console.log('📤 Quote response sent to relay');
+                const jwtStatus = process.env.JWT_INTENTS ? 'WITH JWT' : 'WITHOUT JWT';
+                console.log(`📤 [${jwtStatus}] Quote response sent to relay`);
                 console.log('   ⏳ Waiting for relay validation...');
             } else {
                 console.error('❌ Failed to send quote response');
@@ -376,7 +433,7 @@ export class NearIntentsClient {
             ],
         };
 
-        console.log(`->>>Quote response: ${JSON.stringify(quoteResponse)}`);
+        //console.log(`->>>Quote response: ${JSON.stringify(quoteResponse)}`);
 
         try {
             if (
@@ -388,10 +445,11 @@ export class NearIntentsClient {
             }
 
             this.websocket.send(JSON.stringify(quoteResponse));
-            console.log(`📤 Quote response sent for ${quoteRequest.quote_id}`);
-            console.log(`   Offered: ${finalAmountOut} USDT TRON`);
+            const jwtStatus = process.env.JWT_INTENTS ? 'WITH JWT' : 'WITHOUT JWT';
+            console.log(`📤 [${jwtStatus}] Quote response sent for ${quoteRequest.quote_id}`);
+            console.log(`   💰 Offered: ${finalAmountOut} USDT TRON`);
             console.log(
-                `   Requested: ${quoteRequest.exact_amount_in} USDT ETH`,
+                `   📥 Requested: ${quoteRequest.exact_amount_in} USDT ETH`,
             );
             console.log('   ⏳ Waiting for relay response...');
             return true;
@@ -434,7 +492,7 @@ export class NearIntentsClient {
         const erc191Signature = await this.signQuoteSecp256k1FromEvm(
             messageJson,
         );
-        console.log(`\n->>>ERC191 Signature using EVM: ${erc191Signature}`);
+        //console.log(`\n->>>ERC191 Signature using EVM: ${erc191Signature}`);
 
         // For ERC191, the payload is simply the signed message (not a nested structure)
         const erc191Format: SignedData = {
@@ -466,7 +524,7 @@ export class NearIntentsClient {
     async signQuoteSecp256k1FromEvm(quote: string): Promise<string> {
         const evmAccount = this.createEvmAccount();
 
-        console.log(`->>>>>>> Signing quote: ${quote}`);
+        //console.log(`->>>>>>> Signing quote: ${quote}`);
 
         // Sign the message directly using EVM (like Matt's testSignAndRecover)
         const signature =
@@ -490,5 +548,113 @@ export class NearIntentsClient {
         const signatureFormatted = `secp256k1:${signatureB58}`;
 
         return signatureFormatted;
+    }
+
+    // async createBalancedSolverIntent(userSignedIntent: SignedData): Promise<SignedData> {
+    //     const userIntentData: IntentMessage = JSON.parse(userSignedIntent.payload);
+    //     const userDiff = userIntentData.intents[0].diff;
+
+    //     const solverDiff: Record<string, string> = {};
+    //     for (const [token, amount] of Object.entries(userDiff)) {
+    //         const amountStr = amount as string;
+    //         solverDiff[token] = amountStr.startsWith('-') ? amountStr.substring(1) : `-${amountStr}`;
+    //     }
+
+    //     const solverAccount =
+    //         process.env.LOCAL_TESTING === 'true'
+    //             ? process.env.NEAR_CONTRACT_ID!
+    //             : '0xa48c13854fa61720c652e2674Cfa82a5F8514036'.toLowerCase();
+
+    //     const solverIntentData: IntentMessage = {
+    //         signer_id: solverAccount,
+    //         deadline: userIntentData.deadline,
+    //         verifying_contract: userIntentData.verifying_contract,
+    //         nonce: await this.generateNonce(),
+    //         intents: [{ intent: 'token_diff', diff: solverDiff }],
+    //     };
+
+    //     const messageJson = JSON.stringify(solverIntentData);
+    //     const erc191Signature = await this.signQuoteSecp256k1FromEvm(messageJson);
+
+    //     return { standard: 'erc191', payload: messageJson, signature: erc191Signature };
+    // }
+
+    async createBalancedSolverIntent(userSignedIntent: SignedData): Promise<SignedData> {
+        const userIntentData: IntentMessage = JSON.parse(userSignedIntent.payload);
+        const userDiff = userIntentData.intents[0].diff;
+
+        const FEE_PPM = parseInt(process.env.PROTOCOL_FEE_PPM || '1', 10);
+        const feeFor = (amount: number) => Math.ceil((amount * FEE_PPM) / 1_000_000);
+
+        const solverDiff: Record<string, string> = {};
+        for (const [token, amountStr] of Object.entries(userDiff)) {
+            const isUserNegative = amountStr.startsWith('-');
+            const absAmount = Math.abs(parseInt(amountStr, 10));
+            const fee = feeFor(absAmount);
+
+            if (isUserNegative) {
+                // User pays this token -> solver receives with fee deducted
+                const recv = Math.max(absAmount - fee, 0);
+                solverDiff[token] = recv.toString(); // positive
+            } else {
+                // User receives this token -> solver pays with fee added
+                const pay = absAmount + fee;
+                solverDiff[token] = `-${pay}`; // negative
+            }
+        }
+
+        const solverAccount =
+            process.env.LOCAL_TESTING === 'true'
+                ? process.env.NEAR_CONTRACT_ID!
+                : '0xa48c13854fa61720c652e2674Cfa82a5F8514036'.toLowerCase();
+
+        const solverIntentData: IntentMessage = {
+            signer_id: solverAccount,
+            deadline: userIntentData.deadline,
+            verifying_contract: userIntentData.verifying_contract,
+            nonce: await this.generateNonce(),
+            intents: [{ intent: 'token_diff', diff: solverDiff }],
+        };
+
+        const messageJson = JSON.stringify(solverIntentData);
+        const erc191Signature = await this.signQuoteSecp256k1FromEvm(messageJson);
+
+        return { standard: 'erc191', payload: messageJson, signature: erc191Signature };
+    }
+    
+    async processUserIntent(userSignedIntent: SignedData): Promise<any> {
+        if (userSignedIntent.standard !== 'erc191') {
+            throw new Error('Only erc191 is supported');
+        }
+
+        let userIntentData: IntentMessage;
+        try {
+            userIntentData = JSON.parse(userSignedIntent.payload);
+        } catch {
+            throw new Error('Invalid user intent payload');
+        }
+
+        // Validate the swap pair
+        const tokenIdUsdtOnEth =
+            'nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near';
+        const tokenIdUsdtOnTron =
+            'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near';
+        const diff = userIntentData.intents[0].diff;
+
+        if (!(tokenIdUsdtOnEth in diff) || !(tokenIdUsdtOnTron in diff)) {
+            throw new Error('Unsupported swap pair for this solver');
+        }
+
+        const solverSignedIntent = await this.createBalancedSolverIntent(userSignedIntent);
+        const executeArgs = { signed: [userSignedIntent, solverSignedIntent] };
+
+        const nearClient = new NearClient();
+        return await nearClient.callFunction(
+            'intents.near',
+            'execute_intents',
+            executeArgs,
+            '0',
+            '100000000000000'
+        );
     }
 }

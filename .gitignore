@@ -13,7 +13,13 @@ cli.js
 contracts/sandbox/target
 # contract
 contracts/proxy/target
+# contract
+contracts/mock_ft/target
 
 notes
 
 env.development.local
+
+justfile
+./contracts/proxy/justfile
+./contracts/proxy/test_local_repro.sh

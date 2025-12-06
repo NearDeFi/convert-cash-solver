@@ -48,7 +48,8 @@
         "near-seed-phrase": "^0.2.1",
         "node-fetch": "^3.3.2",
         "tronweb": "^6.0.3",
-        "ws": "^8.18.3"
+        "ws": "^8.18.3",
+        "ccxt": "^4.5.22"
     },
     "devDependencies": {
         "@types/bs58": "^5.0.0",

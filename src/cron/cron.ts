@@ -6,6 +6,13 @@ import {
     checkBitfinexMoves,
 } from '../cex/bitfinex.js';
 import {
+    getBinanceDepositAddress,
+    checkBinanceDeposits,
+    swapOnBinance,
+    withdrawFromBinance,
+    waitForBinanceDeposit,
+} from '../cex/binance.js';
+import {
     requestLiquidityUnsigned,
     requestLiquidityBroadcast,
     getNearAddress,
@@ -67,6 +74,9 @@ type StateFunction = (
 
 const INTENTS_CHAIN_ID_TRON = 'tron:mainnet';
 
+// CEX selection: use Binance if USE_BINANCE=true, otherwise use Bitfinex (default)
+const USE_BINANCE = process.env.USE_BINANCE === 'true';
+
 // --- helper functions ------------------------------------------------------
 
 const nanoToMs = (nanos: number): number => Math.floor(nanos / 1e6) - 1000;
@@ -75,11 +85,86 @@ function parseAmount(amount: string | undefined): number {
     return Math.max(5000000, Math.abs(parseInt(amount || '0', 10)));
 }
 
+/**
+ * Helper function to check if deposit arrived at CEX (Binance or Bitfinex)
+ */
+async function checkCexDeposit(
+    symbol: string,
+    amount: number,
+    start: number,
+    receiver: string,
+    network?: string,
+): Promise<boolean> {
+    if (USE_BINANCE) {
+        console.log('Using Binance to check deposit...');
+        return await checkBinanceDeposits({
+            symbol,
+            amount,
+            start,
+            receiver,
+        });
+    } else {
+        console.log('Using Bitfinex to check deposit...');
+        // For Bitfinex, we need to map network to method
+        const method = network === 'tron:mainnet' ? 'tron' : network?.includes('evm') ? 'evm' : 'near';
+        return await checkBitfinexMoves({
+            amount,
+            start,
+            receiver,
+            method,
+        });
+    }
+}
+
+/**
+ * Helper function to get CEX deposit address (Binance or Bitfinex)
+ */
+async function getCexDepositAddress(symbol: string, network: string): Promise<string | null> {
+    if (USE_BINANCE) {
+        console.log('Getting Binance deposit address...');
+        return await getBinanceDepositAddress(symbol, network);
+    } else {
+        console.log('Getting Bitfinex deposit address...');
+        if (network.includes('near') || network === 'near-mainnet') {
+            return await getNearDepositAddress();
+        } else if (network.includes('evm') || network.includes('eth')) {
+            return await getEvmDepositAddress();
+        }
+        return null;
+    }
+}
+
+/**
+ * Helper function to withdraw from CEX (Binance or Bitfinex)
+ */
+async function withdrawFromCex(
+    symbol: string,
+    amount: number,
+    network: string,
+    address: string,
+): Promise<boolean> {
+    if (USE_BINANCE) {
+        console.log('Withdrawing from Binance...');
+        return await withdrawFromBinance(symbol, amount, network, address);
+    } else {
+        console.log('Withdrawing from Bitfinex...');
+        if (network === 'tron:mainnet' || network.includes('tron')) {
+            return await withdrawToTron(amount, address);
+        } else if (network.includes('near')) {
+            return await withdrawToNear(amount);
+        }
+        return false;
+    }
+}
+
 export async function createIntent(
     data: string,
     user_deposit_hash: string,
 ): Promise<boolean> {
-    const solver_deposit_address = await getNearDepositAddress();
+    // Get deposit address from selected CEX
+    const solver_deposit_address = USE_BINANCE
+        ? await getBinanceDepositAddress('USDT', 'near-mainnet')
+        : await getNearDepositAddress();
 
     try {
         // update args
@@ -108,13 +193,21 @@ export async function createIntent(
 const stateFuncs: Record<IntentState, StateFunction> = {
     StpLiquidityBorrowed: async (intent: Intent, solver_id: string) => {
         try {
-            const res = await checkBitfinexMoves({
-                amount: parseAmount(intent.destAmount),
-                start: nanoToMs(intent.created), // convert to ms from nanos
-                receiver: (await getNearDepositAddress())!,
-                method: 'near',
-            });
-            console.log('Bitfinex moves check result:', res);
+            // Get deposit address for the source network (usually NEAR)
+            const depositAddress = await getCexDepositAddress('USDT', 'near-mainnet');
+            if (!depositAddress) {
+                console.log('Failed to get CEX deposit address');
+                return false;
+            }
+
+            const res = await checkCexDeposit(
+                'USDT',
+                parseAmount(intent.destAmount),
+                nanoToMs(intent.created),
+                depositAddress,
+                'near-mainnet',
+            );
+            console.log(`${USE_BINANCE ? 'Binance' : 'Bitfinex'} deposit check result:`, res);
 
             if (!res) {
                 return false;
@@ -123,12 +216,12 @@ const stateFuncs: Record<IntentState, StateFunction> = {
             intent.nextState = 'StpLiquidityDeposited';
             return true;
         } catch (e) {
-            console.log('Error checking Bitfinex moves:', e);
+            console.log(`Error checking ${USE_BINANCE ? 'Binance' : 'Bitfinex'} deposit:`, e);
         }
         return false;
     },
     StpLiquidityDeposited: async (intent: Intent, solver_id: string) => {
-        // the deposit address is based off the contract id
+        // Get the destination deposit address (based off the contract id)
         const { depositAddress } = await getDepositAddress(
             process.env.NEAR_CONTRACT_ID,
             INTENTS_CHAIN_ID_TRON,
@@ -136,8 +229,11 @@ const stateFuncs: Record<IntentState, StateFunction> = {
 
         console.log('TRON depositAddress', depositAddress);
 
-        const res = await withdrawToTron(
+        // Withdraw from CEX to destination address
+        const res = await withdrawFromCex(
+            'USDT',
             parseAmount(intent.destAmount),
+            INTENTS_CHAIN_ID_TRON,
             depositAddress,
         );
 
@@ -156,12 +252,19 @@ const stateFuncs: Record<IntentState, StateFunction> = {
 
         console.log('TRON depositAddress', depositAddress);
 
-        const res = await checkBitfinexMoves({
-            amount: parseAmount(intent.destAmount) * -1, // negative for withdrawals
-            start: nanoToMs(intent.created), // convert to ms from nanos
-            receiver: depositAddress,
-            method: 'tron',
-        });
+        // Check if withdrawal completed (for Binance, we check deposits with negative amount)
+        // For Bitfinex, negative amount indicates withdrawal
+        const amount = USE_BINANCE
+            ? parseAmount(intent.destAmount) // Binance: check positive deposit at destination
+            : parseAmount(intent.destAmount) * -1; // Bitfinex: negative for withdrawals
+
+        const res = await checkCexDeposit(
+            'USDT',
+            Math.abs(amount),
+            nanoToMs(intent.created),
+            depositAddress,
+            INTENTS_CHAIN_ID_TRON,
+        );
 
         if (!res) {
             return false;
@@ -185,12 +288,20 @@ const stateFuncs: Record<IntentState, StateFunction> = {
         return true;
     },
     UserLiquidityBorrowed: async (intent: Intent, solver_id: string) => {
-        const res = await checkBitfinexMoves({
-            method: 'evm',
-            amount: parseInt(intent.amount!) * -1,
-            start: nanoToMs(intent.created),
-            receiver: (await getEvmDepositAddress())!,
-        });
+        // Get deposit address for EVM network
+        const depositAddress = await getCexDepositAddress('USDT', 'eth-mainnet');
+        if (!depositAddress) {
+            console.log('Failed to get CEX deposit address for EVM');
+            return false;
+        }
+
+        const res = await checkCexDeposit(
+            'USDT',
+            parseInt(intent.amount!),
+            nanoToMs(intent.created),
+            depositAddress,
+            'eth-mainnet',
+        );
         if (!res) {
             return false;
         }
@@ -198,7 +309,18 @@ const stateFuncs: Record<IntentState, StateFunction> = {
         return true;
     },
     UserLiquidityDeposited: async (intent: Intent, solver_id: string) => {
-        const res = await withdrawToNear(intent.amount!);
+        // Get NEAR deposit address for withdrawal
+        const { depositAddress } = await getDepositAddress(
+            process.env.NEAR_CONTRACT_ID,
+            'near-mainnet',
+        );
+
+        const res = await withdrawFromCex(
+            'USDT',
+            parseInt(intent.amount!),
+            'near-mainnet',
+            depositAddress,
+        );
 
         if (!res) {
             return false;

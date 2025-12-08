@@ -32,6 +32,70 @@ interface BinanceDepositAddress {
     tag?: string;
 }
 
+// Custom error types for better error handling
+export class BinanceError extends Error {
+    constructor(
+        message: string,
+        public readonly code?: string,
+        public readonly originalError?: unknown,
+    ) {
+        super(message);
+        this.name = 'BinanceError';
+    }
+}
+
+export class InsufficientBalanceError extends BinanceError {
+    constructor(
+        public readonly symbol: string,
+        public readonly required: number,
+        public readonly available: number,
+    ) {
+        super(
+            `Insufficient ${symbol} balance. Required: ${required}, Available: ${available}`,
+            'INSUFFICIENT_BALANCE',
+        );
+        this.name = 'InsufficientBalanceError';
+    }
+}
+
+export class SwapError extends BinanceError {
+    constructor(
+        message: string,
+        public readonly fromSymbol: string,
+        public readonly toSymbol: string,
+        public readonly amount: number,
+        originalError?: unknown,
+    ) {
+        super(message, 'SWAP_ERROR', originalError);
+        this.name = 'SwapError';
+    }
+}
+
+export class WithdrawalError extends BinanceError {
+    constructor(
+        message: string,
+        public readonly symbol: string,
+        public readonly amount: number,
+        public readonly network: string,
+        originalError?: unknown,
+    ) {
+        super(message, 'WITHDRAWAL_ERROR', originalError);
+        this.name = 'WithdrawalError';
+    }
+}
+
+export interface SwapResult {
+    success: boolean;
+    order?: Order;
+    error?: BinanceError;
+}
+
+export interface WithdrawalResult {
+    success: boolean;
+    txId?: string;
+    error?: BinanceError;
+}
+
 // --- constants -------------------------------------------------------------
 
 const BINANCE_API_KEY = process.env.BINANCE_API_KEY_MAINNET!;
@@ -71,23 +135,166 @@ function mapNetworkToBinance(chainId: string): string {
     return NETWORK_MAP[chainId] || chainId.toUpperCase();
 }
 
+/**
+ * Retry helper for transient errors (network issues, rate limits)
+ */
+async function withRetry<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3,
+    delayMs: number = 1000,
+    operationName: string = 'operation',
+): Promise<T> {
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await operation();
+        } catch (error) {
+            lastError = error;
+
+            // Check if error is retryable (network errors, rate limits)
+            const isRetryable =
+                error instanceof ccxt.NetworkError ||
+                error instanceof ccxt.RequestTimeout ||
+                error instanceof ccxt.RateLimitExceeded ||
+                error instanceof ccxt.ExchangeNotAvailable;
+
+            if (!isRetryable || attempt === maxRetries) {
+                throw error;
+            }
+
+            const waitTime = delayMs * Math.pow(2, attempt - 1); // Exponential backoff
+            console.warn(
+                `[Binance] ${operationName} failed (attempt ${attempt}/${maxRetries}), ` +
+                    `retrying in ${waitTime}ms...`,
+                error instanceof Error ? error.message : error,
+            );
+
+            await new Promise((resolve) => setTimeout(resolve, waitTime));
+        }
+    }
+
+    throw lastError;
+}
+
+/**
+ * Classify ccxt errors into our custom error types
+ */
+function classifyError(
+    error: unknown,
+    context: { operation: string; symbol?: string; amount?: number; network?: string },
+): BinanceError {
+    if (error instanceof BinanceError) {
+        return error;
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+
+    // Insufficient balance errors
+    if (
+        error instanceof ccxt.InsufficientFunds ||
+        message.toLowerCase().includes('insufficient') ||
+        message.toLowerCase().includes('not enough')
+    ) {
+        return new BinanceError(
+            `Insufficient funds for ${context.operation}: ${message}`,
+            'INSUFFICIENT_FUNDS',
+            error,
+        );
+    }
+
+    // Invalid order errors
+    if (
+        error instanceof ccxt.InvalidOrder ||
+        message.toLowerCase().includes('invalid order') ||
+        message.toLowerCase().includes('min notional')
+    ) {
+        return new BinanceError(
+            `Invalid order for ${context.operation}: ${message}`,
+            'INVALID_ORDER',
+            error,
+        );
+    }
+
+    // Authentication errors
+    if (
+        error instanceof ccxt.AuthenticationError ||
+        message.toLowerCase().includes('api-key') ||
+        message.toLowerCase().includes('signature')
+    ) {
+        return new BinanceError(
+            `Authentication failed for ${context.operation}: ${message}`,
+            'AUTH_ERROR',
+            error,
+        );
+    }
+
+    // Network/availability errors
+    if (
+        error instanceof ccxt.NetworkError ||
+        error instanceof ccxt.ExchangeNotAvailable
+    ) {
+        return new BinanceError(
+            `Network error during ${context.operation}: ${message}`,
+            'NETWORK_ERROR',
+            error,
+        );
+    }
+
+    // Generic exchange error
+    return new BinanceError(
+        `${context.operation} failed: ${message}`,
+        'UNKNOWN_ERROR',
+        error,
+    );
+}
+
 // Singleton exchange instance
 let exchangeInstance: Exchange | null = null;
 
 async function getExchange(): Promise<Exchange> {
     if (!exchangeInstance) {
-        exchangeInstance = new ccxt.binance({
-            apiKey: BINANCE_API_KEY,
-            secret: BINANCE_API_SECRET,
-            enableRateLimit: true,
-            options: {
-                defaultType: 'spot',
-            },
-        });
+        // Validate credentials before creating instance
+        if (!BINANCE_API_KEY || !BINANCE_API_SECRET) {
+            throw new BinanceError(
+                'Missing Binance API credentials. Please set BINANCE_API_KEY_MAINNET and BINANCE_API_SECRET_MAINNET environment variables.',
+                'MISSING_CREDENTIALS',
+            );
+        }
 
-        exchangeInstance.checkRequiredCredentials(true);
-        await exchangeInstance.loadTimeDifference();
-        await exchangeInstance.loadMarkets();
+        try {
+            exchangeInstance = new ccxt.binance({
+                apiKey: BINANCE_API_KEY,
+                secret: BINANCE_API_SECRET,
+                enableRateLimit: true,
+                options: {
+                    defaultType: 'spot',
+                },
+            });
+
+            exchangeInstance.checkRequiredCredentials(true);
+
+            // Use retry for network operations during initialization
+            await withRetry(
+                () => exchangeInstance!.loadTimeDifference(),
+                3,
+                1000,
+                'loadTimeDifference',
+            );
+
+            await withRetry(
+                () => exchangeInstance!.loadMarkets(),
+                3,
+                1000,
+                'loadMarkets',
+            );
+
+            console.log('[Binance] Exchange initialized successfully');
+        } catch (error) {
+            // Reset instance on failure so next call can retry
+            exchangeInstance = null;
+            throw classifyError(error, { operation: 'exchange initialization' });
+        }
     }
     return exchangeInstance;
 }
@@ -237,17 +444,24 @@ export async function waitForBinanceDeposit(
 
 /**
  * Execute a swap on Binance (market order)
+ *
+ * @param fromSymbol - The token to swap from (e.g., 'USDT')
+ * @param toSymbol - The token to swap to (e.g., 'BTC')
+ * @param amount - The amount to swap
+ * @returns SwapResult with success status and order details or error
  */
 export async function swapOnBinance(
     fromSymbol: string,
     toSymbol: string,
     amount: number,
-): Promise<Order | null> {
+): Promise<SwapResult> {
+    const context = { operation: 'swap', symbol: fromSymbol, amount };
+
     if (BINANCE_DRY_RUN) {
         console.log(
             `[DRY-RUN] Would swap ${amount} ${fromSymbol} → ${toSymbol} on Binance`,
         );
-        return null;
+        return { success: true };
     }
 
     try {
@@ -273,16 +487,45 @@ export async function swapOnBinance(
         }
 
         if (!tradingPair || !side || !market) {
-            throw new Error(
+            const error = new SwapError(
                 `Trading pair ${fromSymbol}/${toSymbol} not found on Binance. Tried: ${pair1} and ${pair2}`,
+                fromSymbol,
+                toSymbol,
+                amount,
             );
+            console.error('[Binance] Swap error:', error.message);
+            return { success: false, error };
+        }
+
+        // Verify balance before attempting swap
+        const balance = await getBinanceBalance(fromSymbol);
+        if (balance < amount) {
+            const error = new InsufficientBalanceError(fromSymbol, amount, balance);
+            console.error('[Binance] Swap error:', error.message);
+            return { success: false, error };
         }
 
         // Check minimum notional (value in quote currency)
         const minNotional = market.limits?.cost?.min;
         if (minNotional !== undefined) {
-            const ticker = await exchange.fetchTicker(tradingPair);
+            const ticker = await withRetry(
+                () => exchange.fetchTicker(tradingPair!),
+                3,
+                1000,
+                'fetchTicker',
+            );
             const currentPrice = ticker.last ?? ticker.ask ?? ticker.bid ?? 0;
+
+            if (currentPrice === 0) {
+                const error = new SwapError(
+                    `Unable to fetch current price for ${tradingPair}`,
+                    fromSymbol,
+                    toSymbol,
+                    amount,
+                );
+                console.error('[Binance] Swap error:', error.message);
+                return { success: false, error };
+            }
 
             // Calculate notional: if selling base, notional = amount * price
             // If buying base, notional = amount (we're spending quote currency)
@@ -292,26 +535,67 @@ export async function swapOnBinance(
                 const requiredAmount = side === 'sell'
                     ? minNotional / currentPrice
                     : minNotional;
-                throw new Error(
+                const error = new SwapError(
                     `Minimum notional not met. Required: ${minNotional} ${market.quote}, ` +
                         `but your order value is ${notional.toFixed(8)} ${market.quote}. ` +
                         `Minimum amount needed: ${requiredAmount.toFixed(8)} ${fromSymbol}`,
+                    fromSymbol,
+                    toSymbol,
+                    amount,
                 );
+                console.error('[Binance] Swap error:', error.message);
+                return { success: false, error };
             }
         }
 
-        // Create market order
-        const order = await exchange.createOrder(tradingPair, 'market', side, amount);
-        console.log(`Binance swap executed: ${order.id}, ${order.symbol}, ${order.side}, ${order.amount}`);
-        return order;
+        // Create market order with retry for transient errors
+        const order = await withRetry(
+            () => exchange.createOrder(tradingPair!, 'market', side!, amount),
+            3,
+            1000,
+            'createOrder',
+        );
+
+        console.log(
+            `[Binance] Swap executed successfully: ` +
+                `id=${order.id}, pair=${order.symbol}, side=${order.side}, ` +
+                `amount=${order.amount}, filled=${order.filled}, status=${order.status}`,
+        );
+
+        return { success: true, order };
     } catch (error) {
-        console.error('Error executing Binance swap:', error);
-        throw error;
+        const swapError =
+            error instanceof BinanceError
+                ? error
+                : new SwapError(
+                      error instanceof Error ? error.message : String(error),
+                      fromSymbol,
+                      toSymbol,
+                      amount,
+                      error,
+                  );
+
+        console.error('[Binance] Swap failed:', {
+            fromSymbol,
+            toSymbol,
+            amount,
+            error: swapError.message,
+            code: swapError.code,
+        });
+
+        return { success: false, error: swapError };
     }
 }
 
 /**
  * Withdraw funds from Binance to an external address
+ *
+ * @param symbol - The token symbol to withdraw (e.g., 'USDT')
+ * @param amount - The amount to withdraw (excluding fees)
+ * @param network - The network to withdraw to (e.g., 'near-mainnet', 'eth-mainnet')
+ * @param address - The destination address
+ * @param memo - Optional memo/tag for networks that require it
+ * @returns WithdrawalResult with success status and transaction details or error
  */
 export async function withdrawFromBinance(
     symbol: string,
@@ -319,56 +603,166 @@ export async function withdrawFromBinance(
     network: string,
     address: string,
     memo?: string,
-): Promise<boolean> {
+): Promise<WithdrawalResult> {
+    const binanceNetwork = mapNetworkToBinance(network);
+
     if (BINANCE_DRY_RUN || !BINANCE_ENABLE_WITHDRAWALS) {
         console.log(
-            `[DRY-RUN] Would withdraw ${amount} ${symbol} to ${address} on ${network} from Binance`,
+            `[DRY-RUN] Would withdraw ${amount} ${symbol} to ${address} on ${binanceNetwork} from Binance`,
         );
-        return false;
+        return { success: true };
     }
 
     try {
         const exchange = await getExchange();
-        const binanceNetwork = mapNetworkToBinance(network);
+
+        // Verify balance before attempting withdrawal
+        const balance = await getBinanceBalance(symbol);
 
         // Get network info to calculate fee and precision
-        const currencies = await exchange.fetchCurrencies();
+        const currencies = await withRetry(
+            () => exchange.fetchCurrencies(),
+            3,
+            1000,
+            'fetchCurrencies',
+        );
         const token = currencies[symbol];
         const networkInfo = token?.networks?.[binanceNetwork];
 
         if (!networkInfo) {
-            throw new Error(`Network ${binanceNetwork} is not available for ${symbol}`);
+            const error = new WithdrawalError(
+                `Network ${binanceNetwork} is not available for ${symbol}. ` +
+                    `Available networks: ${Object.keys(token?.networks || {}).join(', ') || 'none'}`,
+                symbol,
+                amount,
+                network,
+            );
+            console.error('[Binance] Withdrawal error:', error.message);
+            return { success: false, error };
+        }
+
+        // Check if withdrawals are enabled for this network
+        if (networkInfo.withdraw === false) {
+            const error = new WithdrawalError(
+                `Withdrawals are currently disabled for ${symbol} on ${binanceNetwork}`,
+                symbol,
+                amount,
+                network,
+            );
+            console.error('[Binance] Withdrawal error:', error.message);
+            return { success: false, error };
         }
 
         const decimals = networkInfo.precision ?? 8;
         const fee = networkInfo.fee ?? 0;
-        const amountWithFee = roundToDecimals(amount + fee, decimals, 'nearest');
+        const minWithdraw = networkInfo.limits?.withdraw?.min ?? 0;
+        const totalRequired = amount + fee;
 
-        const tx = await exchange.withdraw(symbol, amountWithFee, address, memo, {
+        // Check minimum withdrawal amount
+        if (amount < minWithdraw) {
+            const error = new WithdrawalError(
+                `Amount ${amount} ${symbol} is below minimum withdrawal of ${minWithdraw} ${symbol}`,
+                symbol,
+                amount,
+                network,
+            );
+            console.error('[Binance] Withdrawal error:', error.message);
+            return { success: false, error };
+        }
+
+        // Verify sufficient balance (amount + fee)
+        if (balance < totalRequired) {
+            const error = new InsufficientBalanceError(symbol, totalRequired, balance);
+            console.error('[Binance] Withdrawal error:', error.message);
+            return { success: false, error };
+        }
+
+        const amountWithFee = roundToDecimals(totalRequired, decimals, 'nearest');
+
+        console.log(
+            `[Binance] Initiating withdrawal: ${amount} ${symbol} + ${fee} fee = ${amountWithFee} total ` +
+                `to ${address} on ${binanceNetwork}`,
+        );
+
+        const tx = await withRetry(
+            () =>
+                exchange.withdraw(symbol, amountWithFee, address, memo, {
+                    network: binanceNetwork,
+                    fee,
+                }),
+            3,
+            2000,
+            'withdraw',
+        );
+
+        console.log(
+            `[Binance] Withdrawal submitted successfully: id=${tx.id}, txid=${tx.txid || 'pending'}`,
+        );
+
+        return {
+            success: true,
+            txId: tx.txid || tx.id,
+        };
+    } catch (error) {
+        const withdrawalError =
+            error instanceof BinanceError
+                ? error
+                : new WithdrawalError(
+                      error instanceof Error ? error.message : String(error),
+                      symbol,
+                      amount,
+                      network,
+                      error,
+                  );
+
+        console.error('[Binance] Withdrawal failed:', {
+            symbol,
+            amount,
             network: binanceNetwork,
-            fee,
+            address,
+            error: withdrawalError.message,
+            code: withdrawalError.code,
         });
 
-        console.log(`Binance withdrawal submitted: ${tx.id}, ${tx.txid}`);
-        return true;
-    } catch (error) {
-        console.error('Error withdrawing from Binance:', error);
-        return false;
+        return { success: false, error: withdrawalError };
     }
 }
 
 /**
  * Get Binance balance for a specific symbol
+ *
+ * @param symbol - The token symbol (e.g., 'USDT', 'BTC')
+ * @returns The available (free) balance, or 0 if an error occurs
  */
 export async function getBinanceBalance(symbol: string): Promise<number> {
     try {
         const exchange = await getExchange();
-        const balances = await exchange.fetchBalance({ type: 'spot' });
+        const balances = await withRetry(
+            () => exchange.fetchBalance({ type: 'spot' }),
+            3,
+            1000,
+            'fetchBalance',
+        );
         const free = (balances.free ?? {}) as unknown as Record<string, number>;
-        return free[symbol] ?? 0;
+        const balance = free[symbol] ?? 0;
+
+        console.log(`[Binance] Balance for ${symbol}: ${balance} (free)`);
+        return balance;
     } catch (error) {
-        console.error(`Error fetching Binance balance for ${symbol}:`, error);
+        const classifiedError = classifyError(error, {
+            operation: 'fetchBalance',
+            symbol,
+        });
+        console.error(`[Binance] Error fetching balance for ${symbol}:`, classifiedError.message);
         return 0;
     }
+}
+
+/**
+ * Reset the exchange instance (useful for testing or re-authentication)
+ */
+export function resetExchangeInstance(): void {
+    exchangeInstance = null;
+    console.log('[Binance] Exchange instance reset');
 }
 

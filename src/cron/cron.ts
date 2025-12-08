@@ -145,7 +145,11 @@ async function withdrawFromCex(
 ): Promise<boolean> {
     if (USE_BINANCE) {
         console.log('Withdrawing from Binance...');
-        return await withdrawFromBinance(symbol, amount, network, address);
+        const result = await withdrawFromBinance(symbol, amount, network, address);
+        if (!result.success && result.error) {
+            console.error('Binance withdrawal error:', result.error.message);
+        }
+        return result.success;
     } else {
         console.log('Withdrawing from Bitfinex...');
         if (network === 'tron:mainnet' || network.includes('tron')) {

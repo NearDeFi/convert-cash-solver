@@ -4,25 +4,47 @@
 
 set -e  # Exit on error
 
-# Array of test files to run
+# Array of ALL test files in tests/ directory
+# Each entry is a file name (without .rs extension)
+# Running `cargo test --test <file>` executes ALL test functions within that file
+#
+# Files with multiple tests:
+#   - sandbox_test.rs (5 tests): test_mock_ft_deployment_only, test_contract_deployment,
+#                                test_approve_codehash, test_vault_initialization, test_vault_conversion_functions
+#   - test_partial_repayment.rs (4 tests): test_partial_repayment_less_than_principal,
+#                                          test_repayment_exact_principal_no_yield, test_repayment_with_yield,
+#                                          test_repayment_with_extra_yield
+#   - test_rounding_nep621.rs (5 tests): test_deposit_shares_round_down, test_micro_transaction_attack_prevention,
+#                                        test_small_amount_precision, test_yield_calculation_rounding,
+#                                        test_redemption_rounds_down
+#   - test_withdrawals.rs (2 tests): test_withdrawals, test_withdraw_omft_to_solana_enqueues_transfer
+#
 TESTS=(
-    "test_borrow_with_redemption"
-    "test_complex_multi_lender_scenario"
-    "test_fifo_redemption_queue"
-    "test_half_redemptions"
-    "test_lender_profit"
-    "test_multi_lender_queue"
-    "test_multi_solver"
-    "test_partial_repayment"
-    "test_rounding_nep621"
-    "test_single_lender_queue"
+    # Basic sandbox tests (5 tests in file)
+    "sandbox_test"
+    # Vault operations
+    "test_vault_deposit"
+    "test_withdrawals"
+    # Solver borrowing
     "test_solver_borrow"
     "test_solver_borrow_empty_pool"
     "test_solver_borrow_exact_pool"
     "test_solver_borrow_exceeds_pool"
-    "test_vault_deposit"
-    "test_withdrawals"
-    "sandbox_test"
+    # Repayment validation (4 tests in file)
+    "test_partial_repayment"
+    # Lender profit and yield
+    "test_lender_profit"
+    # Redemption queue tests
+    "test_fifo_redemption_queue"
+    "test_single_lender_queue"
+    "test_multi_lender_queue"
+    "test_borrow_with_redemption"
+    "test_half_redemptions"
+    # Multi-party scenarios
+    "test_multi_solver"
+    "test_complex_multi_lender_scenario"
+    # NEP-621 rounding compliance (5 tests in file)
+    "test_rounding_nep621"
 )
 
 # Function to show usage

@@ -18,15 +18,24 @@ __metadata:
   linkType: hard
 
 "@0no-co/graphqlsp@npm:^1.12.13":
+<<<<<<< Updated upstream
   version: 1.15.0
   resolution: "@0no-co/graphqlsp@npm:1.15.0"
+=======
+  version: 1.15.1
+  resolution: "@0no-co/graphqlsp@npm:1.15.1"
+>>>>>>> Stashed changes
   dependencies:
     "@gql.tada/internal": "npm:^1.0.0"
     graphql: "npm:^15.5.0 || ^16.0.0 || ^17.0.0"
   peerDependencies:
     graphql: ^15.5.0 || ^16.0.0 || ^17.0.0
     typescript: ^5.0.0
+<<<<<<< Updated upstream
   checksum: 10c0/0805fec594fc7329194a047e9bd0a4e72387268ccf8042ec6b830048f971c48e6a168ad99572e4a5e6d5556b807f3fc1461fcdcc041cdf75ce42e549a6b44108
+=======
+  checksum: 10c0/49a9bf0297ab70de0873c89e24a418afc8b7c739de4d5764a267c15991f92a1307b4ce4bc4c3c95df44e1da0a266c9d01ee65c3afcc9c7f387d8c60e94a048f4
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -119,7 +128,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@babel/runtime@npm:7.26.10":
+=======
+"@babel/runtime@npm:7.26.10, @babel/runtime@npm:^7.12.5":
+>>>>>>> Stashed changes
   version: 7.26.10
   resolution: "@babel/runtime@npm:7.26.10"
   dependencies:
@@ -128,7 +141,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@babel/runtime@npm:^7.12.5, @babel/runtime@npm:^7.25.0":
+=======
+"@babel/runtime@npm:^7.25.0":
+>>>>>>> Stashed changes
   version: 7.28.4
   resolution: "@babel/runtime@npm:7.28.4"
   checksum: 10c0/792ce7af9750fb9b93879cc9d1db175701c4689da890e6ced242ea0207c9da411ccf16dc04e689cc01158b28d7898c40d75598f4559109f761c12ce01e959bf7
@@ -573,6 +590,7 @@ __metadata:
   linkType: hard
 
 "@ethereumjs/mpt@npm:^10.0.0":
+<<<<<<< Updated upstream
   version: 10.0.0
   resolution: "@ethereumjs/mpt@npm:10.0.0"
   dependencies:
@@ -607,6 +625,42 @@ __metadata:
 "@gql.tada/cli-utils@npm:1.7.1":
   version: 1.7.1
   resolution: "@gql.tada/cli-utils@npm:1.7.1"
+=======
+  version: 10.1.0
+  resolution: "@ethereumjs/mpt@npm:10.1.0"
+  dependencies:
+    "@ethereumjs/rlp": "npm:^10.1.0"
+    "@ethereumjs/util": "npm:^10.1.0"
+    debug: "npm:^4.4.0"
+    ethereum-cryptography: "npm:^3.2.0"
+    lru-cache: "npm:11.0.2"
+  checksum: 10c0/66ada4c4697f6d2de86e421b762cb24478527be759a4e3c8ecdc87b0f8399390bd9c0bfebb596d6bead5b8d4fec14294eed1c12a86808b43e55006967984a265
+  languageName: node
+  linkType: hard
+
+"@ethereumjs/rlp@npm:^10.0.0, @ethereumjs/rlp@npm:^10.1.0":
+  version: 10.1.0
+  resolution: "@ethereumjs/rlp@npm:10.1.0"
+  bin:
+    rlp: bin/rlp.cjs
+  checksum: 10c0/a66023aec0c7c05ca4a445b80343583892e393aa00f1efccdc7bb5fa70e58041b0351e858fb4b6c87d47c53c32128d7c124ff8a9f3367b7e684d278af71d9917
+  languageName: node
+  linkType: hard
+
+"@ethereumjs/util@npm:^10.0.0, @ethereumjs/util@npm:^10.1.0":
+  version: 10.1.0
+  resolution: "@ethereumjs/util@npm:10.1.0"
+  dependencies:
+    "@ethereumjs/rlp": "npm:^10.1.0"
+    ethereum-cryptography: "npm:^3.2.0"
+  checksum: 10c0/1eec82607ba1b94da805917547ea476e92205a5f1576583a75b1dcdfb986e0ffeb73d5b0070773712e70384b1bc9c81866f447029b06f0ee2490b619b3c2a203
+  languageName: node
+  linkType: hard
+
+"@gql.tada/cli-utils@npm:1.7.2":
+  version: 1.7.2
+  resolution: "@gql.tada/cli-utils@npm:1.7.2"
+>>>>>>> Stashed changes
   dependencies:
     "@0no-co/graphqlsp": "npm:^1.12.13"
     "@gql.tada/internal": "npm:1.0.8"
@@ -622,7 +676,11 @@ __metadata:
       optional: true
     "@gql.tada/vue-support":
       optional: true
+<<<<<<< Updated upstream
   checksum: 10c0/e1ab1e5c93bdfc9df24577eaa6ab77d0f287d5b5d850edc568def3a5d935a98723de543c62b3ba5e432b653ff97c9e8477d97563dc36c1eb39840776f89bc878
+=======
+  checksum: 10c0/a2fd21dc3c6b03bebc979881f7c3180f258d077f4c8119073ff3e436982174edb00c148f488c03cc5b34b57ecf3b6b771c8a127005e9d851bc8c74550fa0b742
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -648,11 +706,19 @@ __metadata:
   linkType: hard
 
 "@hono/node-server@npm:^1.14.2":
+<<<<<<< Updated upstream
   version: 1.14.3
   resolution: "@hono/node-server@npm:1.14.3"
   peerDependencies:
     hono: ^4
   checksum: 10c0/2e873ed38be44bd2499ffd6e592782edd9216475935d992119ad1d3f61f14cb39dc8fe79d1ed5d7d8caeef1d9fd84b36f9715add0b9f98c3d040b5cc9ef872f8
+=======
+  version: 1.19.7
+  resolution: "@hono/node-server@npm:1.19.7"
+  peerDependencies:
+    hono: ^4
+  checksum: 10c0/293818e02a9100122a9319fba7032a3bae86d5f98f55d1a0ff4843c2b729eb6b471978ea15e29f4fb680c6a0be23a6e5a2132f3790ab31e88fb0b6b6fcc6829e
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -690,15 +756,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@injectivelabs/abacus-proto-ts@npm:1.14.0":
   version: 1.14.0
   resolution: "@injectivelabs/abacus-proto-ts@npm:1.14.0"
+=======
+"@injectivelabs/abacus-proto-ts@npm:1.14.1":
+  version: 1.14.1
+  resolution: "@injectivelabs/abacus-proto-ts@npm:1.14.1"
+>>>>>>> Stashed changes
   dependencies:
     "@injectivelabs/grpc-web": "npm:^0.0.1"
     google-protobuf: "npm:^3.14.0"
     protobufjs: "npm:^7.4.0"
     rxjs: "npm:^7.4.0"
+<<<<<<< Updated upstream
   checksum: 10c0/a5bc1680768500dfbff4e3af1274a000cf49a7e9dc225d531a5578e7c7c84e8caa6ae15e3a62ed9d956c61231ffdaae11e9738d05f9f256b18eba7232c945ef8
+=======
+  checksum: 10c0/1130115d91933da4450c053ab50c97de58bf30aa43fd70e8fb529c1dd8c4f1de8724640da41cf216601b1c2bd6dc6d25cac4100a94baf99e1640557b6214461e
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -714,12 +790,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@injectivelabs/exceptions@npm:1.16.16":
   version: 1.16.16
   resolution: "@injectivelabs/exceptions@npm:1.16.16"
   dependencies:
     http-status-codes: "npm:^2.3.0"
   checksum: 10c0/6d78a20e5c92af247a1584d6c6f02d2e212e4c4051d4be3324b38085cba59e08c3432b704396ecfc0f3065ae772e7c1e151a2b8773513b1e1cc6ca3618bf7b9a
+=======
+"@injectivelabs/exceptions@npm:1.16.38":
+  version: 1.16.38
+  resolution: "@injectivelabs/exceptions@npm:1.16.38"
+  dependencies:
+    http-status-codes: "npm:^2.3.0"
+  checksum: 10c0/941ded727a7d4877e8d5402d3c5ea52d9305d7919baee098f539c1f0066ecf9ada72fb431be83136cc79f1678a8ef9720782b18251fc638b15988d6968105e62
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -752,15 +837,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@injectivelabs/indexer-proto-ts@npm:1.13.18":
   version: 1.13.18
   resolution: "@injectivelabs/indexer-proto-ts@npm:1.13.18"
+=======
+"@injectivelabs/indexer-proto-ts@npm:1.13.27":
+  version: 1.13.27
+  resolution: "@injectivelabs/indexer-proto-ts@npm:1.13.27"
+>>>>>>> Stashed changes
   dependencies:
     "@injectivelabs/grpc-web": "npm:^0.0.1"
     google-protobuf: "npm:^3.14.0"
     protobufjs: "npm:^7.0.0"
     rxjs: "npm:^7.4.0"
+<<<<<<< Updated upstream
   checksum: 10c0/789f8de1e5cfe2bf6a38634eac883ee9835b6c4c481844e3779156328aa4e05234fe1b9fd41fc83a9638b40267dca9e901afa107f98b55647bff43e4ffc6ab92
+=======
+  checksum: 10c0/709c70874da05d8e429f9439e86c57f83d6f6b55930a1e2e64222d3cec4d6562c3de935403b83668d81389faa6e9bebcb8d2bfc10ba9d23e3bd1a8cf0a3ed89e
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -776,12 +871,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@injectivelabs/networks@npm:1.16.16":
   version: 1.16.16
   resolution: "@injectivelabs/networks@npm:1.16.16"
   dependencies:
     "@injectivelabs/ts-types": "npm:1.16.16"
   checksum: 10c0/1f22219f66e4be24588ad7ade3afde0b71971bc31ed9bcc433ef2b1c3c82880d9efe5d1fb9836ba1ba32cb8021e241a38e3cffa826293d5064abcd4d62ee1b37
+=======
+"@injectivelabs/networks@npm:1.16.38":
+  version: 1.16.38
+  resolution: "@injectivelabs/networks@npm:1.16.38"
+  dependencies:
+    "@injectivelabs/ts-types": "npm:1.16.38"
+  checksum: 10c0/846ad92570b61677ef64cf7f85506efb85fc8cfa3cab5e4c793e5ed366fa570700134edecfe16eb8f03a652a8547b0e9dbd5eb3f4c1838ac337a0227c6a27258
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -798,13 +902,19 @@ __metadata:
   linkType: hard
 
 "@injectivelabs/sdk-ts@npm:^1.14.13-beta.2":
+<<<<<<< Updated upstream
   version: 1.16.16
   resolution: "@injectivelabs/sdk-ts@npm:1.16.16"
+=======
+  version: 1.16.38
+  resolution: "@injectivelabs/sdk-ts@npm:1.16.38"
+>>>>>>> Stashed changes
   dependencies:
     "@apollo/client": "npm:3.13.9"
     "@cosmjs/amino": "npm:^0.33.0"
     "@cosmjs/proto-signing": "npm:^0.33.0"
     "@cosmjs/stargate": "npm:^0.33.0"
+<<<<<<< Updated upstream
     "@injectivelabs/abacus-proto-ts": "npm:1.14.0"
     "@injectivelabs/core-proto-ts": "npm:1.16.6"
     "@injectivelabs/exceptions": "npm:1.16.16"
@@ -817,6 +927,20 @@ __metadata:
     "@injectivelabs/olp-proto-ts": "npm:1.13.4"
     "@injectivelabs/ts-types": "npm:1.16.16"
     "@injectivelabs/utils": "npm:1.16.16"
+=======
+    "@injectivelabs/abacus-proto-ts": "npm:1.14.1"
+    "@injectivelabs/core-proto-ts": "npm:1.16.6"
+    "@injectivelabs/exceptions": "npm:1.16.38"
+    "@injectivelabs/grpc-web": "npm:^0.0.1"
+    "@injectivelabs/grpc-web-node-http-transport": "npm:^0.0.2"
+    "@injectivelabs/grpc-web-react-native-transport": "npm:^0.0.2"
+    "@injectivelabs/indexer-proto-ts": "npm:1.13.27"
+    "@injectivelabs/mito-proto-ts": "npm:1.13.2"
+    "@injectivelabs/networks": "npm:1.16.38"
+    "@injectivelabs/olp-proto-ts": "npm:1.13.4"
+    "@injectivelabs/ts-types": "npm:1.16.38"
+    "@injectivelabs/utils": "npm:1.16.38"
+>>>>>>> Stashed changes
     "@noble/curves": "npm:^1.8.1"
     "@noble/hashes": "npm:^1.7.1"
     "@scure/base": "npm:^1.2.6"
@@ -832,6 +956,7 @@ __metadata:
     secp256k1: "npm:^4.0.3"
     shx: "npm:^0.3.4"
     snakecase-keys: "npm:^5.4.1"
+<<<<<<< Updated upstream
     viem: "npm:^2.33.2"
   checksum: 10c0/a7bcf456d43844c72ac03b860b7239fdf42b63d3d7334379a26ad0a2b0300f2244fa20a7090e8e3a5ae31da0b3d7d628386bfdd38b9037b798a80e727852b1aa
   languageName: node
@@ -870,6 +995,48 @@ __metadata:
     wrap-ansi: "npm:^8.1.0"
     wrap-ansi-cjs: "npm:wrap-ansi@^7.0.0"
   checksum: 10c0/b1bf42535d49f11dc137f18d5e4e63a28c5569de438a221c369483731e9dac9fb797af554e8bf02b6192d1e5eba6e6402cf93900c3d0ac86391d00d04876789e
+=======
+    viem: "npm:^2.40.3"
+  checksum: 10c0/ec28f80b14f2a7871ba8e88c3650568fd6491f1d5ff281059c97bcfa2087c2cc0a4237c1b3201f48a40451894d34868ef7fe9ec23be64febb250c26654f7c5e3
+  languageName: node
+  linkType: hard
+
+"@injectivelabs/ts-types@npm:1.16.38":
+  version: 1.16.38
+  resolution: "@injectivelabs/ts-types@npm:1.16.38"
+  checksum: 10c0/bd6f1859a846910354e52cf94171093395df1f798174a09e6d424ba3b7ab7e0b41996e51340c1ab64608da4c3ae883cf548ea1e4ed5f21b13616fec113ee2d79
+  languageName: node
+  linkType: hard
+
+"@injectivelabs/utils@npm:1.16.38":
+  version: 1.16.38
+  resolution: "@injectivelabs/utils@npm:1.16.38"
+  dependencies:
+    "@bangjelkoski/store2": "npm:^2.14.3"
+    "@injectivelabs/exceptions": "npm:1.16.38"
+    "@injectivelabs/networks": "npm:1.16.38"
+    "@injectivelabs/ts-types": "npm:1.16.38"
+    axios: "npm:^1.8.1"
+    bignumber.js: "npm:^9.1.2"
+    http-status-codes: "npm:^2.3.0"
+  checksum: 10c0/fa3b361fd5011b062f47552826f33907bf0dde0040e358f0c23b2e35800d3add620a00fd300c3520bc07a76046eb1d5e3ea96113192a4f4d36898ae9c34e96f5
+  languageName: node
+  linkType: hard
+
+"@isaacs/balanced-match@npm:^4.0.1":
+  version: 4.0.1
+  resolution: "@isaacs/balanced-match@npm:4.0.1"
+  checksum: 10c0/7da011805b259ec5c955f01cee903da72ad97c5e6f01ca96197267d3f33103d5b2f8a1af192140f3aa64526c593c8d098ae366c2b11f7f17645d12387c2fd420
+  languageName: node
+  linkType: hard
+
+"@isaacs/brace-expansion@npm:^5.0.0":
+  version: 5.0.0
+  resolution: "@isaacs/brace-expansion@npm:5.0.0"
+  dependencies:
+    "@isaacs/balanced-match": "npm:^4.0.1"
+  checksum: 10c0/b4d4812f4be53afc2c5b6c545001ff7a4659af68d4484804e9d514e183d20269bb81def8682c01a22b17c4d6aed14292c8494f7d2ac664e547101c1a905aa977
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -920,6 +1087,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@mysten/bcs@npm:1.8.0":
   version: 1.8.0
   resolution: "@mysten/bcs@npm:1.8.0"
@@ -927,10 +1095,20 @@ __metadata:
     "@mysten/utils": "npm:0.2.0"
     "@scure/base": "npm:^1.2.6"
   checksum: 10c0/0be5ce820acff75bfecf3fe7adcb74c335813df5b2bca46a24006f21d8a4b5211a4e4e3e8faa7fe5ef5dee3242581d2361a66c13ce8efd1932e280f7fa9e1d80
+=======
+"@mysten/bcs@npm:1.9.2":
+  version: 1.9.2
+  resolution: "@mysten/bcs@npm:1.9.2"
+  dependencies:
+    "@mysten/utils": "npm:0.2.0"
+    "@scure/base": "npm:^1.2.6"
+  checksum: 10c0/121a5520f1945333cf34ed655e6d35e73d3ae8a07f415f0a511533e45b7850598ad0878284752a94df560c893e6f3150d64b67545189e9a52dae065d37610bba
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
 "@mysten/sui@npm:^1.37.2":
+<<<<<<< Updated upstream
   version: 1.39.1
   resolution: "@mysten/sui@npm:1.39.1"
   dependencies:
@@ -939,14 +1117,32 @@ __metadata:
     "@mysten/utils": "npm:0.2.0"
     "@noble/curves": "npm:^1.9.4"
     "@noble/hashes": "npm:^1.8.0"
+=======
+  version: 1.45.2
+  resolution: "@mysten/sui@npm:1.45.2"
+  dependencies:
+    "@graphql-typed-document-node/core": "npm:^3.2.0"
+    "@mysten/bcs": "npm:1.9.2"
+    "@mysten/utils": "npm:0.2.0"
+    "@noble/curves": "npm:=1.9.4"
+    "@noble/hashes": "npm:^1.8.0"
+    "@protobuf-ts/grpcweb-transport": "npm:^2.11.1"
+    "@protobuf-ts/runtime": "npm:^2.11.1"
+    "@protobuf-ts/runtime-rpc": "npm:^2.11.1"
+>>>>>>> Stashed changes
     "@scure/base": "npm:^1.2.6"
     "@scure/bip32": "npm:^1.7.0"
     "@scure/bip39": "npm:^1.6.0"
     gql.tada: "npm:^1.8.13"
     graphql: "npm:^16.11.0"
     poseidon-lite: "npm:0.2.1"
+<<<<<<< Updated upstream
     valibot: "npm:^0.36.0"
   checksum: 10c0/036d94574509fc2095eaf9d09ce242f3cf855d4169cb5b74c541da36b23da544624bf0dadbf17384c6bd146d4c9dd0e26dd5738d2b5ab14d5c980b732c4349da
+=======
+    valibot: "npm:^1.2.0"
+  checksum: 10c0/f58817835bec990cb26e419b460b431583d0a62bf089fdf401efcfde5d0f32b2558f89f5d987e05fb45ad014cfb8629f28f12308cb43970b7e6cad60aca410fb
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -979,6 +1175,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/accounts@npm:2.3.3, @near-js/accounts@npm:^2.0.1, @near-js/accounts@npm:^2.1.0":
   version: 2.3.3
   resolution: "@near-js/accounts@npm:2.3.3"
@@ -1019,6 +1216,20 @@ __metadata:
     "@near-js/transactions": "npm:2.2.2"
     "@near-js/types": "npm:2.2.2"
     "@near-js/utils": "npm:2.2.2"
+=======
+"@near-js/accounts@npm:2.5.1, @near-js/accounts@npm:^2.0.1, @near-js/accounts@npm:^2.1.0, @near-js/accounts@npm:^2.2.2":
+  version: 2.5.1
+  resolution: "@near-js/accounts@npm:2.5.1"
+  dependencies:
+    "@near-js/crypto": "npm:2.5.1"
+    "@near-js/keystores": "npm:2.5.1"
+    "@near-js/providers": "npm:2.5.1"
+    "@near-js/signers": "npm:2.5.1"
+    "@near-js/tokens": "npm:2.5.1"
+    "@near-js/transactions": "npm:2.5.1"
+    "@near-js/types": "npm:2.5.1"
+    "@near-js/utils": "npm:2.5.1"
+>>>>>>> Stashed changes
     "@noble/hashes": "npm:1.7.1"
     borsh: "npm:1.0.0"
     depd: "npm:2.0.0"
@@ -1027,17 +1238,26 @@ __metadata:
     near-abi: "npm:0.2.0"
   peerDependencies:
     "@near-js/crypto": ^2.0.1
+<<<<<<< Updated upstream
+=======
+    "@near-js/keystores": ^2.0.1
+>>>>>>> Stashed changes
     "@near-js/providers": ^2.0.1
     "@near-js/signers": ^2.0.1
     "@near-js/tokens": ^2.0.1
     "@near-js/transactions": ^2.0.1
     "@near-js/types": ^2.0.1
     "@near-js/utils": ^2.0.1
+<<<<<<< Updated upstream
   checksum: 10c0/0e9f8771b004406f6c629fe6b596d5882c6185bcd71f316842a75bbd5c338b59558add911b0edb196cab84d9eb297d7a6d64086103f8a7a12241cd560347b948
+=======
+  checksum: 10c0/9f002a6a415674e7a82ff3dc236c2c5b05394d7a919540357294632d4fcdc65703e5c97e0342d935e7f276d44edd1c181518c55a293b3f6d1c4eafaeca148621
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
 "@near-js/client@npm:^2.0.1, @near-js/client@npm:^2.1.0":
+<<<<<<< Updated upstream
   version: 2.3.3
   resolution: "@near-js/client@npm:2.3.3"
   dependencies:
@@ -1049,6 +1269,19 @@ __metadata:
     "@near-js/transactions": "npm:2.3.3"
     "@near-js/types": "npm:2.3.3"
     "@near-js/utils": "npm:2.3.3"
+=======
+  version: 2.5.1
+  resolution: "@near-js/client@npm:2.5.1"
+  dependencies:
+    "@near-js/accounts": "npm:2.5.1"
+    "@near-js/crypto": "npm:2.5.1"
+    "@near-js/keystores": "npm:2.5.1"
+    "@near-js/providers": "npm:2.5.1"
+    "@near-js/signers": "npm:2.5.1"
+    "@near-js/transactions": "npm:2.5.1"
+    "@near-js/types": "npm:2.5.1"
+    "@near-js/utils": "npm:2.5.1"
+>>>>>>> Stashed changes
     "@noble/hashes": "npm:1.7.1"
   peerDependencies:
     "@near-js/accounts": ^2.0.1
@@ -1059,7 +1292,11 @@ __metadata:
     "@near-js/transactions": ^2.0.1
     "@near-js/types": ^2.0.1
     "@near-js/utils": ^2.0.1
+<<<<<<< Updated upstream
   checksum: 10c0/ad859af34655a2753fbc66c62b2cfe708dc9f61928d687645198c7008bd26f3d21c85ca1e7dd15663a4667aa4c8496fab266041181f9f74fa12bb6a30fb425d1
+=======
+  checksum: 10c0/63869d0e98cd5a6428436c968b4d341dac2f4edfb44eb5bce6caaddfac59abe4e336b3c2f07e94fa602012a37fa20cd31772f340fd5f93d6503501509662cb9f
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -1094,6 +1331,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/crypto@npm:2.2.2, @near-js/crypto@npm:^2.2.2":
   version: 2.2.2
   resolution: "@near-js/crypto@npm:2.2.2"
@@ -1111,6 +1349,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "@near-js/crypto@npm:2.2.5":
   version: 2.2.5
   resolution: "@near-js/crypto@npm:2.2.5"
@@ -1128,6 +1368,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/crypto@npm:2.3.3":
   version: 2.3.3
   resolution: "@near-js/crypto@npm:2.3.3"
@@ -1137,11 +1378,26 @@ __metadata:
     "@noble/curves": "npm:1.8.1"
     borsh: "npm:1.0.0"
     randombytes: "npm:2.1.0"
+=======
+"@near-js/crypto@npm:2.5.1, @near-js/crypto@npm:^2.2.2":
+  version: 2.5.1
+  resolution: "@near-js/crypto@npm:2.5.1"
+  dependencies:
+    "@near-js/types": "npm:2.5.1"
+    "@near-js/utils": "npm:2.5.1"
+    "@noble/curves": "npm:1.8.1"
+    "@noble/hashes": "npm:^1.7.1"
+    borsh: "npm:1.0.0"
+>>>>>>> Stashed changes
     secp256k1: "npm:5.0.1"
   peerDependencies:
     "@near-js/types": ^2.0.1
     "@near-js/utils": ^2.0.1
+<<<<<<< Updated upstream
   checksum: 10c0/255b8609f5268aa6962fa9571666de546ef32f2345dd58b824170a6594ce275783debc157db2d5e4ef2aa689ca206e9f00c5ca7ac6db67a50161ce8ff695f96e
+=======
+  checksum: 10c0/4b7bd929e3378b04c920f7f203e06ac9b48bc67f25322200438b27e2bb9cb3deedf79ff2c974f0f93c694555656b654705cff8de5e2fcb379087090138fd50e3
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -1188,6 +1444,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/keystores@npm:2.2.2":
   version: 2.2.2
   resolution: "@near-js/keystores@npm:2.2.2"
@@ -1211,6 +1468,18 @@ __metadata:
     "@near-js/crypto": ^2.0.1
     "@near-js/types": ^2.0.1
   checksum: 10c0/be52461a3073e65663d332110b66b7126392817d19f62d3fc311ecb159074c3a506ef518a87daecd1b32ac8e563a7e2d14121fb728ca12a5c4d1b18c1fd8c9d5
+=======
+"@near-js/keystores@npm:2.5.1, @near-js/keystores@npm:^2.0.1":
+  version: 2.5.1
+  resolution: "@near-js/keystores@npm:2.5.1"
+  dependencies:
+    "@near-js/crypto": "npm:2.5.1"
+    "@near-js/types": "npm:2.5.1"
+  peerDependencies:
+    "@near-js/crypto": ^2.0.1
+    "@near-js/types": ^2.0.1
+  checksum: 10c0/75fc81e454f0d1c7245d1b666f3a6e28faa8167cb87583a2243b3e003600a6ce118fb979e35d365787d166f4a2388a91e700fc829b3794fecbd54cee560e8198
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -1231,6 +1500,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/providers@npm:2.2.2, @near-js/providers@npm:^2.2.2":
   version: 2.2.2
   resolution: "@near-js/providers@npm:2.2.2"
@@ -1254,6 +1524,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "@near-js/providers@npm:2.2.5":
   version: 2.2.5
   resolution: "@near-js/providers@npm:2.2.5"
@@ -1277,6 +1549,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/providers@npm:2.3.3, @near-js/providers@npm:^2.1.0":
   version: 2.3.3
   resolution: "@near-js/providers@npm:2.3.3"
@@ -1285,6 +1558,16 @@ __metadata:
     "@near-js/transactions": "npm:2.3.3"
     "@near-js/types": "npm:2.3.3"
     "@near-js/utils": "npm:2.3.3"
+=======
+"@near-js/providers@npm:2.5.1, @near-js/providers@npm:^2.1.0, @near-js/providers@npm:^2.2.2":
+  version: 2.5.1
+  resolution: "@near-js/providers@npm:2.5.1"
+  dependencies:
+    "@near-js/crypto": "npm:2.5.1"
+    "@near-js/transactions": "npm:2.5.1"
+    "@near-js/types": "npm:2.5.1"
+    "@near-js/utils": "npm:2.5.1"
+>>>>>>> Stashed changes
     borsh: "npm:1.0.0"
     exponential-backoff: "npm:^3.1.2"
     node-fetch: "npm:2.6.7"
@@ -1296,7 +1579,11 @@ __metadata:
   dependenciesMeta:
     node-fetch:
       optional: true
+<<<<<<< Updated upstream
   checksum: 10c0/e89d9725b8e890c2d8666dc433befc36b7cab8f7979612afc4a785fcf5fdddb99290e0b9bb7dcd4d86bb393131213bf4e55c81d0a1bf9a7d6862183c28718a99
+=======
+  checksum: 10c0/014e779b487d0c6f01770d2980142b791a72a82960b391a32d7b247abd5c8d8e892562c062db5077b346632fbc3a5d870f5816cf992b851810238ae72ec84d3a
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -1328,6 +1615,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/signers@npm:2.2.2, @near-js/signers@npm:^2.2.2":
   version: 2.2.2
   resolution: "@near-js/signers@npm:2.2.2"
@@ -1335,12 +1623,22 @@ __metadata:
     "@near-js/crypto": "npm:2.2.2"
     "@near-js/keystores": "npm:2.2.2"
     "@near-js/transactions": "npm:2.2.2"
+=======
+"@near-js/signers@npm:2.5.1, @near-js/signers@npm:^2.2.2":
+  version: 2.5.1
+  resolution: "@near-js/signers@npm:2.5.1"
+  dependencies:
+    "@near-js/crypto": "npm:2.5.1"
+    "@near-js/keystores": "npm:2.5.1"
+    "@near-js/transactions": "npm:2.5.1"
+>>>>>>> Stashed changes
     "@noble/hashes": "npm:1.7.1"
     borsh: "npm:1.0.0"
   peerDependencies:
     "@near-js/crypto": ^2.0.1
     "@near-js/keystores": ^2.0.1
     "@near-js/transactions": ^2.0.1
+<<<<<<< Updated upstream
   checksum: 10c0/aed5f88c18a566c5745a8cb8af8d8e18161f35b39621578a7fd4ba3443b8ff3b468b2c83dc864161ea4bff6c6fbd5fe0637f4368992d46c4b28fc96b4164e385
   languageName: node
   linkType: hard
@@ -1373,6 +1671,16 @@ __metadata:
   version: 2.3.3
   resolution: "@near-js/tokens@npm:2.3.3"
   checksum: 10c0/f20a7d6e0e043aaaaa1671437ac2e707204f5f0dc8a2385480270affd2db26a0dec41dfbbc9a7c75f29d1a19b3ffa6877e57240e22de3b2dbb9c83e1572962ae
+=======
+  checksum: 10c0/cc58a679629f18a09de9b7bd9e31461ab7ba382f34063276d8937b35950bc988125c143e8526a1affa8573dd6bfa9d9d2ac4b06b10af4a5e7bb10566122fb7c3
+  languageName: node
+  linkType: hard
+
+"@near-js/tokens@npm:2.5.1, @near-js/tokens@npm:^2.2.2":
+  version: 2.5.1
+  resolution: "@near-js/tokens@npm:2.5.1"
+  checksum: 10c0/e270f7cab0acf3ef75819665e879534d899db4ab21cf51be40eb0399280a7a7fadfddff4dccbc7cb7b0f97ee3130c102563f57070d8e5d6fa7ea41a1e4dc8757
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -1407,6 +1715,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/transactions@npm:2.2.2":
   version: 2.2.2
   resolution: "@near-js/transactions@npm:2.2.2"
@@ -1425,6 +1734,9 @@ __metadata:
   linkType: hard
 
 "@near-js/transactions@npm:2.2.5":
+=======
+"@near-js/transactions@npm:2.2.5, @near-js/transactions@npm:^2.1.0":
+>>>>>>> Stashed changes
   version: 2.2.5
   resolution: "@near-js/transactions@npm:2.2.5"
   dependencies:
@@ -1441,6 +1753,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/transactions@npm:2.3.3, @near-js/transactions@npm:^2.1.0":
   version: 2.3.3
   resolution: "@near-js/transactions@npm:2.3.3"
@@ -1448,13 +1761,26 @@ __metadata:
     "@near-js/crypto": "npm:2.3.3"
     "@near-js/types": "npm:2.3.3"
     "@near-js/utils": "npm:2.3.3"
+=======
+"@near-js/transactions@npm:2.5.1":
+  version: 2.5.1
+  resolution: "@near-js/transactions@npm:2.5.1"
+  dependencies:
+    "@near-js/crypto": "npm:2.5.1"
+    "@near-js/types": "npm:2.5.1"
+    "@near-js/utils": "npm:2.5.1"
+>>>>>>> Stashed changes
     "@noble/hashes": "npm:1.7.1"
     borsh: "npm:1.0.0"
   peerDependencies:
     "@near-js/crypto": ^2.0.1
     "@near-js/types": ^2.0.1
     "@near-js/utils": ^2.0.1
+<<<<<<< Updated upstream
   checksum: 10c0/8869d51527938ce03415880c8b6edb5350c860eef613f3497335fbcc0082ff1def2e15cca6fe9ec341902a14f4389386c2ddf779b2fcaf96c45c56bbbd93b210
+=======
+  checksum: 10c0/544c0cc302c6740e5204a8ac1b64c76f94686ba99499dd06abce56ad712397c717adce1c8f0c8903693701823929979d06e1b291d4614fa443b98c87eeac6f97
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -1472,6 +1798,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/types@npm:2.2.2":
   version: 2.2.2
   resolution: "@near-js/types@npm:2.2.2"
@@ -1480,16 +1807,26 @@ __metadata:
   linkType: hard
 
 "@near-js/types@npm:2.2.5":
+=======
+"@near-js/types@npm:2.2.5, @near-js/types@npm:^2.1.0":
+>>>>>>> Stashed changes
   version: 2.2.5
   resolution: "@near-js/types@npm:2.2.5"
   checksum: 10c0/9da119371c8d273d1a8e35814814626afdd85eec259f970d10576b9a275ae32a16e1cd03418f72d620ef1595820493f5dcb9d8d7589a8dfaecd52a5846dfde62
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/types@npm:2.3.3, @near-js/types@npm:^2.1.0":
   version: 2.3.3
   resolution: "@near-js/types@npm:2.3.3"
   checksum: 10c0/80a9b3e3c90225dac88ce16a0a9925ace59bd28e273d12f769e93221db79bc98c83e1af6388276d0af9b694ea7d25449da0758841333dc999da9fc56da219c94
+=======
+"@near-js/types@npm:2.5.1":
+  version: 2.5.1
+  resolution: "@near-js/types@npm:2.5.1"
+  checksum: 10c0/4357b3fe1d352a76d225289b240e8b412a7f1f7c1101654f71da309fdb12607e5b0b532997bf657d662a46d2865e29414adc8aca9d18230b210fb4c8776bd693
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -1519,6 +1856,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/utils@npm:2.2.2, @near-js/utils@npm:^2.2.2":
   version: 2.2.2
   resolution: "@near-js/utils@npm:2.2.2"
@@ -1533,6 +1871,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "@near-js/utils@npm:2.2.5":
   version: 2.2.5
   resolution: "@near-js/utils@npm:2.2.5"
@@ -1547,17 +1887,29 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@near-js/utils@npm:2.3.3":
   version: 2.3.3
   resolution: "@near-js/utils@npm:2.3.3"
   dependencies:
     "@near-js/types": "npm:2.3.3"
+=======
+"@near-js/utils@npm:2.5.1, @near-js/utils@npm:^2.2.2":
+  version: 2.5.1
+  resolution: "@near-js/utils@npm:2.5.1"
+  dependencies:
+    "@near-js/types": "npm:2.5.1"
+>>>>>>> Stashed changes
     "@scure/base": "npm:^1.2.4"
     depd: "npm:2.0.0"
     mustache: "npm:4.0.0"
   peerDependencies:
     "@near-js/types": ^2.0.1
+<<<<<<< Updated upstream
   checksum: 10c0/c56702bfc95ad1919d4e27dede6eaf770c50e510043ca6caa6af0caa470ba141f12f7ab12dd49456333d492765b87ecd4a99c093ada7a213716e3eaa7f4a9a0b
+=======
+  checksum: 10c0/c527b60d99200aaa512fdf0788242a47fe9c1a874d972f5d250060acbdf1658069fb9c34c0616f47e7eb93acf53ac5df72b126e7a1cc3533edbca6af1b520990
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -1625,7 +1977,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@noble/curves@npm:1.8.1":
+=======
+"@noble/curves@npm:1.8.1, @noble/curves@npm:^1.4.0, @noble/curves@npm:^1.4.2, @noble/curves@npm:^1.6.0, @noble/curves@npm:^1.8.1":
+>>>>>>> Stashed changes
   version: 1.8.1
   resolution: "@noble/curves@npm:1.8.1"
   dependencies:
@@ -1652,12 +2008,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@noble/curves@npm:^1.4.0, @noble/curves@npm:^1.4.2, @noble/curves@npm:^1.6.0, @noble/curves@npm:^1.8.1, @noble/curves@npm:^1.9.4, @noble/curves@npm:~1.9.0":
   version: 1.9.7
   resolution: "@noble/curves@npm:1.9.7"
   dependencies:
     "@noble/hashes": "npm:1.8.0"
   checksum: 10c0/150014751ebe8ca06a8654ca2525108452ea9ee0be23430332769f06808cddabfe84f248b6dbf836916bc869c27c2092957eec62c7506d68a1ed0a624017c2a3
+=======
+"@noble/curves@npm:=1.9.4":
+  version: 1.9.4
+  resolution: "@noble/curves@npm:1.9.4"
+  dependencies:
+    "@noble/hashes": "npm:1.8.0"
+  checksum: 10c0/c5ac42bf0c4ac822ee7c107f7b5647140a4209bce6929cdf21a38bc575be8aa91c130c4d4bea5a8a3100c53728fc0c6757382f005779cd14b10ea9a00f1a4592
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -1670,6 +2035,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
+=======
+"@noble/curves@npm:~1.9.0":
+  version: 1.9.7
+  resolution: "@noble/curves@npm:1.9.7"
+  dependencies:
+    "@noble/hashes": "npm:1.8.0"
+  checksum: 10c0/150014751ebe8ca06a8654ca2525108452ea9ee0be23430332769f06808cddabfe84f248b6dbf836916bc869c27c2092957eec62c7506d68a1ed0a624017c2a3
+  languageName: node
+  linkType: hard
+
+>>>>>>> Stashed changes
 "@noble/ed25519@npm:^1.7.0":
   version: 1.7.5
   resolution: "@noble/ed25519@npm:1.7.5"
@@ -1677,6 +2054,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
+=======
+"@noble/hashes@npm:1.1.5":
+  version: 1.1.5
+  resolution: "@noble/hashes@npm:1.1.5"
+  checksum: 10c0/cf7f3baff1d95968309d260441d823a854dd76ca0b02f970db0c2f2e0de980c3cc55afcc6a8f3808bb505e65c59cd5332c5f32f821cf35b7982dc7570e991731
+  languageName: node
+  linkType: hard
+
+>>>>>>> Stashed changes
 "@noble/hashes@npm:1.3.2":
   version: 1.3.2
   resolution: "@noble/hashes@npm:1.3.2"
@@ -1719,6 +2106,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@noble/secp256k1@npm:^1.6.3":
   version: 1.7.2
   resolution: "@noble/secp256k1@npm:1.7.2"
@@ -1729,10 +2117,23 @@ __metadata:
 "@npmcli/agent@npm:^3.0.0":
   version: 3.0.0
   resolution: "@npmcli/agent@npm:3.0.0"
+=======
+"@noble/secp256k1@npm:1.7.1, @noble/secp256k1@npm:^1.6.3":
+  version: 1.7.1
+  resolution: "@noble/secp256k1@npm:1.7.1"
+  checksum: 10c0/48091801d39daba75520012027d0ff0b1719338d96033890cfe0d287ad75af00d82769c0194a06e7e4fbd816ae3f204f4a59c9e26f0ad16b429f7e9b5403ccd5
+  languageName: node
+  linkType: hard
+
+"@npmcli/agent@npm:^4.0.0":
+  version: 4.0.0
+  resolution: "@npmcli/agent@npm:4.0.0"
+>>>>>>> Stashed changes
   dependencies:
     agent-base: "npm:^7.1.0"
     http-proxy-agent: "npm:^7.0.0"
     https-proxy-agent: "npm:^7.0.1"
+<<<<<<< Updated upstream
     lru-cache: "npm:^10.0.1"
     socks-proxy-agent: "npm:^8.0.3"
   checksum: 10c0/efe37b982f30740ee77696a80c196912c274ecd2cb243bc6ae7053a50c733ce0f6c09fda085145f33ecf453be19654acca74b69e81eaad4c90f00ccffe2f9271
@@ -1745,10 +2146,25 @@ __metadata:
   dependencies:
     semver: "npm:^7.3.5"
   checksum: 10c0/c90935d5ce670c87b6b14fab04a965a3b8137e585f8b2a6257263bd7f97756dd736cb165bb470e5156a9e718ecd99413dccc54b1138c1a46d6ec7cf325982fe5
+=======
+    lru-cache: "npm:^11.2.1"
+    socks-proxy-agent: "npm:^8.0.3"
+  checksum: 10c0/f7b5ce0f3dd42c3f8c6546e8433573d8049f67ef11ec22aa4704bc41483122f68bf97752e06302c455ead667af5cb753e6a09bff06632bc465c1cfd4c4b75a53
+  languageName: node
+  linkType: hard
+
+"@npmcli/fs@npm:^5.0.0":
+  version: 5.0.0
+  resolution: "@npmcli/fs@npm:5.0.0"
+  dependencies:
+    semver: "npm:^7.3.5"
+  checksum: 10c0/26e376d780f60ff16e874a0ac9bc3399186846baae0b6e1352286385ac134d900cc5dafaded77f38d77f86898fc923ae1cee9d7399f0275b1aa24878915d722b
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
 "@peculiar/asn1-ecc@npm:^2.0.0":
+<<<<<<< Updated upstream
   version: 2.5.0
   resolution: "@peculiar/asn1-ecc@npm:2.5.0"
   dependencies:
@@ -1763,10 +2179,27 @@ __metadata:
 "@peculiar/asn1-schema@npm:^2.0.0, @peculiar/asn1-schema@npm:^2.5.0":
   version: 2.5.0
   resolution: "@peculiar/asn1-schema@npm:2.5.0"
+=======
+  version: 2.6.0
+  resolution: "@peculiar/asn1-ecc@npm:2.6.0"
+  dependencies:
+    "@peculiar/asn1-schema": "npm:^2.6.0"
+    "@peculiar/asn1-x509": "npm:^2.6.0"
+    asn1js: "npm:^3.0.6"
+    tslib: "npm:^2.8.1"
+  checksum: 10c0/9181c991f0cab70c4ab97564d91cf3f2489dbf64b56085e92cc28899a16bdf285edaa0a35164b3c6ddebcdd07bb7612d0eaddbaa7bc876ff06811346a7449a38
+  languageName: node
+  linkType: hard
+
+"@peculiar/asn1-schema@npm:^2.0.0, @peculiar/asn1-schema@npm:^2.6.0":
+  version: 2.6.0
+  resolution: "@peculiar/asn1-schema@npm:2.6.0"
+>>>>>>> Stashed changes
   dependencies:
     asn1js: "npm:^3.0.6"
     pvtsutils: "npm:^1.3.6"
     tslib: "npm:^2.8.1"
+<<<<<<< Updated upstream
   checksum: 10c0/17a3a68b9ac631beeea6fa6a86b5b95e2d91602d6c477f18374beadfbc71fd4cdbec3290233bf8eae0b216595229450b3cff8ba9c7b96b4a56d57cbbd41ff62f
   languageName: node
   linkType: hard
@@ -1787,6 +2220,47 @@ __metadata:
   version: 0.11.0
   resolution: "@pkgjs/parseargs@npm:0.11.0"
   checksum: 10c0/5bd7576bb1b38a47a7fc7b51ac9f38748e772beebc56200450c4a817d712232b8f1d3ef70532c80840243c657d491cf6a6be1e3a214cff907645819fdc34aadd
+=======
+  checksum: 10c0/8c283b10a2e4aca4cb20d242cde773c9a798ea15a6c221d1474ef483e182d48195aeb5dde3f7b518f236eceb7808ae4438539d41a3aa9ed6d20aa4d36a21a0c2
+  languageName: node
+  linkType: hard
+
+"@peculiar/asn1-x509@npm:^2.6.0":
+  version: 2.6.0
+  resolution: "@peculiar/asn1-x509@npm:2.6.0"
+  dependencies:
+    "@peculiar/asn1-schema": "npm:^2.6.0"
+    asn1js: "npm:^3.0.6"
+    pvtsutils: "npm:^1.3.6"
+    tslib: "npm:^2.8.1"
+  checksum: 10c0/bdb15792f470d134b0a1e6a0cdd240852c2a80484bb9b054aa5ae39e4ef59df3cbf78cb601058c7738d6ce09a2731f30ff2a88f023aa745db58d2aa33ec448b8
+  languageName: node
+  linkType: hard
+
+"@protobuf-ts/grpcweb-transport@npm:^2.11.1":
+  version: 2.11.1
+  resolution: "@protobuf-ts/grpcweb-transport@npm:2.11.1"
+  dependencies:
+    "@protobuf-ts/runtime": "npm:^2.11.1"
+    "@protobuf-ts/runtime-rpc": "npm:^2.11.1"
+  checksum: 10c0/5d3d23cab51cf1572dfe2bc787981903254c71420943a2b2bdce9d5417291d7001b8ec64fbde7c93448382bb0909ebbf511712fb4bcd92074ce8240d669e23e3
+  languageName: node
+  linkType: hard
+
+"@protobuf-ts/runtime-rpc@npm:^2.11.1":
+  version: 2.11.1
+  resolution: "@protobuf-ts/runtime-rpc@npm:2.11.1"
+  dependencies:
+    "@protobuf-ts/runtime": "npm:^2.11.1"
+  checksum: 10c0/20337ea721a619a93c3888fbbe768c8334a8ed67a759a33aefb2a5c587fff690ca8fcb8dc97f9b7590012d9f4c43a6b9020f72dd2fc57f004c26eeca93a51982
+  languageName: node
+  linkType: hard
+
+"@protobuf-ts/runtime@npm:^2.11.1":
+  version: 2.11.1
+  resolution: "@protobuf-ts/runtime@npm:2.11.1"
+  checksum: 10c0/6071c0373251e915cebb449fb7bf3254e946534edf4c4eb6e89933989a3ab5dcb148ed82cc0ea844bbc2f4346d0dc76f852c2b5f900a6bdaa35e5fb2cb4666f9
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -2125,7 +2599,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@solana/spl-token@npm:0.4.13":
+=======
+"@solana/spl-token@npm:0.4.13, @solana/spl-token@npm:^0.4.12":
+>>>>>>> Stashed changes
   version: 0.4.13
   resolution: "@solana/spl-token@npm:0.4.13"
   dependencies:
@@ -2140,6 +2618,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@solana/spl-token@npm:^0.4.12":
   version: 0.4.14
   resolution: "@solana/spl-token@npm:0.4.14"
@@ -2155,6 +2634,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "@solana/web3.js@npm:1.68.0":
   version: 1.68.0
   resolution: "@solana/web3.js@npm:1.68.0"
@@ -2201,6 +2682,40 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
+=======
+"@stacks/common@npm:^7.0.2":
+  version: 7.0.2
+  resolution: "@stacks/common@npm:7.0.2"
+  checksum: 10c0/af5327d5dcae1222bd5a004278e340180e7d965bd0191875d3fa315167ffd7dd8c8c44bd3dc1364e7fae3fab7136d3e208cfd94ae5f090b50f410dd3caa7d8f7
+  languageName: node
+  linkType: hard
+
+"@stacks/network@npm:^7.0.2, @stacks/network@npm:^7.2.0":
+  version: 7.2.0
+  resolution: "@stacks/network@npm:7.2.0"
+  dependencies:
+    "@stacks/common": "npm:^7.0.2"
+    cross-fetch: "npm:^3.1.5"
+  checksum: 10c0/9a5f9b0db1a42c66b348ee90c99d01a6f186a92fc1b3ecd7daf7ae1f22dad4943bf5bf7304f18e9f7cba5f264411fee62332e8be31852933d4a801f63584091d
+  languageName: node
+  linkType: hard
+
+"@stacks/transactions@npm:^7.1.0":
+  version: 7.3.0
+  resolution: "@stacks/transactions@npm:7.3.0"
+  dependencies:
+    "@noble/hashes": "npm:1.1.5"
+    "@noble/secp256k1": "npm:1.7.1"
+    "@stacks/common": "npm:^7.0.2"
+    "@stacks/network": "npm:^7.2.0"
+    c32check: "npm:^2.0.0"
+    lodash.clonedeep: "npm:^4.5.0"
+  checksum: 10c0/342955463e8c62f61d8a47fc78c666376e11cfb3785e5699d9b2c59676abc6c178a1c7f1b45ea482eea7a6c22557eb24a52b747ded88979e365c05ab16b46b78
+  languageName: node
+  linkType: hard
+
+>>>>>>> Stashed changes
 "@stellar/js-xdr@npm:^3.1.2":
   version: 3.1.2
   resolution: "@stellar/js-xdr@npm:3.1.2"
@@ -2327,9 +2842,15 @@ __metadata:
   linkType: hard
 
 "@tsconfig/node10@npm:^1.0.7":
+<<<<<<< Updated upstream
   version: 1.0.11
   resolution: "@tsconfig/node10@npm:1.0.11"
   checksum: 10c0/28a0710e5d039e0de484bdf85fee883bfd3f6a8980601f4d44066b0a6bcd821d31c4e231d1117731c4e24268bd4cf2a788a6787c12fc7f8d11014c07d582783c
+=======
+  version: 1.0.12
+  resolution: "@tsconfig/node10@npm:1.0.12"
+  checksum: 10c0/7bbbd7408cfaced86387a9b1b71cebc91c6fd701a120369735734da8eab1a4773fc079abd9f40c9e0b049e12586c8ac0e13f0da596bfd455b9b4c3faa813ebc5
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -2404,12 +2925,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@types/node@npm:*":
   version: 24.0.14
   resolution: "@types/node@npm:24.0.14"
   dependencies:
     undici-types: "npm:~7.8.0"
   checksum: 10c0/536b5a816554ad1522e9e0c1d517b317f8478798bd76a332d83690aa42b19b5b263eb295ee25f9d0badb430ee6e36412ee9070cb5e3359f6bdcf7e08f94302f1
+=======
+"@types/node@npm:*, @types/node@npm:>=13.7.0, @types/node@npm:^22.15.21":
+  version: 22.19.1
+  resolution: "@types/node@npm:22.19.1"
+  dependencies:
+    undici-types: "npm:~6.21.0"
+  checksum: 10c0/6edd93aea86da740cb7872626839cd6f4a67a049d3a3a6639cb592c620ec591408a30989ab7410008d1a0b2d4985ce50f1e488e79c033e4476d3bec6833b0a2f
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -2429,6 +2959,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@types/node@npm:>=13.7.0":
   version: 24.7.0
   resolution: "@types/node@npm:24.7.0"
@@ -2438,6 +2969,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "@types/node@npm:^12.12.54":
   version: 12.20.55
   resolution: "@types/node@npm:12.20.55"
@@ -2445,6 +2978,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@types/node@npm:^22.15.21":
   version: 22.16.4
   resolution: "@types/node@npm:22.16.4"
@@ -2454,6 +2988,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "@types/uuid@npm:^8.3.4":
   version: 8.3.4
   resolution: "@types/uuid@npm:8.3.4"
@@ -2479,6 +3015,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "@wormhole-foundation/sdk-algorand-core@npm:3.8.5":
   version: 3.8.5
   resolution: "@wormhole-foundation/sdk-algorand-core@npm:3.8.5"
@@ -2575,10 +3112,109 @@ __metadata:
 "@wormhole-foundation/sdk-cosmwasm-core@npm:3.8.5":
   version: 3.8.5
   resolution: "@wormhole-foundation/sdk-cosmwasm-core@npm:3.8.5"
+=======
+"@wormhole-foundation/sdk-algorand-core@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-algorand-core@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-algorand": "npm:3.12.0"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+  checksum: 10c0/c5f6d1095d10743d598ac0f3bbb6bf479173261e88c318fb0f916187dd07faaee586926cc185059e8b1f079425821148573fee86fd603095a98d0642d2a7f34b
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-algorand-tokenbridge@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-algorand-tokenbridge@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-algorand": "npm:3.12.0"
+    "@wormhole-foundation/sdk-algorand-core": "npm:3.12.0"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+  checksum: 10c0/e5e164fef33e7f57219edd761fa8ec22847781a45c4919416c2c2acbf87766011701acf185106a029bb1a7597acca5c7eb8f1687616f4738bf59947bb8cb34ba
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-algorand@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-algorand@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    algosdk: "npm:2.7.0"
+  checksum: 10c0/01f49972338758eac0d76414644559b61dbdcfa0155c58907c1240453710eba9e616a533f231cdd40928a479d50ff1822ff0b4d34e3bf10cecc7609ffa6d60c8
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-aptos-cctp@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-aptos-cctp@npm:3.12.0"
+  dependencies:
+    "@aptos-labs/ts-sdk": "npm:^2.0.0"
+    "@wormhole-foundation/sdk-aptos": "npm:3.12.0"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+  checksum: 10c0/99a3e3945cd231d84fac2d7c7ed18e5e1f5b983c64f0f789a4a8ebfdb688e9a42d3b2c0472b9c82330eeff326e67f99fb395c8d7562bcb578bb942cab85fc303
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-aptos-core@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-aptos-core@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-aptos": "npm:3.12.0"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+  checksum: 10c0/5e3031d29d0b9133263a1c54d2b2f94e131eb3a332fd1a338892dae5be586c65972955c9239e9c0b301f2ef48881d35b2878f27b2ebbc8088e4b5d3f22b902da
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-aptos-tokenbridge@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-aptos-tokenbridge@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-aptos": "npm:3.12.0"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+  checksum: 10c0/39d530cad881433b92fe9396100d7b2dcd6a3017fffa0bacb4eb5f3d03899e786df436bf792f38e71ddf32fb16e2c1f5c37db6838fc3f69c0eb1b4761c17f41a
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-aptos@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-aptos@npm:3.12.0"
+  dependencies:
+    "@aptos-labs/ts-sdk": "npm:^2.0.0"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+  checksum: 10c0/3ae6982919750517cc2ddb38de063c4e58fc5b1be5fcb7c163d8542e2e06d7556a17994f6830be4cecf7240a521ad3c4775bcddc277c974d06b6561a764b5e1b
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-base@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-base@npm:3.12.0"
+  dependencies:
+    "@scure/base": "npm:^1.1.3"
+    binary-layout: "npm:^1.0.3"
+  checksum: 10c0/f17f385870d533dd9199f44d7e8dace3ce8634ed5183bb466c689774c770152eccf8930d486fd7d507a82409176c326cdae0273eee2cb5e43eb982ffbbdd0c72
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-connect@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-connect@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-base": "npm:3.12.0"
+    "@wormhole-foundation/sdk-definitions": "npm:3.12.0"
+    axios: "npm:^1.4.0"
+  checksum: 10c0/198172b6e42a06b7f48ba040858861586e5aefeba66c4f299a2949d18d7e7022d694062ca8f4bd42055d787cbcd7a43319c1d4cdc7a901020f866664f3a7051e
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-cosmwasm-core@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-cosmwasm-core@npm:3.12.0"
+>>>>>>> Stashed changes
   dependencies:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.0"
     "@cosmjs/stargate": "npm:^0.32.0"
     "@injectivelabs/sdk-ts": "npm:^1.14.13-beta.2"
+<<<<<<< Updated upstream
     "@wormhole-foundation/sdk-connect": "npm:3.8.5"
     "@wormhole-foundation/sdk-cosmwasm": "npm:3.8.5"
   checksum: 10c0/73874db35b5459f63cb44be1c0e1bc0e697bb7e23aa98c21743726ee56e2f22f299d25f1d54d70af8ff49553c8c31fa2b3c43421a5d64ab0ecc0da299541aec7
@@ -2588,10 +3224,22 @@ __metadata:
 "@wormhole-foundation/sdk-cosmwasm-ibc@npm:3.8.5":
   version: 3.8.5
   resolution: "@wormhole-foundation/sdk-cosmwasm-ibc@npm:3.8.5"
+=======
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-cosmwasm": "npm:3.12.0"
+  checksum: 10c0/31802bdc9b56c94152cfc9ea141ec7fa58036726e93d97dfd933516ebb086b7bdc83ecbea986d218bdfac23ed0b943a4b194a62851f21db690289532b4559e49
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-cosmwasm-ibc@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-cosmwasm-ibc@npm:3.12.0"
+>>>>>>> Stashed changes
   dependencies:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.0"
     "@cosmjs/stargate": "npm:^0.32.0"
     "@injectivelabs/sdk-ts": "npm:^1.14.13-beta.2"
+<<<<<<< Updated upstream
     "@wormhole-foundation/sdk-connect": "npm:3.8.5"
     "@wormhole-foundation/sdk-cosmwasm": "npm:3.8.5"
     "@wormhole-foundation/sdk-cosmwasm-core": "npm:3.8.5"
@@ -2615,11 +3263,37 @@ __metadata:
 "@wormhole-foundation/sdk-cosmwasm@npm:3.8.5":
   version: 3.8.5
   resolution: "@wormhole-foundation/sdk-cosmwasm@npm:3.8.5"
+=======
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-cosmwasm": "npm:3.12.0"
+    "@wormhole-foundation/sdk-cosmwasm-core": "npm:3.12.0"
+    cosmjs-types: "npm:^0.9.0"
+  checksum: 10c0/dfd42fb5a777d2f3376d24bc8d73fa4ddcbd6c2694bf739088cb9966c1e692d09c7054a2d1b5b15a105c9b060ebad5343d4f1b92835a360da1852f74a516b9a2
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-cosmwasm-tokenbridge@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-cosmwasm-tokenbridge@npm:3.12.0"
+  dependencies:
+    "@cosmjs/cosmwasm-stargate": "npm:^0.32.0"
+    "@injectivelabs/sdk-ts": "npm:^1.14.13-beta.2"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-cosmwasm": "npm:3.12.0"
+  checksum: 10c0/b5e87c058d5140fe298a4ba5986d52e455b696b8c3dcdebe27c6eeddc9e26f78ce721283524cce052e89e1511fe708b452b6feb1c8e43f39ad85d130e3530791
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-cosmwasm@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-cosmwasm@npm:3.12.0"
+>>>>>>> Stashed changes
   dependencies:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.0"
     "@cosmjs/proto-signing": "npm:^0.32.0"
     "@cosmjs/stargate": "npm:^0.32.0"
     "@injectivelabs/sdk-ts": "npm:^1.14.13-beta.2"
+<<<<<<< Updated upstream
     "@wormhole-foundation/sdk-connect": "npm:3.8.5"
     cosmjs-types: "npm:^0.9.0"
   checksum: 10c0/f390bf82b4e30a1a5253af32c6f6eb4586871a03d0b05d63f337baee02dfe1d8b9b4249caf1fe1cfc0050296faaa5029282876b93f80ed9273c75aa641578d2c
@@ -2710,10 +3384,103 @@ __metadata:
 "@wormhole-foundation/sdk-solana-cctp@npm:3.8.5":
   version: 3.8.5
   resolution: "@wormhole-foundation/sdk-solana-cctp@npm:3.8.5"
+=======
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    cosmjs-types: "npm:^0.9.0"
+  checksum: 10c0/3280a7bfcf05dffcf949f3c925bae94cb1e361e8c3ef2c323bc092ca9e3553085c22f318f0e8aa52abb16be32641f0bfce8cd8b66a243b7f457b0a3dabd38595
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-definitions@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-definitions@npm:3.12.0"
+  dependencies:
+    "@noble/curves": "npm:^1.4.0"
+    "@noble/hashes": "npm:^1.3.1"
+    "@wormhole-foundation/sdk-base": "npm:3.12.0"
+  checksum: 10c0/d3552ae13c771cb41814160f0400c61a0f5a6a8c2e24474ca3260b30c2e45de964b3305b8d6bad2de0806b4d0b2c081c98a56474b319d04b7ae886c9189b2d35
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-evm-cctp@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-evm-cctp@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm-core": "npm:3.12.0"
+    ethers: "npm:^6.5.1"
+  checksum: 10c0/a70e14ce7c9edde9280a5b7c7e58f9aec95613918bed05e488c8b97aa84b17d223583fc640e6fe21205d4a3a34e26aaa86fadac26f6ec1524f456fefa4eca53f
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-evm-core@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-evm-core@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm": "npm:3.12.0"
+    ethers: "npm:^6.5.1"
+  checksum: 10c0/f9b016ea67dd893d7b23dc779a9bd196cfb2207fa8f990253c175a2d04d21330b8b5db5f1f9d23465a68eb0f0984fbe8df544905cf9cc04356f92d7883c6c4ce
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-evm-portico@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-evm-portico@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm-core": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm-tokenbridge": "npm:3.12.0"
+    ethers: "npm:^6.5.1"
+  checksum: 10c0/b4e73b36c9d40d8b80bdd93e5e506daac4d4b798e8ae1820bcd56d462e759776077ebf18453781f83d005286720b8c86d5aced2db0f926f409705f8f768f633d
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-evm-tbtc@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-evm-tbtc@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm-core": "npm:3.12.0"
+    ethers: "npm:^6.5.1"
+  checksum: 10c0/1f132f5d4d94495ded9fa9efd2ec94bfa1f0ef717363cd6f9ffe80ae85c1a45a4f73295dfd04290ac4d8a57095a9d1f7947247da9d81620d30ceb67976fdf31e
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-evm-tokenbridge@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-evm-tokenbridge@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm-core": "npm:3.12.0"
+    ethers: "npm:^6.5.1"
+  checksum: 10c0/2441cfb42ad3c72485a343a2f3c85d09549691a6cb5a55f4f58a5ff43af399fcfde72df0dfac46997a67bd11713317c95ebca33e9f23359f280eb6680797c6fc
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-evm@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-evm@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    ethers: "npm:^6.5.1"
+  checksum: 10c0/e50361a4c54d1514b7e9940e8b5b18020518653520c7293a3d6dd4a0daa1514dbccc4439c1a33c64f6f6296d6b75d2f1d309663e69c77390e73f09a3bc9e0564
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-solana-cctp@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-solana-cctp@npm:3.12.0"
+>>>>>>> Stashed changes
   dependencies:
     "@coral-xyz/anchor": "npm:0.29.0"
     "@solana/spl-token": "npm:0.3.9"
     "@solana/web3.js": "npm:^1.95.8"
+<<<<<<< Updated upstream
     "@wormhole-foundation/sdk-connect": "npm:3.8.5"
     "@wormhole-foundation/sdk-solana": "npm:3.8.5"
   checksum: 10c0/643296a90f7c30955fd1848ac041d521d320deba5ebb0d5b7bf83b59dd6470706df4f562eb97e3e5745a14579d8834500ef700e3cdc853a428adabd85f40da1b
@@ -2723,10 +3490,22 @@ __metadata:
 "@wormhole-foundation/sdk-solana-core@npm:3.8.5":
   version: 3.8.5
   resolution: "@wormhole-foundation/sdk-solana-core@npm:3.8.5"
+=======
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-solana": "npm:3.12.0"
+  checksum: 10c0/f63ce8044a54db5c90ae48e5ec495d8678c9986e9c3393054d8791305f23d16919d3ddb9c4b1b940d8bcef3965519cc476c76227fedf1c26d1c94da9114a9b4d
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-solana-core@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-solana-core@npm:3.12.0"
+>>>>>>> Stashed changes
   dependencies:
     "@coral-xyz/anchor": "npm:0.29.0"
     "@coral-xyz/borsh": "npm:0.29.0"
     "@solana/web3.js": "npm:^1.95.8"
+<<<<<<< Updated upstream
     "@wormhole-foundation/sdk-connect": "npm:3.8.5"
     "@wormhole-foundation/sdk-solana": "npm:3.8.5"
   checksum: 10c0/b668acdc3b271ece8fff9ab34d233333fe0a400fe033e902b4d2055eba30383b826ef5737ce6f90c971ef8bbc98b38233520831f6d17add377681ca9e4cec418
@@ -2736,10 +3515,22 @@ __metadata:
 "@wormhole-foundation/sdk-solana-tbtc@npm:3.8.5":
   version: 3.8.5
   resolution: "@wormhole-foundation/sdk-solana-tbtc@npm:3.8.5"
+=======
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-solana": "npm:3.12.0"
+  checksum: 10c0/ec75e4f99a47418536d7d55f25e79b6a6f6aaca79e14d9c3d1e35eedd612dad2fcea0d0bda19577883710817d4a85078caf1da667fb30a00ee1cacbc0b7ff687
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-solana-tbtc@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-solana-tbtc@npm:3.12.0"
+>>>>>>> Stashed changes
   dependencies:
     "@coral-xyz/anchor": "npm:0.29.0"
     "@solana/spl-token": "npm:0.3.9"
     "@solana/web3.js": "npm:^1.95.8"
+<<<<<<< Updated upstream
     "@wormhole-foundation/sdk-connect": "npm:3.8.5"
     "@wormhole-foundation/sdk-solana": "npm:3.8.5"
     "@wormhole-foundation/sdk-solana-core": "npm:3.8.5"
@@ -2751,10 +3542,24 @@ __metadata:
 "@wormhole-foundation/sdk-solana-tokenbridge@npm:3.8.5":
   version: 3.8.5
   resolution: "@wormhole-foundation/sdk-solana-tokenbridge@npm:3.8.5"
+=======
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-solana": "npm:3.12.0"
+    "@wormhole-foundation/sdk-solana-core": "npm:3.12.0"
+    "@wormhole-foundation/sdk-solana-tokenbridge": "npm:3.12.0"
+  checksum: 10c0/99d4265acdc059908f68e05d2efff2417118e49385db1b6c914942a8cbb415e8d75555cdfe26335a48663a7b2ff90a7a6752a12451c78100f13635d2b34ed93d
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-solana-tokenbridge@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-solana-tokenbridge@npm:3.12.0"
+>>>>>>> Stashed changes
   dependencies:
     "@coral-xyz/anchor": "npm:0.29.0"
     "@solana/spl-token": "npm:0.3.9"
     "@solana/web3.js": "npm:^1.95.8"
+<<<<<<< Updated upstream
     "@wormhole-foundation/sdk-connect": "npm:3.8.5"
     "@wormhole-foundation/sdk-solana": "npm:3.8.5"
     "@wormhole-foundation/sdk-solana-core": "npm:3.8.5"
@@ -2765,11 +3570,24 @@ __metadata:
 "@wormhole-foundation/sdk-solana@npm:3.8.5":
   version: 3.8.5
   resolution: "@wormhole-foundation/sdk-solana@npm:3.8.5"
+=======
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-solana": "npm:3.12.0"
+    "@wormhole-foundation/sdk-solana-core": "npm:3.12.0"
+  checksum: 10c0/772da8fb9f9fee0333e948ac0593e98a918d41870b8dd3640c0d9b688e3e0e22158c2421c295591a17e73dd76fb882e6e13a8ffa50b7805ccd4d051d09baac5e
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-solana@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-solana@npm:3.12.0"
+>>>>>>> Stashed changes
   dependencies:
     "@coral-xyz/anchor": "npm:0.29.0"
     "@coral-xyz/borsh": "npm:0.29.0"
     "@solana/spl-token": "npm:0.3.9"
     "@solana/web3.js": "npm:^1.95.8"
+<<<<<<< Updated upstream
     "@wormhole-foundation/sdk-connect": "npm:3.8.5"
     rpc-websockets: "npm:^7.10.0"
   checksum: 10c0/94406b0f58cfcf27c347af0bfe6b8769a7a49e11aee5ba385bb1018ddecfbb13f8b9478dc732f00f34bf7c883656c493266e7e0c4a05ad83adb486f4453637f5
@@ -2817,10 +3635,81 @@ __metadata:
     "@mysten/sui": "npm:^1.37.2"
     "@wormhole-foundation/sdk-connect": "npm:3.8.5"
   checksum: 10c0/3a67ab0a96e0caa9d7f2b158495193217743c8514b848e51ed8e544fd887397af4b376b41b0bb1b076dbe2d922e7b79be1190effbc56c8c6534c90ced7eecd77
+=======
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    rpc-websockets: "npm:^7.10.0"
+  checksum: 10c0/dda9c98710772dcc1646a290fe40bf701ad5a74c7babb04a0bc2752c26cc1199394062295afe33ba485097619e3b055101d4ea51177d60636e8fbcb5b87aab36
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-stacks-core@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-stacks-core@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-stacks": "npm:3.12.0"
+  checksum: 10c0/46659a978147c1bfc583a09e536150ba32441caf0374a9aa7a86e15c058bd352459a559e549649fd2a4214a5e3d112e20817aa4d25d42057f9b87a27f9bc0888
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-stacks@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-stacks@npm:3.12.0"
+  dependencies:
+    "@stacks/network": "npm:^7.0.2"
+    "@stacks/transactions": "npm:^7.1.0"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+  checksum: 10c0/f79ef8b40d7aab4e9d8d86d092504e1130cc198eff8d259d3b767db44ddc7ca01ddf4ed9789120331d5a9df919937585b2d1943f9214e6c338b25b3756852221
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-sui-cctp@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-sui-cctp@npm:3.12.0"
+  dependencies:
+    "@mysten/sui": "npm:^1.37.2"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-sui": "npm:3.12.0"
+  checksum: 10c0/b09e70aaca6bca4c2209ca4f0e69c8b2bf27ef26f56a7da9d2577cfdeb6f40ccb6a42016ef5e4f49e8ca89cf3f69b5cc4e3b0018020f3c6ee7b8539c7f551d1d
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-sui-core@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-sui-core@npm:3.12.0"
+  dependencies:
+    "@mysten/sui": "npm:^1.37.2"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-sui": "npm:3.12.0"
+  checksum: 10c0/2a4f59f3c7fd2c12e00bda26419510fd529412c7c1f8a55c551212957f363d97bb8ae218351b91c4955afdd196d9856c770af1362a64b4c417c2b26417f4d648
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-sui-tokenbridge@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-sui-tokenbridge@npm:3.12.0"
+  dependencies:
+    "@mysten/sui": "npm:^1.37.2"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-sui": "npm:3.12.0"
+    "@wormhole-foundation/sdk-sui-core": "npm:3.12.0"
+  checksum: 10c0/44693be7c5166772e843523bab8175ffddbbfb23968a9424b0a36a05d6199b0488119bb6af56df4af1a631ddff0c53f7bc21eb394998e222fdd39b68d3fc53f3
+  languageName: node
+  linkType: hard
+
+"@wormhole-foundation/sdk-sui@npm:3.12.0":
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk-sui@npm:3.12.0"
+  dependencies:
+    "@mysten/sui": "npm:^1.37.2"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+  checksum: 10c0/0529a15e50deec0a5d3671d6708287fdf7e064c53bc850ad2545ed39d10686b1ec7b56cb34e9634c8fd5756ca368321b9173c331bb6e65371e29bcc0563f0525
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
 "@wormhole-foundation/sdk@npm:^3.4.6":
+<<<<<<< Updated upstream
   version: 3.8.5
   resolution: "@wormhole-foundation/sdk@npm:3.8.5"
   dependencies:
@@ -2854,6 +3743,43 @@ __metadata:
     "@wormhole-foundation/sdk-sui-core": "npm:3.8.5"
     "@wormhole-foundation/sdk-sui-tokenbridge": "npm:3.8.5"
   checksum: 10c0/083b27248afbd7b4edb1a4e619552d914f6651e3fa80d013f8edc5eea8d496e9d2e61d2976ff841ae79b56858b32ee28224aa36e75c1086a232b41805904493e
+=======
+  version: 3.12.0
+  resolution: "@wormhole-foundation/sdk@npm:3.12.0"
+  dependencies:
+    "@wormhole-foundation/sdk-algorand": "npm:3.12.0"
+    "@wormhole-foundation/sdk-algorand-core": "npm:3.12.0"
+    "@wormhole-foundation/sdk-algorand-tokenbridge": "npm:3.12.0"
+    "@wormhole-foundation/sdk-aptos": "npm:3.12.0"
+    "@wormhole-foundation/sdk-aptos-cctp": "npm:3.12.0"
+    "@wormhole-foundation/sdk-aptos-core": "npm:3.12.0"
+    "@wormhole-foundation/sdk-aptos-tokenbridge": "npm:3.12.0"
+    "@wormhole-foundation/sdk-base": "npm:3.12.0"
+    "@wormhole-foundation/sdk-connect": "npm:3.12.0"
+    "@wormhole-foundation/sdk-cosmwasm": "npm:3.12.0"
+    "@wormhole-foundation/sdk-cosmwasm-core": "npm:3.12.0"
+    "@wormhole-foundation/sdk-cosmwasm-ibc": "npm:3.12.0"
+    "@wormhole-foundation/sdk-cosmwasm-tokenbridge": "npm:3.12.0"
+    "@wormhole-foundation/sdk-definitions": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm-cctp": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm-core": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm-portico": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm-tbtc": "npm:3.12.0"
+    "@wormhole-foundation/sdk-evm-tokenbridge": "npm:3.12.0"
+    "@wormhole-foundation/sdk-solana": "npm:3.12.0"
+    "@wormhole-foundation/sdk-solana-cctp": "npm:3.12.0"
+    "@wormhole-foundation/sdk-solana-core": "npm:3.12.0"
+    "@wormhole-foundation/sdk-solana-tbtc": "npm:3.12.0"
+    "@wormhole-foundation/sdk-solana-tokenbridge": "npm:3.12.0"
+    "@wormhole-foundation/sdk-stacks": "npm:3.12.0"
+    "@wormhole-foundation/sdk-stacks-core": "npm:3.12.0"
+    "@wormhole-foundation/sdk-sui": "npm:3.12.0"
+    "@wormhole-foundation/sdk-sui-cctp": "npm:3.12.0"
+    "@wormhole-foundation/sdk-sui-core": "npm:3.12.0"
+    "@wormhole-foundation/sdk-sui-tokenbridge": "npm:3.12.0"
+  checksum: 10c0/2c12c63f51cc0b2ec88a5e56bd8bbaae7754c12294b2bacaf2e454518bf7ffb15deba5c91cdb6d0f2b31b50761f1e8ce106c4c2adb45a20fbc751b1d75fc1d2e
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -2912,6 +3838,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "abbrev@npm:^3.0.0":
   version: 3.0.1
   resolution: "abbrev@npm:3.0.1"
@@ -2920,6 +3847,16 @@ __metadata:
   linkType: hard
 
 "abitype@npm:1.1.0":
+=======
+"abbrev@npm:^4.0.0":
+  version: 4.0.0
+  resolution: "abbrev@npm:4.0.0"
+  checksum: 10c0/b4cc16935235e80702fc90192e349e32f8ef0ed151ef506aa78c81a7c455ec18375c4125414b99f84b2e055199d66383e787675f0bcd87da7a4dbd59f9eac1d5
+  languageName: node
+  linkType: hard
+
+"abitype@npm:1.1.0, abitype@npm:^1.0.9":
+>>>>>>> Stashed changes
   version: 1.1.0
   resolution: "abitype@npm:1.1.0"
   peerDependencies:
@@ -2934,6 +3871,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "abitype@npm:^1.0.9":
   version: 1.1.1
   resolution: "abitype@npm:1.1.1"
@@ -2949,6 +3887,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "acorn-walk@npm:^8.1.1":
   version: 8.3.4
   resolution: "acorn-walk@npm:8.3.4"
@@ -2975,9 +3915,15 @@ __metadata:
   linkType: hard
 
 "agent-base@npm:^7.1.0, agent-base@npm:^7.1.2":
+<<<<<<< Updated upstream
   version: 7.1.3
   resolution: "agent-base@npm:7.1.3"
   checksum: 10c0/6192b580c5b1d8fb399b9c62bf8343d76654c2dd62afcb9a52b2cf44a8b6ace1e3b704d3fe3547d91555c857d3df02603341ff2cb961b9cfe2b12f9f3c38ee11
+=======
+  version: 7.1.4
+  resolution: "agent-base@npm:7.1.4"
+  checksum: 10c0/c2c9ab7599692d594b6a161559ada307b7a624fa4c7b03e3afdb5a5e31cd0e53269115b620fcab024c5ac6a6f37fa5eb2e004f076ad30f5f7e6b8b671f7b35fe
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -3014,6 +3960,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "ansi-regex@npm:^5.0.1":
   version: 5.0.1
   resolution: "ansi-regex@npm:5.0.1"
@@ -3044,6 +3991,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "anymatch@npm:~3.1.2":
   version: 3.1.3
   resolution: "anymatch@npm:3.1.3"
@@ -3072,6 +4021,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "async-function@npm:^1.0.0":
   version: 1.0.0
   resolution: "async-function@npm:1.0.0"
@@ -3086,6 +4036,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "asynckit@npm:^0.4.0":
   version: 0.4.0
   resolution: "asynckit@npm:0.4.0"
@@ -3113,6 +4065,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "axios@npm:1.8.3":
   version: 1.8.3
   resolution: "axios@npm:1.8.3"
@@ -3121,10 +4074,8 @@ __metadata:
     form-data: "npm:^4.0.0"
     proxy-from-env: "npm:^1.1.0"
   checksum: 10c0/de75da9859adf0a6481d4af2b687db357a054d20f0d69b99d502b71dae3578326b1fdc0951dabaef769827484941cda93d3f89150bf9e04f05f6615fb8316780
-  languageName: node
-  linkType: hard
-
-"axios@npm:^1.4.0, axios@npm:^1.6.0, axios@npm:^1.6.7, axios@npm:^1.8.1, axios@npm:^1.8.4":
+=======
+"axios@npm:1.12.2":
   version: 1.12.2
   resolution: "axios@npm:1.12.2"
   dependencies:
@@ -3132,6 +4083,27 @@ __metadata:
     form-data: "npm:^4.0.4"
     proxy-from-env: "npm:^1.1.0"
   checksum: 10c0/80b063e318cf05cd33a4d991cea0162f3573481946f9129efb7766f38fde4c061c34f41a93a9f9521f02b7c9565ccbc197c099b0186543ac84a24580017adfed
+>>>>>>> Stashed changes
+  languageName: node
+  linkType: hard
+
+"axios@npm:^1.4.0, axios@npm:^1.6.0, axios@npm:^1.6.7, axios@npm:^1.8.1, axios@npm:^1.8.4":
+<<<<<<< Updated upstream
+  version: 1.12.2
+  resolution: "axios@npm:1.12.2"
+=======
+  version: 1.13.2
+  resolution: "axios@npm:1.13.2"
+>>>>>>> Stashed changes
+  dependencies:
+    follow-redirects: "npm:^1.15.6"
+    form-data: "npm:^4.0.4"
+    proxy-from-env: "npm:^1.1.0"
+<<<<<<< Updated upstream
+  checksum: 10c0/80b063e318cf05cd33a4d991cea0162f3573481946f9129efb7766f38fde4c061c34f41a93a9f9521f02b7c9565ccbc197c099b0186543ac84a24580017adfed
+=======
+  checksum: 10c0/e8a42e37e5568ae9c7a28c348db0e8cf3e43d06fcbef73f0048669edfe4f71219664da7b6cc991b0c0f01c28a48f037c515263cb79be1f1ae8ff034cd813867b
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -3143,8 +4115,13 @@ __metadata:
   linkType: hard
 
 "bare-addon-resolve@npm:^1.3.0":
+<<<<<<< Updated upstream
   version: 1.9.4
   resolution: "bare-addon-resolve@npm:1.9.4"
+=======
+  version: 1.9.6
+  resolution: "bare-addon-resolve@npm:1.9.6"
+>>>>>>> Stashed changes
   dependencies:
     bare-module-resolve: "npm:^1.10.0"
     bare-semver: "npm:^1.0.0"
@@ -3153,13 +4130,22 @@ __metadata:
   peerDependenciesMeta:
     bare-url:
       optional: true
+<<<<<<< Updated upstream
   checksum: 10c0/f461472fefff2c1a5f1a631bb409d2f3bddaf29d51d0ece6434df319935a8dbb6b4c25600d7524a0a8c09caf1bb3d262c4d9814ea3c7cb7925ad71f3af3d8574
+=======
+  checksum: 10c0/e937e8a850d25856562010e66e17e1d007733bd848a17503eba0b7169d1a4a2f42994f9351735fc8f2d17e2f0db7fa3cd932de50cd56ff1ba38607b8c26fa6e9
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
 "bare-module-resolve@npm:^1.10.0":
+<<<<<<< Updated upstream
   version: 1.11.1
   resolution: "bare-module-resolve@npm:1.11.1"
+=======
+  version: 1.12.0
+  resolution: "bare-module-resolve@npm:1.12.0"
+>>>>>>> Stashed changes
   dependencies:
     bare-semver: "npm:^1.0.0"
   peerDependencies:
@@ -3167,6 +4153,7 @@ __metadata:
   peerDependenciesMeta:
     bare-url:
       optional: true
+<<<<<<< Updated upstream
   checksum: 10c0/5d23dcfee29beeccc5afa42deba13b02b701f8e57ad18dd80374bbfd7a3f8311b1eb2cbe2bdd5bd6b2cb137decb9a589ef510142efb42031c95cb59bdd348e1e
   languageName: node
   linkType: hard
@@ -3184,10 +4171,14 @@ __metadata:
   dependencies:
     bare-os: "npm:^3.0.1"
   checksum: 10c0/56a3ca82a9f808f4976cb1188640ac206546ce0ddff582afafc7bd2a6a5b31c3bd16422653aec656eeada2830cfbaa433c6cbf6d6b4d9eba033d5e06d60d9a68
+=======
+  checksum: 10c0/e7d548fe56572c19906ee9928b5a46a1ae757d210602268a3bc8475199046e6629b1ee8874b062eafa74f1dbc9a6ec8f902dc992725eb6dc44f62f076948e1c0
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
 "bare-semver@npm:^1.0.0":
+<<<<<<< Updated upstream
   version: 1.0.1
   resolution: "bare-semver@npm:1.0.1"
   checksum: 10c0/60f19bdca641f619b7a9edd3f3122738c62a21d7c1327d9724a817b7745ac182439b1dea8a5c2ef01fadbf385d2719569083b012c587182fee7b7244b8da4b39
@@ -3200,6 +4191,11 @@ __metadata:
   dependencies:
     bare-path: "npm:^3.0.0"
   checksum: 10c0/21e81fc47596f23d7aa4a981f66a34edaa54b1c188318a7e93422af47ca3f4d2b70fc37dba990c68e6e5c97c3f17369e26f1f180315bda191c174f512962c8b0
+=======
+  version: 1.0.2
+  resolution: "bare-semver@npm:1.0.2"
+  checksum: 10c0/324a9906685ec458233b791417fe7c86450965fca3b03bb819716b00433739d431423c9d2d0480bfbb0b556f08948dd40459e2def4e0c1333acec72b352de5a8
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -3212,6 +4208,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
+=======
+"base-x@npm:^4.0.0":
+  version: 4.0.1
+  resolution: "base-x@npm:4.0.1"
+  checksum: 10c0/26a5a24105b27d94f21fa0640d5345620d758ab5d9269cf11828c502094d4f2fc5e84f3bfee63e9af29e83e0d3c97129264f1ac9653620b9bdab3f81d6aca881
+  languageName: node
+  linkType: hard
+
+>>>>>>> Stashed changes
 "base-x@npm:^5.0.0":
   version: 5.0.1
   resolution: "base-x@npm:5.0.1"
@@ -3272,9 +4278,15 @@ __metadata:
   linkType: hard
 
 "binary-layout@npm:^1.0.3":
+<<<<<<< Updated upstream
   version: 1.3.1
   resolution: "binary-layout@npm:1.3.1"
   checksum: 10c0/d3eb0e294a7151a3643b544008b467b945958d4600d2a0a29f0d3631b90cbec6702b1cdcb12b484be73aa5cae3954ebddc30cbc6c11d96c1c184edc5c787b13a
+=======
+  version: 1.3.2
+  resolution: "binary-layout@npm:1.3.2"
+  checksum: 10c0/f03a2be60774c09b6a37a784463bd95545fedeeb388e84281200f88b2c329d3d166983dfdf3b63e41f1ef82f55521c38785118fff78a36b5f26db4d6751cc985
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -3377,6 +4389,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "brace-expansion@npm:^2.0.1":
   version: 2.0.2
   resolution: "brace-expansion@npm:2.0.2"
@@ -3386,6 +4399,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "braces@npm:~3.0.2":
   version: 3.0.3
   resolution: "braces@npm:3.0.3"
@@ -3471,6 +4486,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "cacache@npm:^19.0.1":
   version: 19.0.1
   resolution: "cacache@npm:19.0.1"
@@ -3479,15 +4495,41 @@ __metadata:
     fs-minipass: "npm:^3.0.0"
     glob: "npm:^10.2.2"
     lru-cache: "npm:^10.0.1"
+=======
+"c32check@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "c32check@npm:2.0.0"
+  dependencies:
+    "@noble/hashes": "npm:^1.1.2"
+    base-x: "npm:^4.0.0"
+  checksum: 10c0/38c4aa092bb7a0bab48546343bcb0dac47af856e576f815f12ce303a12eb7131773bdfb25d15c2ae937cee7da4c24de864ca72ba509b0e76870e9f7b0372a3c0
+  languageName: node
+  linkType: hard
+
+"cacache@npm:^20.0.1":
+  version: 20.0.3
+  resolution: "cacache@npm:20.0.3"
+  dependencies:
+    "@npmcli/fs": "npm:^5.0.0"
+    fs-minipass: "npm:^3.0.0"
+    glob: "npm:^13.0.0"
+    lru-cache: "npm:^11.1.0"
+>>>>>>> Stashed changes
     minipass: "npm:^7.0.3"
     minipass-collect: "npm:^2.0.1"
     minipass-flush: "npm:^1.0.5"
     minipass-pipeline: "npm:^1.2.4"
     p-map: "npm:^7.0.2"
+<<<<<<< Updated upstream
     ssri: "npm:^12.0.0"
     tar: "npm:^7.4.3"
     unique-filename: "npm:^4.0.0"
   checksum: 10c0/01f2134e1bd7d3ab68be851df96c8d63b492b1853b67f2eecb2c37bb682d37cb70bb858a16f2f0554d3c0071be6dfe21456a1ff6fa4b7eed996570d6a25ffe9c
+=======
+    ssri: "npm:^13.0.0"
+    unique-filename: "npm:^5.0.0"
+  checksum: 10c0/c7da1ca694d20e8f8aedabd21dc11518f809a7d2b59aa76a1fc655db5a9e62379e465c157ddd2afe34b19230808882288effa6911b2de26a088a6d5645123462
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -3530,6 +4572,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
+=======
+"ccxt@npm:^4.5.22":
+  version: 4.5.24
+  resolution: "ccxt@npm:4.5.24"
+  dependencies:
+    ws: "npm:^8.8.1"
+  checksum: 10c0/a7d53b69389c886bf472c6d2dcd5d0a403a7ade2da9ff4b9608237578d309a833e77866f6638e69d4e9674b81b01de12f410ffc3be642b97cd33971cbb757250
+  languageName: node
+  linkType: hard
+
+>>>>>>> Stashed changes
 "chalk@npm:^5.3.0, chalk@npm:^5.4.1":
   version: 5.6.2
   resolution: "chalk@npm:5.6.2"
@@ -3564,6 +4618,7 @@ __metadata:
   linkType: hard
 
 "cipher-base@npm:^1.0.1, cipher-base@npm:^1.0.3":
+<<<<<<< Updated upstream
   version: 1.0.6
   resolution: "cipher-base@npm:1.0.6"
   dependencies:
@@ -3586,6 +4641,15 @@ __metadata:
   version: 1.1.4
   resolution: "color-name@npm:1.1.4"
   checksum: 10c0/a1a3f914156960902f46f7f56bc62effc6c94e84b2cae157a526b1c1f74b677a47ec602bf68a61abfa2b42d15b7c5651c6dbe72a43af720bc588dff885b10f95
+=======
+  version: 1.0.7
+  resolution: "cipher-base@npm:1.0.7"
+  dependencies:
+    inherits: "npm:^2.0.4"
+    safe-buffer: "npm:^5.2.1"
+    to-buffer: "npm:^1.2.2"
+  checksum: 10c0/53c5046a9d9b60c586479b8f13fde263c3f905e13f11e8e04c7a311ce399c91d9c3ec96642332e0de077d356e1014ee12bba96f74fbaad0de750f49122258836
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -3606,9 +4670,15 @@ __metadata:
   linkType: hard
 
 "commander@npm:^14.0.0":
+<<<<<<< Updated upstream
   version: 14.0.1
   resolution: "commander@npm:14.0.1"
   checksum: 10c0/64439c0651ddd01c1d0f48c8f08e97c18a0a1fa693879451f1203ad01132af2c2aa85da24cf0d8e098ab9e6dc385a756be670d2999a3c628ec745c3ec124587b
+=======
+  version: 14.0.2
+  resolution: "commander@npm:14.0.2"
+  checksum: 10c0/245abd1349dbad5414cb6517b7b5c584895c02c4f7836ff5395f301192b8566f9796c82d7bd6c92d07eba8775fe4df86602fca5d86d8d10bcc2aded1e21c2aeb
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -3627,9 +4697,22 @@ __metadata:
   linkType: hard
 
 "core-js-pure@npm:^3.38.0":
+<<<<<<< Updated upstream
   version: 3.45.1
   resolution: "core-js-pure@npm:3.45.1"
   checksum: 10c0/e1a31b0e1caee880d4fd93dbe4da34a1000fcd83ca1822f9aaa2433281807e21e4262fd474157d2b641da53b7cd465e744ba1c6dc146b1a00d57af44ec2e0d20
+=======
+  version: 3.47.0
+  resolution: "core-js-pure@npm:3.47.0"
+  checksum: 10c0/7eb5f897e532b33e6ea85ec2c60073fc2fe943e4543ec9903340450fc0f3b46b5b118d57d332e9f2c3d681a8b7b219a4cc64ccf548d933f6b79f754b682696dd
+  languageName: node
+  linkType: hard
+
+"core-util-is@npm:~1.0.0":
+  version: 1.0.3
+  resolution: "core-util-is@npm:1.0.3"
+  checksum: 10c0/90a0e40abbddfd7618f8ccd63a74d88deea94e77d0e8dbbea059fa7ebebb8fbb4e2909667fe26f3a467073de1a542ebe6ae4c73a73745ac5833786759cd906c9
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -3640,7 +4723,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "create-hash@npm:^1.1.0, create-hash@npm:^1.1.2":
+=======
+"create-hash@npm:^1.1.0, create-hash@npm:^1.2.0":
+>>>>>>> Stashed changes
   version: 1.2.0
   resolution: "create-hash@npm:1.2.0"
   dependencies:
@@ -3653,7 +4740,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "create-hmac@npm:1.1.7, create-hmac@npm:^1.1.4":
+=======
+"create-hmac@npm:1.1.7, create-hmac@npm:^1.1.7":
+>>>>>>> Stashed changes
   version: 1.1.7
   resolution: "create-hmac@npm:1.1.7"
   dependencies:
@@ -3683,6 +4774,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "cross-spawn@npm:^7.0.6":
   version: 7.0.6
   resolution: "cross-spawn@npm:7.0.6"
@@ -3694,6 +4786,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "crypto-hash@npm:^1.3.0":
   version: 1.3.0
   resolution: "crypto-hash@npm:1.3.0"
@@ -3722,6 +4816,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "debug@npm:4, debug@npm:^4.3.4":
   version: 4.4.1
   resolution: "debug@npm:4.4.1"
@@ -3735,6 +4830,9 @@ __metadata:
   linkType: hard
 
 "debug@npm:^4, debug@npm:^4.4.0":
+=======
+"debug@npm:4, debug@npm:^4, debug@npm:^4.3.4, debug@npm:^4.4.0":
+>>>>>>> Stashed changes
   version: 4.4.3
   resolution: "debug@npm:4.4.3"
   dependencies:
@@ -3823,6 +4921,10 @@ __metadata:
     borsh: "npm:^2.0.0"
     borsher: "npm:^4.0.0"
     bs58: "npm:^6.0.0"
+<<<<<<< Updated upstream
+=======
+    ccxt: "npm:^4.5.22"
+>>>>>>> Stashed changes
     dotenv: "npm:^16.5.0"
     ethers: "npm:^6.15.0"
     hono: "npm:^4.7.10"
@@ -3848,9 +4950,15 @@ __metadata:
   linkType: hard
 
 "dotenv@npm:^16.5.0":
+<<<<<<< Updated upstream
   version: 16.5.0
   resolution: "dotenv@npm:16.5.0"
   checksum: 10c0/5bc94c919fbd955bf0ba44d33922a1e93d1078e64a1db5c30faeded1d996e7a83c55332cb8ea4fae5a9ca4d0be44cbceb95c5811e70f9f095298df09d1997dd9
+=======
+  version: 16.6.1
+  resolution: "dotenv@npm:16.6.1"
+  checksum: 10c0/15ce56608326ea0d1d9414a5c8ee6dcf0fffc79d2c16422b4ac2268e7e2d76ff5a572d37ffe747c377de12005f14b3cc22361e79fc7f1061cce81f77d2c973dc
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -3865,6 +4973,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "eastasianwidth@npm:^0.2.0":
   version: 0.2.0
   resolution: "eastasianwidth@npm:0.2.0"
@@ -3872,6 +4981,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "elliptic@npm:^6.5.4, elliptic@npm:^6.5.7, elliptic@npm:^6.6.1":
   version: 6.6.1
   resolution: "elliptic@npm:6.6.1"
@@ -3887,6 +4998,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "emoji-regex@npm:^8.0.0":
   version: 8.0.0
   resolution: "emoji-regex@npm:8.0.0"
@@ -3901,6 +5013,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "encoding@npm:^0.1.13":
   version: 0.1.13
   resolution: "encoding@npm:0.1.13"
@@ -4015,7 +5129,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "ethers@npm:6.15.0, ethers@npm:^6.13.5, ethers@npm:^6.15.0, ethers@npm:^6.5.1":
+=======
+"ethers@npm:6.15.0":
+>>>>>>> Stashed changes
   version: 6.15.0
   resolution: "ethers@npm:6.15.0"
   dependencies:
@@ -4030,6 +5148,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
+=======
+"ethers@npm:^6.13.5, ethers@npm:^6.15.0, ethers@npm:^6.5.1":
+  version: 6.16.0
+  resolution: "ethers@npm:6.16.0"
+  dependencies:
+    "@adraffy/ens-normalize": "npm:1.10.1"
+    "@noble/curves": "npm:1.2.0"
+    "@noble/hashes": "npm:1.3.2"
+    "@types/node": "npm:22.7.5"
+    aes-js: "npm:4.0.0-beta.5"
+    tslib: "npm:2.7.0"
+    ws: "npm:8.17.1"
+  checksum: 10c0/65c0ff7016b1592b1961c3b68508902b89fc75e1ad025bab3a722df1b5699fd077551875a7285e65b2d0cfea9a85b2459bb84010a0fa4e4494d231848aee3a73
+  languageName: node
+  linkType: hard
+
+>>>>>>> Stashed changes
 "eventemitter3@npm:5.0.1, eventemitter3@npm:^5.0.1":
   version: 5.0.1
   resolution: "eventemitter3@npm:5.0.1"
@@ -4059,9 +5195,15 @@ __metadata:
   linkType: hard
 
 "exponential-backoff@npm:^3.1.1, exponential-backoff@npm:^3.1.2":
+<<<<<<< Updated upstream
   version: 3.1.2
   resolution: "exponential-backoff@npm:3.1.2"
   checksum: 10c0/d9d3e1eafa21b78464297df91f1776f7fbaa3d5e3f7f0995648ca5b89c069d17055033817348d9f4a43d1c20b0eab84f75af6991751e839df53e4dfd6f22e844
+=======
+  version: 3.1.3
+  resolution: "exponential-backoff@npm:3.1.3"
+  checksum: 10c0/77e3ae682b7b1f4972f563c6dbcd2b0d54ac679e62d5d32f3e5085feba20483cf28bd505543f520e287a56d4d55a28d7874299941faf637e779a1aa5994d1267
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -4079,15 +5221,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "fdir@npm:^6.4.4":
   version: 6.4.6
   resolution: "fdir@npm:6.4.6"
+=======
+"fdir@npm:^6.5.0":
+  version: 6.5.0
+  resolution: "fdir@npm:6.5.0"
+>>>>>>> Stashed changes
   peerDependencies:
     picomatch: ^3 || ^4
   peerDependenciesMeta:
     picomatch:
       optional: true
+<<<<<<< Updated upstream
   checksum: 10c0/45b559cff889934ebb8bc498351e5acba40750ada7e7d6bde197768d2fa67c149be8ae7f8ff34d03f4e1eb20f2764116e56440aaa2f6689e9a4aa7ef06acafe9
+=======
+  checksum: 10c0/e345083c4306b3aed6cb8ec551e26c36bab5c511e99ea4576a16750ddc8d3240e63826cc624f5ae17ad4dc82e68a253213b60d556c11bfad064b7607847ed07f
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -4127,12 +5279,21 @@ __metadata:
   linkType: hard
 
 "follow-redirects@npm:^1.15.6":
+<<<<<<< Updated upstream
   version: 1.15.9
   resolution: "follow-redirects@npm:1.15.9"
   peerDependenciesMeta:
     debug:
       optional: true
   checksum: 10c0/5829165bd112c3c0e82be6c15b1a58fa9dcfaede3b3c54697a82fe4a62dd5ae5e8222956b448d2f98e331525f05d00404aba7d696de9e761ef6e42fdc780244f
+=======
+  version: 1.15.11
+  resolution: "follow-redirects@npm:1.15.11"
+  peerDependenciesMeta:
+    debug:
+      optional: true
+  checksum: 10c0/d301f430542520a54058d4aeeb453233c564aaccac835d29d15e050beb33f339ad67d9bddbce01739c5dc46a6716dbe3d9d0d5134b1ca203effa11a7ef092343
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -4145,6 +5306,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "foreground-child@npm:^3.1.0":
   version: 3.3.1
   resolution: "foreground-child@npm:3.3.1"
@@ -4158,13 +5320,22 @@ __metadata:
 "form-data@npm:^4.0.0, form-data@npm:^4.0.4":
   version: 4.0.4
   resolution: "form-data@npm:4.0.4"
+=======
+"form-data@npm:^4.0.0, form-data@npm:^4.0.4":
+  version: 4.0.5
+  resolution: "form-data@npm:4.0.5"
+>>>>>>> Stashed changes
   dependencies:
     asynckit: "npm:^0.4.0"
     combined-stream: "npm:^1.0.8"
     es-set-tostringtag: "npm:^2.1.0"
     hasown: "npm:^2.0.2"
     mime-types: "npm:^2.1.12"
+<<<<<<< Updated upstream
   checksum: 10c0/373525a9a034b9d57073e55eab79e501a714ffac02e7a9b01be1c820780652b16e4101819785e1e18f8d98f0aee866cc654d660a435c378e16a72f2e7cac9695
+=======
+  checksum: 10c0/dd6b767ee0bbd6d84039db12a0fa5a2028160ffbfaba1800695713b46ae974a5f6e08b3356c3195137f8530dcd9dfcb5d5ae1eeff53d0db1e5aad863b619ce3b
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -4237,6 +5408,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "generator-function@npm:^2.0.0":
   version: 2.0.1
   resolution: "generator-function@npm:2.0.1"
@@ -4266,6 +5438,9 @@ __metadata:
   linkType: hard
 
 "get-intrinsic@npm:^1.2.6":
+=======
+"get-intrinsic@npm:^1.2.4, get-intrinsic@npm:^1.2.6, get-intrinsic@npm:^1.3.0":
+>>>>>>> Stashed changes
   version: 1.3.0
   resolution: "get-intrinsic@npm:1.3.0"
   dependencies:
@@ -4302,6 +5477,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "glob@npm:^10.2.2":
   version: 10.4.5
   resolution: "glob@npm:10.4.5"
@@ -4315,6 +5491,16 @@ __metadata:
   bin:
     glob: dist/esm/bin.mjs
   checksum: 10c0/19a9759ea77b8e3ca0a43c2f07ecddc2ad46216b786bb8f993c445aee80d345925a21e5280c7b7c6c59e860a0154b84e4b2b60321fea92cd3c56b4a7489f160e
+=======
+"glob@npm:^13.0.0":
+  version: 13.0.0
+  resolution: "glob@npm:13.0.0"
+  dependencies:
+    minimatch: "npm:^10.1.1"
+    minipass: "npm:^7.1.2"
+    path-scurry: "npm:^2.0.0"
+  checksum: 10c0/8e2f5821f3f7c312dd102e23a15b80c79e0837a9872784293ba2e15ec73b3f3749a49a42a31bfcb4e52c84820a474e92331c2eebf18819d20308f5c33876630a
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -4357,19 +5543,32 @@ __metadata:
   linkType: hard
 
 "gql.tada@npm:^1.8.13":
+<<<<<<< Updated upstream
   version: 1.8.13
   resolution: "gql.tada@npm:1.8.13"
   dependencies:
     "@0no-co/graphql.web": "npm:^1.0.5"
     "@0no-co/graphqlsp": "npm:^1.12.13"
     "@gql.tada/cli-utils": "npm:1.7.1"
+=======
+  version: 1.9.0
+  resolution: "gql.tada@npm:1.9.0"
+  dependencies:
+    "@0no-co/graphql.web": "npm:^1.0.5"
+    "@0no-co/graphqlsp": "npm:^1.12.13"
+    "@gql.tada/cli-utils": "npm:1.7.2"
+>>>>>>> Stashed changes
     "@gql.tada/internal": "npm:1.0.8"
   peerDependencies:
     typescript: ^5.0.0
   bin:
     gql-tada: bin/cli.js
     gql.tada: bin/cli.js
+<<<<<<< Updated upstream
   checksum: 10c0/d8163f0d0122bc8c0ef6df9cc52f2a8c86c4a34d95f09c2120e78514975461ab307ad97da01a1998a953c441080e617be9e2d1b5c5cd788a647fef96cb62f0a3
+=======
+  checksum: 10c0/0f16107253093c1fea4021a1c7c829906772ce685fb3f8ac74a0122a8b1b998dc1cecacfa3ea68dfd0beaa835c4a1095b8a275abf233a5002a6cbc75a9d6ce2a
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -4392,9 +5591,15 @@ __metadata:
   linkType: hard
 
 "graphql@npm:^15.5.0 || ^16.0.0 || ^17.0.0, graphql@npm:^16.10.0, graphql@npm:^16.11.0":
+<<<<<<< Updated upstream
   version: 16.11.0
   resolution: "graphql@npm:16.11.0"
   checksum: 10c0/124da7860a2292e9acf2fed0c71fc0f6a9b9ca865d390d112bdd563c1f474357141501c12891f4164fe984315764736ad67f705219c62f7580681d431a85db88
+=======
+  version: 16.12.0
+  resolution: "graphql@npm:16.12.0"
+  checksum: 10c0/b6fffa4e8a4e4a9933ebe85e7470b346dbf49050c1a482fac5e03e4a1a7bed2ecd3a4c97e29f04457af929464bc5e4f2aac991090c2f320111eef26e902a5c75
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -4430,6 +5635,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "hash-base@npm:^3.0.0":
   version: 3.1.0
   resolution: "hash-base@npm:3.1.0"
@@ -4438,6 +5644,17 @@ __metadata:
     readable-stream: "npm:^3.6.0"
     safe-buffer: "npm:^5.2.0"
   checksum: 10c0/663eabcf4173326fbb65a1918a509045590a26cc7e0964b754eef248d281305c6ec9f6b31cb508d02ffca383ab50028180ce5aefe013e942b44a903ac8dc80d0
+=======
+"hash-base@npm:^3.0.0, hash-base@npm:^3.1.2":
+  version: 3.1.2
+  resolution: "hash-base@npm:3.1.2"
+  dependencies:
+    inherits: "npm:^2.0.4"
+    readable-stream: "npm:^2.3.8"
+    safe-buffer: "npm:^5.2.1"
+    to-buffer: "npm:^1.2.1"
+  checksum: 10c0/f3b7fae1853b31340048dd659f40f5260ca6f3ff53b932f807f4ab701ee09039f6e9dbe1841723ff61e20f3f69d6387a352e4ccc5f997dedb0d375c7d88bc15e
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -4488,9 +5705,15 @@ __metadata:
   linkType: hard
 
 "hono@npm:^4.7.10":
+<<<<<<< Updated upstream
   version: 4.7.11
   resolution: "hono@npm:4.7.11"
   checksum: 10c0/2821471b09f2e9f7bab5ad7412e2e44df5f07b7098508d70dd6e368b933580f03a06c30e20dd764b53e0121e1b1ff2132ae98cffa7fd1b286e299f9054effd6a
+=======
+  version: 4.10.7
+  resolution: "hono@npm:4.10.7"
+  checksum: 10c0/11aec63ce11b0d635b7ecf24009ba2b694eac7a8ef8e3b7c1b2c7898dc6b39b7a6de1a8454608aade8c66685b016c0e5483b253d55431210a9116461f1a670ea
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -4590,6 +5813,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "inherits@npm:2, inherits@npm:^2.0.1, inherits@npm:^2.0.3, inherits@npm:^2.0.4":
   version: 2.0.4
   resolution: "inherits@npm:2.0.4"
@@ -4598,12 +5822,25 @@ __metadata:
   linkType: hard
 
 "inherits@npm:2.0.3":
+=======
+"inherits@npm:2, inherits@npm:2.0.3, inherits@npm:^2.0.1, inherits@npm:^2.0.3":
+>>>>>>> Stashed changes
   version: 2.0.3
   resolution: "inherits@npm:2.0.3"
   checksum: 10c0/6e56402373149ea076a434072671f9982f5fad030c7662be0332122fe6c0fa490acb3cc1010d90b6eff8d640b1167d77674add52dfd1bb85d545cf29e80e73e7
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
+=======
+"inherits@npm:^2.0.4, inherits@npm:~2.0.3":
+  version: 2.0.4
+  resolution: "inherits@npm:2.0.4"
+  checksum: 10c0/4e531f648b29039fb7426fb94075e6545faa1eb9fe83c29f0b6d9e7263aceb4289d2d4557db0d428188eeb449cc7c5e77b0a0b2c4e248ff2a65933a0dee49ef2
+  languageName: node
+  linkType: hard
+
+>>>>>>> Stashed changes
 "interpret@npm:^1.0.0":
   version: 1.4.0
   resolution: "interpret@npm:1.4.0"
@@ -4611,6 +5848,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "ip-address@npm:^9.0.5":
   version: 9.0.5
   resolution: "ip-address@npm:9.0.5"
@@ -4618,6 +5856,12 @@ __metadata:
     jsbn: "npm:1.1.0"
     sprintf-js: "npm:^1.1.3"
   checksum: 10c0/331cd07fafcb3b24100613e4b53e1a2b4feab11e671e655d46dc09ee233da5011284d09ca40c4ecbdfe1d0004f462958675c224a804259f2f78d2465a87824bc
+=======
+"ip-address@npm:^10.0.1":
+  version: 10.1.0
+  resolution: "ip-address@npm:10.1.0"
+  checksum: 10c0/0103516cfa93f6433b3bd7333fa876eb21263912329bfa47010af5e16934eeeff86f3d2ae700a3744a137839ddfad62b900c7a445607884a49b5d1e32a3d7566
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -4637,7 +5881,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "is-core-module@npm:^2.16.0":
+=======
+"is-core-module@npm:^2.16.1":
+>>>>>>> Stashed changes
   version: 2.16.1
   resolution: "is-core-module@npm:2.16.1"
   dependencies:
@@ -4653,6 +5901,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "is-fullwidth-code-point@npm:^3.0.0":
   version: 3.0.0
   resolution: "is-fullwidth-code-point@npm:3.0.0"
@@ -4660,6 +5909,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "is-glob@npm:^4.0.1, is-glob@npm:~4.0.1":
   version: 4.0.3
   resolution: "is-glob@npm:4.0.3"
@@ -4726,10 +5977,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "isexe@npm:^2.0.0":
   version: 2.0.0
   resolution: "isexe@npm:2.0.0"
   checksum: 10c0/228cfa503fadc2c31596ab06ed6aa82c9976eec2bfd83397e7eaf06d0ccf42cd1dfd6743bf9aeb01aebd4156d009994c5f76ea898d2832c1fe342da923ca457d
+=======
+"isarray@npm:~1.0.0":
+  version: 1.0.0
+  resolution: "isarray@npm:1.0.0"
+  checksum: 10c0/18b5be6669be53425f0b84098732670ed4e727e3af33bc7f948aac01782110eb9a18b3b329c5323bcdd3acdaae547ee077d3951317e7f133bff7105264b3003d
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -4758,6 +6016,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "jackspeak@npm:^3.1.2":
   version: 3.4.3
   resolution: "jackspeak@npm:3.4.3"
@@ -4771,6 +6030,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "jayson@npm:^3.4.4":
   version: 3.7.0
   resolution: "jayson@npm:3.7.0"
@@ -4851,6 +6112,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "jsbn@npm:1.1.0":
   version: 1.1.0
   resolution: "jsbn@npm:1.1.0"
@@ -4858,6 +6120,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "json-bigint@npm:^1.0.0":
   version: 1.0.0
   resolution: "json-bigint@npm:1.0.0"
@@ -4930,6 +6194,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
+=======
+"lodash.clonedeep@npm:^4.5.0":
+  version: 4.5.0
+  resolution: "lodash.clonedeep@npm:4.5.0"
+  checksum: 10c0/2caf0e4808f319d761d2939ee0642fa6867a4bbf2cfce43276698828380756b99d4c4fa226d881655e6ac298dd453fe12a5ec8ba49861777759494c534936985
+  languageName: node
+  linkType: hard
+
+>>>>>>> Stashed changes
 "lodash@npm:^4.17.20":
   version: 4.17.21
   resolution: "lodash@npm:4.17.21"
@@ -4978,6 +6252,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "lru-cache@npm:^10.0.1, lru-cache@npm:^10.2.0":
   version: 10.4.3
   resolution: "lru-cache@npm:10.4.3"
@@ -4989,6 +6264,12 @@ __metadata:
   version: 11.2.2
   resolution: "lru-cache@npm:11.2.2"
   checksum: 10c0/72d7831bbebc85e2bdefe01047ee5584db69d641c48d7a509e86f66f6ee111b30af7ec3bd68a967d47b69a4b1fa8bbf3872630bd06a63b6735e6f0a5f1c8e83d
+=======
+"lru-cache@npm:^11, lru-cache@npm:^11.0.0, lru-cache@npm:^11.1.0, lru-cache@npm:^11.2.1":
+  version: 11.2.4
+  resolution: "lru-cache@npm:11.2.4"
+  checksum: 10c0/4a24f9b17537619f9144d7b8e42cd5a225efdfd7076ebe7b5e7dc02b860a818455201e67fbf000765233fe7e339d3c8229fc815e9b58ee6ede511e07608c19b2
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5006,6 +6287,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "make-fetch-happen@npm:^14.0.3":
   version: 14.0.3
   resolution: "make-fetch-happen@npm:14.0.3"
@@ -5022,6 +6304,24 @@ __metadata:
     promise-retry: "npm:^2.0.1"
     ssri: "npm:^12.0.0"
   checksum: 10c0/c40efb5e5296e7feb8e37155bde8eb70bc57d731b1f7d90e35a092fde403d7697c56fb49334d92d330d6f1ca29a98142036d6480a12681133a0a1453164cb2f0
+=======
+"make-fetch-happen@npm:^15.0.0":
+  version: 15.0.3
+  resolution: "make-fetch-happen@npm:15.0.3"
+  dependencies:
+    "@npmcli/agent": "npm:^4.0.0"
+    cacache: "npm:^20.0.1"
+    http-cache-semantics: "npm:^4.1.1"
+    minipass: "npm:^7.0.2"
+    minipass-fetch: "npm:^5.0.0"
+    minipass-flush: "npm:^1.0.5"
+    minipass-pipeline: "npm:^1.2.4"
+    negotiator: "npm:^1.0.0"
+    proc-log: "npm:^6.0.0"
+    promise-retry: "npm:^2.0.1"
+    ssri: "npm:^13.0.0"
+  checksum: 10c0/525f74915660be60b616bcbd267c4a5b59481b073ba125e45c9c3a041bb1a47a2bd0ae79d028eb6f5f95bf9851a4158423f5068539c3093621abb64027e8e461
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5100,6 +6400,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
+=======
+"minimatch@npm:^10.1.1":
+  version: 10.1.1
+  resolution: "minimatch@npm:10.1.1"
+  dependencies:
+    "@isaacs/brace-expansion": "npm:^5.0.0"
+  checksum: 10c0/c85d44821c71973d636091fddbfbffe62370f5ee3caf0241c5b60c18cd289e916200acb2361b7e987558cd06896d153e25d505db9fc1e43e6b4b6752e2702902
+  languageName: node
+  linkType: hard
+
+>>>>>>> Stashed changes
 "minimatch@npm:^3.1.1, minimatch@npm:^3.1.2":
   version: 3.1.2
   resolution: "minimatch@npm:3.1.2"
@@ -5109,6 +6421,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "minimatch@npm:^9.0.4":
   version: 9.0.5
   resolution: "minimatch@npm:9.0.5"
@@ -5118,6 +6431,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "minimist@npm:^1.2.3":
   version: 1.2.8
   resolution: "minimist@npm:1.2.8"
@@ -5134,9 +6449,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "minipass-fetch@npm:^4.0.0":
   version: 4.0.1
   resolution: "minipass-fetch@npm:4.0.1"
+=======
+"minipass-fetch@npm:^5.0.0":
+  version: 5.0.0
+  resolution: "minipass-fetch@npm:5.0.0"
+>>>>>>> Stashed changes
   dependencies:
     encoding: "npm:^0.1.13"
     minipass: "npm:^7.0.3"
@@ -5145,7 +6466,11 @@ __metadata:
   dependenciesMeta:
     encoding:
       optional: true
+<<<<<<< Updated upstream
   checksum: 10c0/a3147b2efe8e078c9bf9d024a0059339c5a09c5b1dded6900a219c218cc8b1b78510b62dae556b507304af226b18c3f1aeb1d48660283602d5b6586c399eed5c
+=======
+  checksum: 10c0/9443aab5feab190972f84b64116e54e58dd87a58e62399cae0a4a7461b80568281039b7c3a38ba96453431ebc799d1e26999e548540156216729a4967cd5ef06
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5185,13 +6510,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "minipass@npm:^5.0.0 || ^6.0.2 || ^7.0.0, minipass@npm:^7.0.2, minipass@npm:^7.0.3, minipass@npm:^7.0.4, minipass@npm:^7.1.2":
+=======
+"minipass@npm:^7.0.2, minipass@npm:^7.0.3, minipass@npm:^7.0.4, minipass@npm:^7.1.2":
+>>>>>>> Stashed changes
   version: 7.1.2
   resolution: "minipass@npm:7.1.2"
   checksum: 10c0/b0fd20bb9fb56e5fa9a8bfac539e8915ae07430a619e4b86ff71f5fc757ef3924b23b2c4230393af1eda647ed3d75739e4e0acb250a6b1eb277cf7f8fe449557
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "minizlib@npm:^3.0.1":
   version: 3.0.2
   resolution: "minizlib@npm:3.0.2"
@@ -5207,6 +6537,14 @@ __metadata:
   bin:
     mkdirp: dist/cjs/src/bin.js
   checksum: 10c0/9f2b975e9246351f5e3a40dcfac99fcd0baa31fbfab615fe059fb11e51f10e4803c63de1f384c54d656e4db31d000e4767e9ef076a22e12a641357602e31d57d
+=======
+"minizlib@npm:^3.0.1, minizlib@npm:^3.1.0":
+  version: 3.1.0
+  resolution: "minizlib@npm:3.1.0"
+  dependencies:
+    minipass: "npm:^7.1.2"
+  checksum: 10c0/5aad75ab0090b8266069c9aabe582c021ae53eb33c6c691054a13a45db3b4f91a7fb1bd79151e6b4e9e9a86727b522527c0a06ec7d45206b745d54cd3097bcec
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5325,9 +6663,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "node-fetch@npm:2, node-fetch@npm:^2.7.0":
   version: 2.7.0
   resolution: "node-fetch@npm:2.7.0"
+=======
+"node-fetch@npm:2, node-fetch@npm:2.6.7":
+  version: 2.6.7
+  resolution: "node-fetch@npm:2.6.7"
+>>>>>>> Stashed changes
   dependencies:
     whatwg-url: "npm:^5.0.0"
   peerDependencies:
@@ -5335,6 +6679,7 @@ __metadata:
   peerDependenciesMeta:
     encoding:
       optional: true
+<<<<<<< Updated upstream
   checksum: 10c0/b55786b6028208e6fbe594ccccc213cab67a72899c9234eb59dba51062a299ea853210fcf526998eaa2867b0963ad72338824450905679ff0fa304b8c5093ae8
   languageName: node
   linkType: hard
@@ -5342,6 +6687,15 @@ __metadata:
 "node-fetch@npm:2.6.7":
   version: 2.6.7
   resolution: "node-fetch@npm:2.6.7"
+=======
+  checksum: 10c0/fcae80f5ac52fbf5012f5e19df2bd3915e67d3b3ad51cb5942943df2238d32ba15890fecabd0e166876a9f98a581ab50f3f10eb942b09405c49ef8da36b826c7
+  languageName: node
+  linkType: hard
+
+"node-fetch@npm:^2.7.0":
+  version: 2.7.0
+  resolution: "node-fetch@npm:2.7.0"
+>>>>>>> Stashed changes
   dependencies:
     whatwg-url: "npm:^5.0.0"
   peerDependencies:
@@ -5349,7 +6703,11 @@ __metadata:
   peerDependenciesMeta:
     encoding:
       optional: true
+<<<<<<< Updated upstream
   checksum: 10c0/fcae80f5ac52fbf5012f5e19df2bd3915e67d3b3ad51cb5942943df2238d32ba15890fecabd0e166876a9f98a581ab50f3f10eb942b09405c49ef8da36b826c7
+=======
+  checksum: 10c0/b55786b6028208e6fbe594ccccc213cab67a72899c9234eb59dba51062a299ea853210fcf526998eaa2867b0963ad72338824450905679ff0fa304b8c5093ae8
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5376,12 +6734,18 @@ __metadata:
   linkType: hard
 
 "node-gyp@npm:latest":
+<<<<<<< Updated upstream
   version: 11.2.0
   resolution: "node-gyp@npm:11.2.0"
+=======
+  version: 12.1.0
+  resolution: "node-gyp@npm:12.1.0"
+>>>>>>> Stashed changes
   dependencies:
     env-paths: "npm:^2.2.0"
     exponential-backoff: "npm:^3.1.1"
     graceful-fs: "npm:^4.2.6"
+<<<<<<< Updated upstream
     make-fetch-happen: "npm:^14.0.3"
     nopt: "npm:^8.0.0"
     proc-log: "npm:^5.0.0"
@@ -5392,12 +6756,29 @@ __metadata:
   bin:
     node-gyp: bin/node-gyp.js
   checksum: 10c0/bd8d8c76b06be761239b0c8680f655f6a6e90b48e44d43415b11c16f7e8c15be346fba0cbf71588c7cdfb52c419d928a7d3db353afc1d952d19756237d8f10b9
+=======
+    make-fetch-happen: "npm:^15.0.0"
+    nopt: "npm:^9.0.0"
+    proc-log: "npm:^6.0.0"
+    semver: "npm:^7.3.5"
+    tar: "npm:^7.5.2"
+    tinyglobby: "npm:^0.2.12"
+    which: "npm:^6.0.0"
+  bin:
+    node-gyp: bin/node-gyp.js
+  checksum: 10c0/f43efea8aaf0beb6b2f6184e533edad779b2ae38062953e21951f46221dd104006cc574154f2ad4a135467a5aae92c49e84ef289311a82e08481c5df0e8dc495
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
 "nodemon@npm:^3.1.10":
+<<<<<<< Updated upstream
   version: 3.1.10
   resolution: "nodemon@npm:3.1.10"
+=======
+  version: 3.1.11
+  resolution: "nodemon@npm:3.1.11"
+>>>>>>> Stashed changes
   dependencies:
     chokidar: "npm:^3.5.2"
     debug: "npm:^4"
@@ -5411,6 +6792,7 @@ __metadata:
     undefsafe: "npm:^2.0.5"
   bin:
     nodemon: bin/nodemon.js
+<<<<<<< Updated upstream
   checksum: 10c0/95b64d647f2c22e85e375b250517b0a4b32c2d2392ad898444e331f70d6b1ab43b17f53a8a1d68d5879ab8401fc6cd6e26f0d2a8736240984f6b5a8435b407c0
   languageName: node
   linkType: hard
@@ -5423,6 +6805,20 @@ __metadata:
   bin:
     nopt: bin/nopt.js
   checksum: 10c0/62e9ea70c7a3eb91d162d2c706b6606c041e4e7b547cbbb48f8b3695af457dd6479904d7ace600856bf923dd8d1ed0696f06195c8c20f02ac87c1da0e1d315ef
+=======
+  checksum: 10c0/f3c17897146f680eaf93f5e1f53b1fd4acbd61e4f7526ec6cbcc993d1c14cee8c722c41b30aa8b101447f672d38e6d7b17c97e77540df191d724826bb16ce474
+  languageName: node
+  linkType: hard
+
+"nopt@npm:^9.0.0":
+  version: 9.0.0
+  resolution: "nopt@npm:9.0.0"
+  dependencies:
+    abbrev: "npm:^4.0.0"
+  bin:
+    nopt: bin/nopt.js
+  checksum: 10c0/1822eb6f9b020ef6f7a7516d7b64a8036e09666ea55ac40416c36e4b2b343122c3cff0e2f085675f53de1d2db99a2a89a60ccea1d120bcd6a5347bf6ceb4a7fd
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5519,6 +6915,7 @@ __metadata:
   linkType: hard
 
 "p-map@npm:^7.0.2":
+<<<<<<< Updated upstream
   version: 7.0.3
   resolution: "p-map@npm:7.0.3"
   checksum: 10c0/46091610da2b38ce47bcd1d8b4835a6fa4e832848a6682cf1652bc93915770f4617afc844c10a77d1b3e56d2472bb2d5622353fa3ead01a7f42b04fc8e744a5c
@@ -5529,6 +6926,11 @@ __metadata:
   version: 1.0.1
   resolution: "package-json-from-dist@npm:1.0.1"
   checksum: 10c0/62ba2785eb655fec084a257af34dbe24292ab74516d6aecef97ef72d4897310bc6898f6c85b5cd22770eaa1ce60d55a0230e150fb6a966e3ecd6c511e23d164b
+=======
+  version: 7.0.4
+  resolution: "p-map@npm:7.0.4"
+  checksum: 10c0/a5030935d3cb2919d7e89454d1ce82141e6f9955413658b8c9403cfe379283770ed3048146b44cde168aa9e8c716505f196d5689db0ae3ce9a71521a2fef3abd
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5546,6 +6948,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "path-key@npm:^3.1.0":
   version: 3.1.1
   resolution: "path-key@npm:3.1.1"
@@ -5553,6 +6956,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "path-parse@npm:^1.0.7":
   version: 1.0.7
   resolution: "path-parse@npm:1.0.7"
@@ -5560,6 +6965,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "path-scurry@npm:^1.11.1":
   version: 1.11.1
   resolution: "path-scurry@npm:1.11.1"
@@ -5567,10 +6973,20 @@ __metadata:
     lru-cache: "npm:^10.2.0"
     minipass: "npm:^5.0.0 || ^6.0.2 || ^7.0.0"
   checksum: 10c0/32a13711a2a505616ae1cc1b5076801e453e7aae6ac40ab55b388bb91b9d0547a52f5aaceff710ea400205f18691120d4431e520afbe4266b836fadede15872d
+=======
+"path-scurry@npm:^2.0.0":
+  version: 2.0.1
+  resolution: "path-scurry@npm:2.0.1"
+  dependencies:
+    lru-cache: "npm:^11.0.0"
+    minipass: "npm:^7.1.2"
+  checksum: 10c0/2a16ed0e81fbc43513e245aa5763354e25e787dab0d539581a6c3f0f967461a159ed6236b2559de23aa5b88e7dc32b469b6c47568833dd142a4b24b4f5cd2620
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
 "pbkdf2@npm:^3.0.9":
+<<<<<<< Updated upstream
   version: 3.1.2
   resolution: "pbkdf2@npm:3.1.2"
   dependencies:
@@ -5580,6 +6996,18 @@ __metadata:
     safe-buffer: "npm:^5.0.1"
     sha.js: "npm:^2.4.8"
   checksum: 10c0/5a30374e87d33fa080a92734d778cf172542cc7e41b96198c4c88763997b62d7850de3fbda5c3111ddf79805ee7c1da7046881c90ac4920b5e324204518b05fd
+=======
+  version: 3.1.5
+  resolution: "pbkdf2@npm:3.1.5"
+  dependencies:
+    create-hash: "npm:^1.2.0"
+    create-hmac: "npm:^1.1.7"
+    ripemd160: "npm:^2.0.3"
+    safe-buffer: "npm:^5.2.1"
+    sha.js: "npm:^2.4.12"
+    to-buffer: "npm:^1.2.1"
+  checksum: 10c0/ea42e8695e49417eefabb19a08ab19a602cc6cc72d2df3f109c39309600230dee3083a6f678d5d42fe035d6ae780038b80ace0e68f9792ee2839bf081fe386f3
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5590,10 +7018,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "picomatch@npm:^4.0.2":
   version: 4.0.2
   resolution: "picomatch@npm:4.0.2"
   checksum: 10c0/7c51f3ad2bb42c776f49ebf964c644958158be30d0a510efd5a395e8d49cb5acfed5b82c0c5b365523ce18e6ab85013c9ebe574f60305892ec3fa8eee8304ccc
+=======
+"picomatch@npm:^4.0.3":
+  version: 4.0.3
+  resolution: "picomatch@npm:4.0.3"
+  checksum: 10c0/9582c951e95eebee5434f59e426cddd228a7b97a0161a375aed4be244bd3fe8e3a31b846808ea14ef2c8a2527a6eeab7b3946a67d5979e81694654f939473ae2
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5611,10 +7046,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "proc-log@npm:^5.0.0":
   version: 5.0.0
   resolution: "proc-log@npm:5.0.0"
   checksum: 10c0/bbe5edb944b0ad63387a1d5b1911ae93e05ce8d0f60de1035b218cdcceedfe39dbd2c697853355b70f1a090f8f58fe90da487c85216bf9671f9499d1a897e9e3
+=======
+"proc-log@npm:^6.0.0":
+  version: 6.1.0
+  resolution: "proc-log@npm:6.1.0"
+  checksum: 10c0/4f178d4062733ead9d71a9b1ab24ebcecdfe2250916a5b1555f04fe2eda972a0ec76fbaa8df1ad9c02707add6749219d118a4fc46dc56bdfe4dde4b47d80bb82
+  languageName: node
+  linkType: hard
+
+"process-nextick-args@npm:~2.0.0":
+  version: 2.0.1
+  resolution: "process-nextick-args@npm:2.0.1"
+  checksum: 10c0/bec089239487833d46b59d80327a1605e1c5287eaad770a291add7f45fda1bb5e28b38e0e061add0a1d0ee0984788ce74fa394d345eed1c420cacf392c554367
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5707,9 +7156,15 @@ __metadata:
   linkType: hard
 
 "pvutils@npm:^1.1.3":
+<<<<<<< Updated upstream
   version: 1.1.3
   resolution: "pvutils@npm:1.1.3"
   checksum: 10c0/23489e6b3c76b6afb6964a20f891d6bef092939f401c78bba186b2bfcdc7a13904a0af0a78f7933346510f8c1228d5ab02d3c80e968fd84d3c76ff98d8ec9aac
+=======
+  version: 1.1.5
+  resolution: "pvutils@npm:1.1.5"
+  checksum: 10c0/e968b07b78a58fec9377fe7aa6342c8cfa21c8fb4afc4e51e1489bd42bec6dc71b8a52541d0aede0aea17adec7ca3f89f29f56efdc31d0083cc02e9bb5721bcf
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5729,6 +7184,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
+=======
+"readable-stream@npm:^2.3.8":
+  version: 2.3.8
+  resolution: "readable-stream@npm:2.3.8"
+  dependencies:
+    core-util-is: "npm:~1.0.0"
+    inherits: "npm:~2.0.3"
+    isarray: "npm:~1.0.0"
+    process-nextick-args: "npm:~2.0.0"
+    safe-buffer: "npm:~5.1.1"
+    string_decoder: "npm:~1.1.1"
+    util-deprecate: "npm:~1.0.1"
+  checksum: 10c0/7efdb01f3853bc35ac62ea25493567bf588773213f5f4a79f9c365e1ad13bab845ac0dae7bc946270dc40c3929483228415e92a3fc600cc7e4548992f41ee3fa
+  languageName: node
+  linkType: hard
+
+>>>>>>> Stashed changes
 "readable-stream@npm:^3.6.0":
   version: 3.6.2
   resolution: "readable-stream@npm:3.6.2"
@@ -5788,38 +7261,68 @@ __metadata:
   linkType: hard
 
 "require-addon@npm:^1.1.0":
+<<<<<<< Updated upstream
   version: 1.1.0
   resolution: "require-addon@npm:1.1.0"
   dependencies:
     bare-addon-resolve: "npm:^1.3.0"
     bare-url: "npm:^2.1.0"
   checksum: 10c0/03e952b51391a41ac77ef860a1138e6e8c22d457ecd27b0e4db8393fb43a320a265f5c9768f76964a19dabe18c5d099c026eaaa75a0d20389d2f19a904fccd79
+=======
+  version: 1.2.0
+  resolution: "require-addon@npm:1.2.0"
+  dependencies:
+    bare-addon-resolve: "npm:^1.3.0"
+  checksum: 10c0/70581e83fa58f2b3599ae42a19b451ef764a208ee911a2676bd83f161b5aac529408a37f9485a1c55062813ee79f004244a4b769143f8ffd142884b8dd5e6171
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
 "resolve@npm:^1.1.6":
+<<<<<<< Updated upstream
   version: 1.22.10
   resolution: "resolve@npm:1.22.10"
   dependencies:
     is-core-module: "npm:^2.16.0"
+=======
+  version: 1.22.11
+  resolution: "resolve@npm:1.22.11"
+  dependencies:
+    is-core-module: "npm:^2.16.1"
+>>>>>>> Stashed changes
     path-parse: "npm:^1.0.7"
     supports-preserve-symlinks-flag: "npm:^1.0.0"
   bin:
     resolve: bin/resolve
+<<<<<<< Updated upstream
   checksum: 10c0/8967e1f4e2cc40f79b7e080b4582b9a8c5ee36ffb46041dccb20e6461161adf69f843b43067b4a375de926a2cd669157e29a29578191def399dd5ef89a1b5203
+=======
+  checksum: 10c0/f657191507530f2cbecb5815b1ee99b20741ea6ee02a59c57028e9ec4c2c8d7681afcc35febbd554ac0ded459db6f2d8153382c53a2f266cee2575e512674409
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
 "resolve@patch:resolve@npm%3A^1.1.6#optional!builtin<compat/resolve>":
+<<<<<<< Updated upstream
   version: 1.22.10
   resolution: "resolve@patch:resolve@npm%3A1.22.10#optional!builtin<compat/resolve>::version=1.22.10&hash=c3c19d"
   dependencies:
     is-core-module: "npm:^2.16.0"
+=======
+  version: 1.22.11
+  resolution: "resolve@patch:resolve@npm%3A1.22.11#optional!builtin<compat/resolve>::version=1.22.11&hash=c3c19d"
+  dependencies:
+    is-core-module: "npm:^2.16.1"
+>>>>>>> Stashed changes
     path-parse: "npm:^1.0.7"
     supports-preserve-symlinks-flag: "npm:^1.0.0"
   bin:
     resolve: bin/resolve
+<<<<<<< Updated upstream
   checksum: 10c0/52a4e505bbfc7925ac8f4cd91fd8c4e096b6a89728b9f46861d3b405ac9a1ccf4dcbf8befb4e89a2e11370dacd0160918163885cbc669369590f2f31f4c58939
+=======
+  checksum: 10c0/ee5b182f2e37cb1165465e58c6abc797fec0a80b5ba3231607beb4677db0c9291ac010c47cf092b6daa2b7f518d69a0e21888e7e2b633f68d501a874212a8c63
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5830,6 +7333,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "ripemd160@npm:^2.0.0, ripemd160@npm:^2.0.1":
   version: 2.0.2
   resolution: "ripemd160@npm:2.0.2"
@@ -5837,6 +7341,15 @@ __metadata:
     hash-base: "npm:^3.0.0"
     inherits: "npm:^2.0.1"
   checksum: 10c0/f6f0df78817e78287c766687aed4d5accbebc308a8e7e673fb085b9977473c1f139f0c5335d353f172a915bb288098430755d2ad3c4f30612f4dd0c901cd2c3a
+=======
+"ripemd160@npm:^2.0.0, ripemd160@npm:^2.0.1, ripemd160@npm:^2.0.3":
+  version: 2.0.3
+  resolution: "ripemd160@npm:2.0.3"
+  dependencies:
+    hash-base: "npm:^3.1.2"
+    inherits: "npm:^2.0.4"
+  checksum: 10c0/3f472fb453241cfe692a77349accafca38dbcdc9d96d5848c088b2932ba41eb968630ecff7b175d291c7487a4945aee5a81e30c064d1f94e36070f7e0c37ed6c
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5868,8 +7381,13 @@ __metadata:
   linkType: hard
 
 "rpc-websockets@npm:^9.0.2":
+<<<<<<< Updated upstream
   version: 9.2.0
   resolution: "rpc-websockets@npm:9.2.0"
+=======
+  version: 9.3.2
+  resolution: "rpc-websockets@npm:9.3.2"
+>>>>>>> Stashed changes
   dependencies:
     "@swc/helpers": "npm:^0.5.11"
     "@types/uuid": "npm:^8.3.4"
@@ -5885,11 +7403,19 @@ __metadata:
       optional: true
     utf-8-validate:
       optional: true
+<<<<<<< Updated upstream
   checksum: 10c0/147a7d9e0a67bb98ff962107fc855c2b321faeafd25b16c03c0c6bf49c1d4d18c62ca35cb5b3cf307b8a2ddec9121bc74c6415e47a436bd991907d20781606b9
   languageName: node
   linkType: hard
 
 "rxjs@npm:7.8.1":
+=======
+  checksum: 10c0/f0fed4076ae6edf116d5b3378a83acab0c5b066dbd2731b9a91d71afcc669e35b4fa2889512df522a80fa0a8ac1f8182bd253d601aef82ec1ffb05c9ffab1b59
+  languageName: node
+  linkType: hard
+
+"rxjs@npm:7.8.1, rxjs@npm:^7.4.0":
+>>>>>>> Stashed changes
   version: 7.8.1
   resolution: "rxjs@npm:7.8.1"
   dependencies:
@@ -5898,7 +7424,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "rxjs@npm:7.8.2, rxjs@npm:^7.4.0":
+=======
+"rxjs@npm:7.8.2":
+>>>>>>> Stashed changes
   version: 7.8.2
   resolution: "rxjs@npm:7.8.2"
   dependencies:
@@ -5907,13 +7437,27 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "safe-buffer@npm:^5.0.1, safe-buffer@npm:^5.1.0, safe-buffer@npm:^5.1.2, safe-buffer@npm:^5.2.0, safe-buffer@npm:^5.2.1, safe-buffer@npm:~5.2.0":
+=======
+"safe-buffer@npm:^5.0.1, safe-buffer@npm:^5.1.0, safe-buffer@npm:^5.1.2, safe-buffer@npm:^5.2.1, safe-buffer@npm:~5.2.0":
+>>>>>>> Stashed changes
   version: 5.2.1
   resolution: "safe-buffer@npm:5.2.1"
   checksum: 10c0/6501914237c0a86e9675d4e51d89ca3c21ffd6a31642efeba25ad65720bce6921c9e7e974e5be91a786b25aa058b5303285d3c15dbabf983a919f5f630d349f3
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
+=======
+"safe-buffer@npm:~5.1.0, safe-buffer@npm:~5.1.1":
+  version: 5.1.2
+  resolution: "safe-buffer@npm:5.1.2"
+  checksum: 10c0/780ba6b5d99cc9a40f7b951d47152297d0e260f0df01472a1b99d4889679a4b94a13d644f7dbc4f022572f09ae9005fa2fbb93bbbd83643316f365a3e9a45b21
+  languageName: node
+  linkType: hard
+
+>>>>>>> Stashed changes
 "safer-buffer@npm:>= 2.1.2 < 3.0.0":
   version: 2.1.2
   resolution: "safer-buffer@npm:2.1.2"
@@ -5955,11 +7499,19 @@ __metadata:
   linkType: hard
 
 "semver@npm:^7.3.5, semver@npm:^7.5.3":
+<<<<<<< Updated upstream
   version: 7.7.2
   resolution: "semver@npm:7.7.2"
   bin:
     semver: bin/semver.js
   checksum: 10c0/aca305edfbf2383c22571cb7714f48cadc7ac95371b4b52362fb8eeffdfbc0de0669368b82b2b15978f8848f01d7114da65697e56cd8c37b0dab8c58e543f9ea
+=======
+  version: 7.7.3
+  resolution: "semver@npm:7.7.3"
+  bin:
+    semver: bin/semver.js
+  checksum: 10c0/4afe5c986567db82f44c8c6faef8fe9df2a9b1d98098fc1721f57c696c4c21cebd572f297fc21002f81889492345b8470473bc6f4aff5fb032a6ea59ea2bc45e
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -5984,7 +7536,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "sha.js@npm:^2.3.6":
+=======
+"sha.js@npm:^2.3.6, sha.js@npm:^2.4.0, sha.js@npm:^2.4.12, sha.js@npm:^2.4.8":
+>>>>>>> Stashed changes
   version: 2.4.12
   resolution: "sha.js@npm:2.4.12"
   dependencies:
@@ -5997,6 +7553,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "sha.js@npm:^2.4.0, sha.js@npm:^2.4.8":
   version: 2.4.11
   resolution: "sha.js@npm:2.4.11"
@@ -6025,6 +7582,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "shelljs@npm:^0.8.5":
   version: 0.8.5
   resolution: "shelljs@npm:0.8.5"
@@ -6050,6 +7609,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "signal-exit@npm:^4.0.1":
   version: 4.1.0
   resolution: "signal-exit@npm:4.1.0"
@@ -6057,6 +7617,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "simple-update-notifier@npm:^2.0.0":
   version: 2.0.0
   resolution: "simple-update-notifier@npm:2.0.0"
@@ -6106,12 +7668,21 @@ __metadata:
   linkType: hard
 
 "socks@npm:^2.8.3":
+<<<<<<< Updated upstream
   version: 2.8.5
   resolution: "socks@npm:2.8.5"
   dependencies:
     ip-address: "npm:^9.0.5"
     smart-buffer: "npm:^4.2.0"
   checksum: 10c0/e427d0eb0451cfd04e20b9156ea8c0e9b5e38a8d70f21e55c30fbe4214eda37cfc25d782c63f9adc5fbdad6d062a0f127ef2cefc9a44b6fee2b9ea5d1ed10827
+=======
+  version: 2.8.7
+  resolution: "socks@npm:2.8.7"
+  dependencies:
+    ip-address: "npm:^10.0.1"
+    smart-buffer: "npm:^4.2.0"
+  checksum: 10c0/2805a43a1c4bcf9ebf6e018268d87b32b32b06fbbc1f9282573583acc155860dc361500f89c73bfbb157caa1b4ac78059eac0ef15d1811eb0ca75e0bdadbc9d2
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -6124,6 +7695,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "sprintf-js@npm:^1.1.3":
   version: 1.1.3
   resolution: "sprintf-js@npm:1.1.3"
@@ -6137,6 +7709,14 @@ __metadata:
   dependencies:
     minipass: "npm:^7.0.3"
   checksum: 10c0/caddd5f544b2006e88fa6b0124d8d7b28208b83c72d7672d5ade44d794525d23b540f3396108c4eb9280dcb7c01f0bef50682f5b4b2c34291f7c5e211fd1417d
+=======
+"ssri@npm:^13.0.0":
+  version: 13.0.0
+  resolution: "ssri@npm:13.0.0"
+  dependencies:
+    minipass: "npm:^7.0.3"
+  checksum: 10c0/405f3a531cd98b013cecb355d63555dca42fd12c7bc6671738aaa9a82882ff41cdf0ef9a2b734ca4f9a760338f114c29d01d9238a65db3ccac27929bd6e6d4b2
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -6163,6 +7743,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "string-width-cjs@npm:string-width@^4.2.0, string-width@npm:^4.1.0":
   version: 4.2.3
   resolution: "string-width@npm:4.2.3"
@@ -6185,6 +7766,8 @@ __metadata:
   languageName: node
   linkType: hard
 
+=======
+>>>>>>> Stashed changes
 "string_decoder@npm:^1.1.1":
   version: 1.3.0
   resolution: "string_decoder@npm:1.3.0"
@@ -6194,6 +7777,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "strip-ansi-cjs@npm:strip-ansi@^6.0.1, strip-ansi@npm:^6.0.0, strip-ansi@npm:^6.0.1":
   version: 6.0.1
   resolution: "strip-ansi@npm:6.0.1"
@@ -6209,6 +7793,14 @@ __metadata:
   dependencies:
     ansi-regex: "npm:^6.0.1"
   checksum: 10c0/a198c3762e8832505328cbf9e8c8381de14a4fa50a4f9b2160138158ea88c0f5549fb50cb13c651c3088f47e63a108b34622ec18c0499b6c8c3a5ddf6b305ac4
+=======
+"string_decoder@npm:~1.1.1":
+  version: 1.1.1
+  resolution: "string_decoder@npm:1.1.1"
+  dependencies:
+    safe-buffer: "npm:~5.1.0"
+  checksum: 10c0/b4f89f3a92fd101b5653ca3c99550e07bdf9e13b35037e9e2a1c7b47cec4e55e06ff3fc468e314a0b5e80bfbaf65c1ca5a84978764884ae9413bec1fc6ca924e
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -6270,17 +7862,29 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "tar@npm:^7.4.3":
   version: 7.4.3
   resolution: "tar@npm:7.4.3"
+=======
+"tar@npm:^7.5.2":
+  version: 7.5.2
+  resolution: "tar@npm:7.5.2"
+>>>>>>> Stashed changes
   dependencies:
     "@isaacs/fs-minipass": "npm:^4.0.0"
     chownr: "npm:^3.0.0"
     minipass: "npm:^7.1.2"
+<<<<<<< Updated upstream
     minizlib: "npm:^3.0.1"
     mkdirp: "npm:^3.0.1"
     yallist: "npm:^5.0.0"
   checksum: 10c0/d4679609bb2a9b48eeaf84632b6d844128d2412b95b6de07d53d8ee8baf4ca0857c9331dfa510390a0727b550fd543d4d1a10995ad86cdf078423fbb8d99831d
+=======
+    minizlib: "npm:^3.1.0"
+    yallist: "npm:^5.0.0"
+  checksum: 10c0/a7d8b801139b52f93a7e34830db0de54c5aa45487c7cb551f6f3d44a112c67f1cb8ffdae856b05fd4f17b1749911f1c26f1e3a23bbe0279e17fd96077f13f467
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -6306,6 +7910,7 @@ __metadata:
   linkType: hard
 
 "tinyglobby@npm:^0.2.12":
+<<<<<<< Updated upstream
   version: 0.2.14
   resolution: "tinyglobby@npm:0.2.14"
   dependencies:
@@ -6316,6 +7921,18 @@ __metadata:
   linkType: hard
 
 "to-buffer@npm:^1.2.0":
+=======
+  version: 0.2.15
+  resolution: "tinyglobby@npm:0.2.15"
+  dependencies:
+    fdir: "npm:^6.5.0"
+    picomatch: "npm:^4.0.3"
+  checksum: 10c0/869c31490d0d88eedb8305d178d4c75e7463e820df5a9b9d388291daf93e8b1eb5de1dad1c1e139767e4269fe75f3b10d5009b2cc14db96ff98986920a186844
+  languageName: node
+  linkType: hard
+
+"to-buffer@npm:^1.2.0, to-buffer@npm:^1.2.1, to-buffer@npm:^1.2.2":
+>>>>>>> Stashed changes
   version: 1.2.2
   resolution: "to-buffer@npm:1.2.2"
   dependencies:
@@ -6390,19 +8007,32 @@ __metadata:
   linkType: hard
 
 "tronweb@npm:^6.0.3":
+<<<<<<< Updated upstream
   version: 6.0.3
   resolution: "tronweb@npm:6.0.3"
   dependencies:
     "@babel/runtime": "npm:7.26.10"
     axios: "npm:1.8.3"
+=======
+  version: 6.1.0
+  resolution: "tronweb@npm:6.1.0"
+  dependencies:
+    "@babel/runtime": "npm:7.26.10"
+    axios: "npm:1.12.2"
+>>>>>>> Stashed changes
     bignumber.js: "npm:9.1.2"
     ethereum-cryptography: "npm:2.2.1"
     ethers: "npm:6.13.5"
     eventemitter3: "npm:5.0.1"
     google-protobuf: "npm:3.21.4"
     semver: "npm:7.7.1"
+<<<<<<< Updated upstream
     validator: "npm:13.12.0"
   checksum: 10c0/39ff680c37354ab64ebb69d4560d9c90b187997e976732e1e33ac14f8699919a70e0564046303faf72e258220a7e992125b6204b50c06131ef07ccb6a5128980
+=======
+    validator: "npm:13.15.20"
+  checksum: 10c0/41e30f8d898356b504a36e0896d0daeefecb54516045b4414df3cb413da1c522bc9c5577733f2a728344a348b5203e2e8ce94994ac7e51a409efa6e4798b6028
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -6533,6 +8163,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "undici-types@npm:~7.14.0":
   version: 7.14.0
   resolution: "undici-types@npm:7.14.0"
@@ -6562,6 +8193,23 @@ __metadata:
   dependencies:
     imurmurhash: "npm:^0.1.4"
   checksum: 10c0/d324c5a44887bd7e105ce800fcf7533d43f29c48757ac410afd42975de82cc38ea2035c0483f4de82d186691bf3208ef35c644f73aa2b1b20b8e651be5afd293
+=======
+"unique-filename@npm:^5.0.0":
+  version: 5.0.0
+  resolution: "unique-filename@npm:5.0.0"
+  dependencies:
+    unique-slug: "npm:^6.0.0"
+  checksum: 10c0/afb897e9cf4c2fb622ea716f7c2bb462001928fc5f437972213afdf1cc32101a230c0f1e9d96fc91ee5185eca0f2feb34127145874975f347be52eb91d6ccc2c
+  languageName: node
+  linkType: hard
+
+"unique-slug@npm:^6.0.0":
+  version: 6.0.0
+  resolution: "unique-slug@npm:6.0.0"
+  dependencies:
+    imurmurhash: "npm:^0.1.4"
+  checksum: 10c0/da7ade4cb04eb33ad0499861f82fe95ce9c7c878b7139dc54d140ecfb6a6541c18a5c8dac16188b8b379fe62c0c1f1b710814baac910cde5f4fec06212126c6a
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -6582,7 +8230,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "util-deprecate@npm:^1.0.1":
+=======
+"util-deprecate@npm:^1.0.1, util-deprecate@npm:~1.0.1":
+>>>>>>> Stashed changes
   version: 1.0.2
   resolution: "util-deprecate@npm:1.0.2"
   checksum: 10c0/41a5bdd214df2f6c3ecf8622745e4a366c4adced864bc3c833739791aeeeb1838119af7daed4ba36428114b5c67dcda034a79c882e97e43c03e66a4dd7389942
@@ -6605,6 +8257,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "valibot@npm:^0.36.0":
   version: 0.36.0
   resolution: "valibot@npm:0.36.0"
@@ -6615,12 +8268,21 @@ __metadata:
 "valibot@npm:^1.0.0":
   version: 1.1.0
   resolution: "valibot@npm:1.1.0"
+=======
+"valibot@npm:^1.0.0, valibot@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "valibot@npm:1.2.0"
+>>>>>>> Stashed changes
   peerDependencies:
     typescript: ">=5"
   peerDependenciesMeta:
     typescript:
       optional: true
+<<<<<<< Updated upstream
   checksum: 10c0/39580b4e4683cc44398fb775e88c03639dbaa7e6f587df416125916cb6307292d45df18f656054e8846093ced13a2d2fdc98659da6dd104d1d20180edcbd99d4
+=======
+  checksum: 10c0/e6897ed2008fc900380a6ce39b62bc5fca45fd5e070f70571c6380ede3ba026d0b7016230215d87f7f3d672a28dbde5a0522d39830b493fdc3dccd1a59ef4ee6
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -6631,9 +8293,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "viem@npm:^2.0.0, viem@npm:^2.33.2":
   version: 2.38.0
   resolution: "viem@npm:2.38.0"
+=======
+"validator@npm:13.15.20":
+  version: 13.15.20
+  resolution: "validator@npm:13.15.20"
+  checksum: 10c0/65453f0c91ef154ae2da4d5ff3c22acff239d2c15216335ba83895b6f79914708709c641119aa9fba0ec9dd69229c1cf8196aff0081584bdda8a7f50ea97b789
+  languageName: node
+  linkType: hard
+
+"viem@npm:^2.0.0, viem@npm:^2.40.3":
+  version: 2.41.2
+  resolution: "viem@npm:2.41.2"
+>>>>>>> Stashed changes
   dependencies:
     "@noble/curves": "npm:1.9.1"
     "@noble/hashes": "npm:1.8.0"
@@ -6648,7 +8323,11 @@ __metadata:
   peerDependenciesMeta:
     typescript:
       optional: true
+<<<<<<< Updated upstream
   checksum: 10c0/65d13718f6dd8f2de282c147c13700b7c057d855c02641ff1268a57f57963437df1f5bb71fb93e6df547d5e0a880990a9bea497ab2cbc26e89d0bf3e65976f6d
+=======
+  checksum: 10c0/9fb3fff84addaa073ea83dfa701ae8e3a4aa2bf90c27b34adb5f1e877450db0ba341a0a80dd7cd3422a4f80d27d1921ce6ad877ad5ec7f40d34310701634da54
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -6698,6 +8377,7 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "which@npm:^2.0.1":
   version: 2.0.2
   resolution: "which@npm:2.0.2"
@@ -6712,10 +8392,16 @@ __metadata:
 "which@npm:^5.0.0":
   version: 5.0.0
   resolution: "which@npm:5.0.0"
+=======
+"which@npm:^6.0.0":
+  version: 6.0.0
+  resolution: "which@npm:6.0.0"
+>>>>>>> Stashed changes
   dependencies:
     isexe: "npm:^3.1.1"
   bin:
     node-which: bin/which.js
+<<<<<<< Updated upstream
   checksum: 10c0/e556e4cd8b7dbf5df52408c9a9dd5ac6518c8c5267c8953f5b0564073c66ed5bf9503b14d876d0e9c7844d4db9725fb0dcf45d6e911e17e26ab363dc3965ae7b
   languageName: node
   linkType: hard
@@ -6739,6 +8425,9 @@ __metadata:
     string-width: "npm:^5.0.1"
     strip-ansi: "npm:^7.0.1"
   checksum: 10c0/138ff58a41d2f877eae87e3282c0630fc2789012fc1af4d6bd626eeb9a2f9a65ca92005e6e69a75c7b85a68479fe7443c7dbe1eb8fbaa681a4491364b7c55c60
+=======
+  checksum: 10c0/fe9d6463fe44a76232bb6e3b3181922c87510a5b250a98f1e43a69c99c079b3f42ddeca7e03d3e5f2241bf2d334f5a7657cfa868b97c109f3870625842f4cc15
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard
 
@@ -6764,7 +8453,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "ws@npm:8.18.3, ws@npm:^8.18.3, ws@npm:^8.5.0":
+=======
+"ws@npm:8.18.3, ws@npm:^8.18.3, ws@npm:^8.5.0, ws@npm:^8.8.1":
+>>>>>>> Stashed changes
   version: 8.18.3
   resolution: "ws@npm:8.18.3"
   peerDependencies:
@@ -6856,8 +8549,14 @@ __metadata:
   linkType: hard
 
 "zod@npm:^4.1.5":
+<<<<<<< Updated upstream
   version: 4.1.12
   resolution: "zod@npm:4.1.12"
   checksum: 10c0/b64c1feb19e99d77075261eaf613e0b2be4dfcd3551eff65ad8b4f2a079b61e379854d066f7d447491fcf193f45babd8095551a9d47973d30b46b6d8e2c46774
+=======
+  version: 4.1.13
+  resolution: "zod@npm:4.1.13"
+  checksum: 10c0/d7e74e82dba81a91ffc3239cd85bc034abe193a28f7087a94ab258a3e48e9a7ca4141920cac979a0d781495b48fc547777394149f26be04c3dc642f58bbc3941
+>>>>>>> Stashed changes
   languageName: node
   linkType: hard

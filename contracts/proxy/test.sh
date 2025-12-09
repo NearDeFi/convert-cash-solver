@@ -140,40 +140,53 @@ if [ "$SKIP_BUILD" == false ]; then
     
     echo ""
     
-    # Build each test binary sequentially to avoid overloading the system
+    # Build test binaries
     echo "========================================="
-    echo "Building Test Binaries (Sequential)"
+    echo "Building Test Binaries"
     echo "========================================="
     
-    BUILD_SUCCESSES=0
-    BUILD_FAILURES=0
-    FAILED_TESTS=()
-    
-    for test in "${TESTS[@]}"; do
-        echo -n "Building $test... "
-        if cargo build --test "$test" 2>/dev/null; then
+    # If a specific test is provided, only build that one
+    if [ -n "$TEST_NAME" ]; then
+        echo -n "Building $TEST_NAME... "
+        if cargo build --test "$TEST_NAME" 2>/dev/null; then
             echo "✅"
-            BUILD_SUCCESSES=$((BUILD_SUCCESSES + 1))
         else
             echo "❌"
-            BUILD_FAILURES=$((BUILD_FAILURES + 1))
-            FAILED_TESTS+=("$test")
+            echo "Failed to build test: $TEST_NAME"
+            exit 1
         fi
-    done
-    
-    echo ""
-    echo "========================================="
-    echo "Build Summary"
-    echo "========================================="
-    echo "✅ Successful: $BUILD_SUCCESSES"
-    echo "❌ Failed: $BUILD_FAILURES"
-    
-    if [ ${#FAILED_TESTS[@]} -gt 0 ]; then
-        echo ""
-        echo "Failed tests:"
-        for failed in "${FAILED_TESTS[@]}"; do
-            echo "  - $failed"
+    else
+        # Build all tests sequentially
+        BUILD_SUCCESSES=0
+        BUILD_FAILURES=0
+        FAILED_TESTS=()
+        
+        for test in "${TESTS[@]}"; do
+            echo -n "Building $test... "
+            if cargo build --test "$test" 2>/dev/null; then
+                echo "✅"
+                BUILD_SUCCESSES=$((BUILD_SUCCESSES + 1))
+            else
+                echo "❌"
+                BUILD_FAILURES=$((BUILD_FAILURES + 1))
+                FAILED_TESTS+=("$test")
+            fi
         done
+        
+        echo ""
+        echo "========================================="
+        echo "Build Summary"
+        echo "========================================="
+        echo "✅ Successful: $BUILD_SUCCESSES"
+        echo "❌ Failed: $BUILD_FAILURES"
+        
+        if [ ${#FAILED_TESTS[@]} -gt 0 ]; then
+            echo ""
+            echo "Failed tests:"
+            for failed in "${FAILED_TESTS[@]}"; do
+                echo "  - $failed"
+            done
+        fi
     fi
     
     echo ""

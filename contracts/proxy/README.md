@@ -10,6 +10,172 @@ The proxy contract serves three main functions:
 2. **Intent Solver**: Allows approved solvers to borrow liquidity for cross-chain swap execution
 3. **Cross-Chain Bridge**: Integrates with OMFT for withdrawals to EVM and Solana chains
 
+---
+
+## 🔍 Code Review Guide
+
+### Quick Start: Running Tests
+
+```bash
+cd contracts/proxy
+
+# Linux only: Set required kernel parameters (one-time setup)
+./scripts/set_kernel_params.sh
+
+# Build and run all tests
+./test.sh
+
+# Run with verbose output
+./test.sh -v
+
+# Run a specific test
+./test.sh -t test_vault_deposit
+```
+
+See [`TESTING.md`](./TESTING.md) for detailed setup instructions including Linux kernel parameter requirements.
+
+### Review Focus Areas
+
+#### 1. Rust Language Correctness
+
+**Key files to review:**
+
+| File                              | Focus                                            |
+| --------------------------------- | ------------------------------------------------ |
+| `src/lib.rs`                      | Contract entry point, initialization, storage    |
+| `src/vault.rs`                    | NEP-621 vault implementation                     |
+| `src/intents.rs`                  | Intent state management, borrow/repay logic      |
+| `src/vault_standards/mul_div.rs`  | Safe arithmetic operations (overflow protection) |
+| `src/vault_standards/internal.rs` | Share/asset conversion calculations              |
+
+**Look for:**
+
+-   Proper error handling with `require!` and `assert!`
+-   Correct use of NEAR SDK types (`Balance`, `AccountId`, `Promise`)
+-   Memory safety with borsh serialization/deserialization
+-   Correct use of `#[payable]` and `#[private]` attributes
+-   Gas estimation and cross-contract call handling
+
+#### 2. Unit Tests
+
+**Test structure:**
+
+```
+tests/
+├── helpers/              # Shared test utilities
+│   ├── mod.rs
+│   └── test_builder.rs
+├── sandbox_test.rs       # Basic contract tests
+├── test_vault_deposit.rs # Deposit flow
+├── test_withdrawals.rs   # Withdrawal/redemption
+├── test_solver_borrow.rs # Solver borrowing
+├── test_lender_profit.rs # Yield distribution
+├── test_fifo_redemption_queue.rs  # Queue processing
+├── test_rounding_nep621.rs        # NEP-621 compliance
+└── ... (14 test files total)
+```
+
+**Consider:**
+
+-   Are there edge cases not covered?
+-   Test coverage for error conditions
+-   Rounding behavior at boundaries (see `test_rounding_nep621.rs`)
+-   Multi-user scenarios and race conditions
+-   Queue exhaustion and overflow scenarios
+
+#### 3. Vulnerabilities
+
+**Critical areas to audit:**
+
+| Area           | File                                 | Risk                            |
+| -------------- | ------------------------------------ | ------------------------------- |
+| Access control | `src/lib.rs`, `src/intents.rs`       | Unauthorized method calls       |
+| Arithmetic     | `src/vault_standards/mul_div.rs`     | Overflow/underflow              |
+| Reentrancy     | `src/vault.rs`, `src/withdraw.rs`    | CEI pattern violations          |
+| Storage        | `src/lib.rs`                         | Key collision, unbounded growth |
+| Cross-contract | `src/withdraw.rs`, `src/chainsig.rs` | Callback manipulation           |
+
+**Specific checks:**
+
+-   Yocto requirement (1 yoctoNEAR) on payable methods
+-   Owner-only methods properly gated
+-   Solver registration and approval flow
+-   Redemption queue cannot be bypassed
+
+#### 4. Exploits
+
+**Attack vectors to consider:**
+
+1. **Economic attacks**
+
+    - Share price manipulation via donations
+    - Front-running deposits/redemptions
+    - Griefing the redemption queue
+    - Solver collusion or default scenarios
+
+2. **Logic exploits**
+
+    - Borrowing more than available liquidity
+    - Double-spending intents
+    - Redemption while funds are borrowed
+    - Incomplete repayment scenarios
+
+3. **Protocol-level**
+    - MPC signature request manipulation (`src/chainsig.rs`)
+    - OMFT bridge integration issues (`src/withdraw.rs`)
+    - NEAR Intents key management (`src/near_intents.rs`)
+
+#### 5. Missing Features
+
+**Potential gaps to identify:**
+
+-   Slippage protection on deposits/redemptions
+-   Emergency pause functionality
+-   Upgrade mechanism (proxy pattern)
+-   Fee configuration flexibility
+-   Solver reputation/staking requirements
+-   Timeout handling for stuck intents
+-   Multi-asset vault support
+-   Governance mechanisms
+
+### Key Design Decisions
+
+| Decision                        | Rationale                                 |
+| ------------------------------- | ----------------------------------------- |
+| 1% fixed yield                  | Simple solver incentive model             |
+| FIFO redemption queue           | Fair ordering when liquidity is borrowed  |
+| `extra_decimals: 3`             | Share precision vs. underlying asset      |
+| NEP-621 compliance              | Standardized vault interface              |
+| Codehash-based TEE verification | Trusted execution environment attestation |
+
+### Running Specific Test Categories
+
+```bash
+# Vault operations
+./test.sh -t test_vault_deposit
+./test.sh -t test_withdrawals
+
+# Solver mechanics
+./test.sh -t test_solver_borrow
+./test.sh -t test_lender_profit
+
+# Edge cases & compliance
+./test.sh -t test_rounding_nep621
+./test.sh -t test_fifo_redemption_queue
+
+# Complex scenarios
+./test.sh -t test_complex_multi_lender_scenario
+./test.sh -t test_multi_solver
+```
+
+### Additional Resources
+
+-   [`tests/README.md`](./tests/README.md) - Test structure documentation
+-   [`TESTING.md`](./TESTING.md) - Full sandbox testing guide
+-   [`src/test_utils.rs`](./src/test_utils.rs) - Unit test helpers
+
+---
+
 ## Architecture
 
 ```

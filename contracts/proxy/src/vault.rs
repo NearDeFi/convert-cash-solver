@@ -152,6 +152,68 @@ impl Contract {
         ));
     }
 
+    /// Processes a redemption request, either executing immediately or queuing.
+    ///
+    /// This internal method handles the common logic for both `redeem` (shares-based)
+    /// and `withdraw` (assets-based) operations:
+    /// 1. Checks for duplicate queue entries for the same owner
+    /// 2. Queues the request if insufficient liquidity
+    /// 3. Executes immediately if liquidity is available
+    ///
+    /// # Arguments
+    ///
+    /// * `owner` - The account that owns the shares being redeemed
+    /// * `receiver_id` - Optional account to receive assets (defaults to owner)
+    /// * `shares` - Number of shares to burn
+    /// * `assets` - Asset amount to transfer
+    /// * `memo` - Optional memo for the transaction
+    ///
+    /// # Returns
+    ///
+    /// The amount of assets transferred, or 0 if queued.
+    fn process_redemption_request(
+        &mut self,
+        owner: AccountId,
+        receiver_id: Option<AccountId>,
+        shares: u128,
+        assets: u128,
+        memo: Option<String>,
+    ) -> PromiseOrValue<U128> {
+        // Prevent duplicate queue entries for same owner
+        let len = self.pending_redemptions.len();
+        let mut index = self.pending_redemptions_head;
+        while index < len {
+            if let Some(entry) = self.pending_redemptions.get(index) {
+                if entry.owner_id == owner {
+                    env::panic_str("Lender already has a redemption in the queue");
+                }
+            }
+            index += 1;
+        }
+
+        let receiver = receiver_id.clone().unwrap_or_else(|| owner.clone());
+
+        env::log_str(&format!(
+            "process_redemption_request: owner={} shares={} assets={} total_assets={}",
+            owner, shares, assets, self.total_assets
+        ));
+
+        // Queue if insufficient liquidity
+        if self.total_assets == 0 || assets == 0 || assets > self.total_assets {
+            self.enqueue_redemption(owner, receiver, shares, assets, memo);
+            return PromiseOrValue::Value(U128(0));
+        }
+
+        // Execute immediate withdrawal
+        PromiseOrValue::Promise(self.internal_execute_withdrawal(
+            owner,
+            Some(receiver),
+            shares,
+            assets,
+            memo,
+        ))
+    }
+
     /// Processes an incoming deposit via `ft_on_transfer`.
     ///
     /// Calculates shares based on the current vault ratio and mints them
@@ -583,54 +645,27 @@ impl VaultCore for Contract {
             "Exceeds max redeem"
         );
 
-        // Prevent duplicate queue entries for same owner
-        let len = self.pending_redemptions.len();
-        let mut index = self.pending_redemptions_head;
-        while index < len {
-            if let Some(entry) = self.pending_redemptions.get(index) {
-                if entry.owner_id == owner {
-                    env::panic_str("Lender already has a redemption in the queue");
-                }
-            }
-            index += 1;
-        }
-
-        let receiver = receiver_id.clone().unwrap_or_else(|| owner.clone());
-
         // Calculate asset value including expected yield from active borrows
         let assets = self.internal_convert_to_assets(shares.0, Rounding::Down);
 
-        env::log_str(&format!(
-            "redeem: owner={} shares={} calculated_assets={} total_assets={}",
-            owner, shares.0, assets, self.total_assets
-        ));
-
-        // Queue if insufficient liquidity
-        if self.total_assets == 0 || assets == 0 || assets > self.total_assets {
-            self.enqueue_redemption(owner, receiver, shares.0, assets, memo);
-            return PromiseOrValue::Value(U128(0));
-        }
-
-        // Execute immediate withdrawal
-        PromiseOrValue::Promise(self.internal_execute_withdrawal(
-            owner,
-            Some(receiver),
-            shares.0,
-            assets,
-            memo,
-        ))
+        self.process_redemption_request(owner, receiver_id, shares.0, assets, memo)
     }
 
     /// Withdraws a specific amount of assets.
     ///
     /// Calculates and burns the required shares to withdraw the
-    /// specified asset amount.
+    /// specified asset amount. If insufficient liquidity, the request
+    /// is queued and processed when funds become available.
     ///
     /// # Arguments
     ///
     /// * `assets` - Amount of assets to withdraw
     /// * `receiver_id` - Account to receive assets (defaults to caller)
     /// * `memo` - Optional memo for the transaction
+    ///
+    /// # Returns
+    ///
+    /// The amount of assets transferred, or 0 if queued.
     #[payable]
     fn withdraw(
         &mut self,
@@ -646,15 +681,10 @@ impl VaultCore for Contract {
             "Exceeds max withdraw"
         );
 
+        // Calculate shares needed (round up to ensure sufficient shares are burned)
         let shares = self.internal_convert_to_shares(assets.0, Rounding::Up);
 
-        PromiseOrValue::Promise(self.internal_execute_withdrawal(
-            owner,
-            receiver_id,
-            shares,
-            assets.0,
-            memo,
-        ))
+        self.process_redemption_request(owner, receiver_id, shares, assets.0, memo)
     }
 
     /// Converts an asset amount to shares for deposit preview.

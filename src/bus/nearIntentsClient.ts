@@ -204,7 +204,7 @@ export class NearIntentsClient {
                 ) {
                     const quoteRequest = this.parseQuoteRequest(message);
                     if (quoteRequest) {
-                        await this.handleQuoteRequest(quoteRequest);
+                        await this.handleQuoteRequest(quoteRequest, message);
                     }
                 }
                 // Handle quote response results (show complete response)
@@ -257,7 +257,7 @@ export class NearIntentsClient {
         });
     }
 
-    async handleQuoteRequest(quoteRequest: QuoteRequest): Promise<void> {
+    async handleQuoteRequest(quoteRequest: QuoteRequest, originalMessage?: any): Promise<void> {
         // Define token identifiers
         const tokenIdUsdtOnEth =
             'nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near';
@@ -278,6 +278,14 @@ export class NearIntentsClient {
         // Only process and log USDT ETH -> USDT TRON swaps with exact amount
         if (isEthToTronSwap && hasValidAmount) {
             const jwtStatus = process.env.JWT_INTENTS ? 'WITH JWT' : 'WITHOUT JWT';
+            
+            // Log the complete request from WebSocket only for filtered transactions
+            if (originalMessage) {
+                console.log(`\n📥 [${jwtStatus}] Complete Quote Request from WebSocket:`);
+                console.log(JSON.stringify(originalMessage, null, 2));
+                console.log('---');
+            }
+            
             console.log(
                 `\n🔄 [${jwtStatus}] Processing USDT ETH->TRON swap: ${quoteRequest.quote_id}`,
             );
@@ -409,13 +417,14 @@ export class NearIntentsClient {
 
         // Parse the JSON payload string to access the intents data
         const messageData = JSON.parse(signedData.payload);
-        const amountOutWithSign =
+        // Extract amount_out from diff (it's negative, so we get the absolute value)
+        const amountOutFromDiff =
             messageData.intents[0].diff[
                 quoteRequest.defuse_asset_identifier_out
             ];
-        // Remove the negative sign to get the actual amount out
-        const finalAmountOut = amountOutWithSign.replace('-', '');
-        console.log(`->>>Amount out: ${finalAmountOut}`);
+        // Remove the negative sign to get the actual amount out (must match quote_output.amount_out)
+        const finalAmountOut = amountOutFromDiff.replace('-', '');
+        console.log(`->>>Amount out (from diff): ${finalAmountOut}`);
 
         // Create quote response message
         const quoteResponse: WebSocketMessage = {
@@ -433,7 +442,11 @@ export class NearIntentsClient {
             ],
         };
 
-        //console.log(`->>>Quote response: ${JSON.stringify(quoteResponse)}`);
+        // Log the complete response that will be sent
+        const jwtStatus = process.env.JWT_INTENTS ? 'WITH JWT' : 'WITHOUT JWT';
+        console.log(`📤 [${jwtStatus}] Complete Solver Quote Response:`);
+        console.log(JSON.stringify(quoteResponse, null, 2));
+        console.log('---');
 
         try {
             if (
@@ -465,9 +478,10 @@ export class NearIntentsClient {
         amountOut: string,
     ): Promise<SignedData> {
         // Calculate protocol fee for the token_diff
+        const amountInInt = parseInt(quoteRequest.exact_amount_in!);
+        const protocolFee = Math.floor(amountInInt * this.PROTOCOL_FEE_RATE);
+        const totalAmountIn = amountInInt + protocolFee;
         const amountOutInt = parseInt(amountOut);
-        const protocolFee = Math.floor(amountOutInt * this.PROTOCOL_FEE_RATE);
-        const newAmountOut = amountOutInt + protocolFee;
 
         const messageData: IntentMessage = {
             signer_id: solverAccount,
@@ -478,11 +492,10 @@ export class NearIntentsClient {
                 {
                     intent: 'token_diff',
                     diff: {
-                        // We're providing USDT on TRON (positive amount - what user receives)
-                        [quoteRequest.defuse_asset_identifier_in]:
-                            quoteRequest.exact_amount_in!,
-                        // We're receiving USDT on ETH (negative amount - user input + protocol fee)
-                        [quoteRequest.defuse_asset_identifier_out]: `-${newAmountOut}`,
+                        // Solver receives ETH (positive - solver gains)
+                        [quoteRequest.defuse_asset_identifier_in]: totalAmountIn.toString(),
+                        // Solver pays TRON (negative - solver pays, must match quote_output.amount_out)
+                        [quoteRequest.defuse_asset_identifier_out]: `-${amountOutInt}`,
                     },
                 },
             ],

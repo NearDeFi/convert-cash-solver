@@ -15,13 +15,24 @@ const DEADLINE_MS = 600000; // 10 minutes
 
 const nearIntentsFetch = async (method, params, bridgeUrl = false) => {
     try {
+        // Prepare headers with JWT if available
+        const headers = {
+            'Content-Type': 'application/json',
+        };
+        
+        // Add Authorization header if JWT is available
+        const jwtToken = process.env.JWT_ONE_CLICK;
+        if (jwtToken) {
+            headers['Authorization'] = `Bearer ${jwtToken}`;
+        }
+        
         const res = await fetch(
             bridgeUrl
                 ? 'https://bridge.chaindefuser.com/rpc'
                 : 'https://solver-relay-v2.chaindefuser.com/rpc',
             {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: headers,
                 body: JSON.stringify({
                     jsonrpc: '2.0',
                     id: 1,
@@ -115,12 +126,26 @@ async function main() {
 
         console.log('---');
 
-        const quoteRes = await nearIntentsFetch('quote', {
+        // Prepare quote request parameters
+        const quoteRequestParams = {
             defuse_asset_identifier_in: ASSET_IN,
             defuse_asset_identifier_out: ASSET_OUT,
             exact_amount_in: AMOUNT_IN,
             min_deadline_ms: DEADLINE_MS, // OPTIONAL. default 60_000ms / 1min
-        });
+        };
+
+        // Log the complete request that will be sent
+        const completeRequest = {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'quote',
+            params: [quoteRequestParams],
+        };
+        console.log('📤 Complete User Quote Request:');
+        console.log(JSON.stringify(completeRequest, null, 2));
+        console.log('---');
+
+        const quoteRes = await nearIntentsFetch('quote', quoteRequestParams);
         console.log('Quote:', quoteRes);
 
         // Select best option - chooses the one with HIGHEST amount_out (best for user)

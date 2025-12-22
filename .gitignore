@@ -23,3 +23,4 @@ env.development.local
 justfile
 ./contracts/proxy/justfile
 ./contracts/proxy/test_local_repro.sh
+.yarn/install-state.gz 

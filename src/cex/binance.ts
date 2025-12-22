@@ -766,3 +766,392 @@ export function resetExchangeInstance(): void {
     console.log('[Binance] Exchange instance reset');
 }
 
+// --- Intents Bridge Integration (Part 2: Binance to Intents) ---
+
+import { IntentsBridgeService } from './intentsBridge.js';
+import {
+    IntentsIntentService,
+    type IntentsIntentConfig,
+} from './intentsIntent.js';
+
+const INTENTS_BRIDGE_ACCOUNT_ID = process.env.INTENTS_BRIDGE_ACCOUNT_ID;
+const INTENTS_BRIDGE_JWT_TOKEN = process.env.INTENTS_BRIDGE_JWT_TOKEN;
+
+/**
+ * Gets the Intents deposit address for the solver account
+ * This is used to withdraw funds from Binance to the solver's Intents account
+ *
+ * @param symbol Token symbol (e.g., 'USDT', 'USDC')
+ * @param network Network identifier (e.g., 'eth-mainnet', 'tron-mainnet')
+ * @returns Deposit address and chain info, or null if configuration is missing
+ */
+export async function getIntentsDepositAddress(
+    symbol: string,
+    network: string,
+): Promise<{ address: string; chain: string } | null> {
+    if (!INTENTS_BRIDGE_ACCOUNT_ID) {
+        console.warn(
+            '[Binance] INTENTS_BRIDGE_ACCOUNT_ID not configured. Cannot get Intents deposit address.',
+        );
+        return null;
+    }
+
+    try {
+        const bridgeService = new IntentsBridgeService({
+            accountId: INTENTS_BRIDGE_ACCOUNT_ID,
+            jwtToken: INTENTS_BRIDGE_JWT_TOKEN,
+        });
+
+        // Map network to Intents chain format
+        const binanceNetwork = mapNetworkToBinance(network);
+        let intentsChain: string;
+
+        try {
+            intentsChain = IntentsBridgeService.mapBinanceNetworkToIntentsChain(
+                binanceNetwork,
+            );
+        } catch (error) {
+            console.error(
+                `[Binance] Failed to map network ${network} (${binanceNetwork}) to Intents chain:`,
+                error instanceof Error ? error.message : error,
+            );
+            return null;
+        }
+
+        // Get supported tokens to find the correct token identifier
+        const supportedTokens = await bridgeService.getSupportedTokens([intentsChain]);
+
+        // Find the defuse asset identifier for the symbol
+        const defuseAssetId = IntentsBridgeService.findDefuseAssetIdentifier(
+            symbol,
+            intentsChain,
+            supportedTokens,
+        );
+
+        if (!defuseAssetId) {
+            console.error(
+                `[Binance] Token ${symbol} not found on chain ${intentsChain} in supported tokens.`,
+            );
+            return null;
+        }
+
+        // Extract token address from defuse asset identifier (format: chain:chainId:address)
+        const parts = defuseAssetId.split(':');
+        const tokenAddress = parts.length >= 3 ? parts[2] : undefined;
+
+        // Get deposit address
+        const depositAddress = await bridgeService.getDepositAddress(
+            intentsChain,
+            tokenAddress,
+        );
+
+        console.log(
+            `[Binance] Intents deposit address for ${symbol} on ${intentsChain}: ${depositAddress.address}`,
+        );
+
+        return {
+            address: depositAddress.address,
+            chain: depositAddress.chain,
+        };
+    } catch (error) {
+        const errorMessage =
+            error instanceof Error ? error.message : String(error);
+        console.error(
+            `[Binance] Error getting Intents deposit address: ${errorMessage}`,
+        );
+        return null;
+    }
+}
+
+/**
+ * Withdraws funds from Binance to the solver's Intents account
+ * This implements Part 2 of the CEX flow: Binance -> Intents
+ *
+ * @param symbol Token symbol (e.g., 'USDT', 'USDC')
+ * @param amount Amount to withdraw (in token units, not minimal units)
+ * @param network Network identifier (e.g., 'eth-mainnet', 'tron-mainnet')
+ * @returns Withdrawal result with success status and transaction ID
+ */
+export async function withdrawToIntents(
+    symbol: string,
+    amount: number,
+    network: string,
+): Promise<WithdrawalResult> {
+    if (!INTENTS_BRIDGE_ACCOUNT_ID) {
+        const error = new WithdrawalError(
+            'INTENTS_BRIDGE_ACCOUNT_ID not configured. Cannot withdraw to Intents.',
+            symbol,
+            amount,
+            network,
+        );
+        console.error('[Binance] Withdrawal error:', error.message);
+        return { success: false, error };
+    }
+
+    // Get Intents deposit address
+    const depositInfo = await getIntentsDepositAddress(symbol, network);
+    if (!depositInfo) {
+        const error = new WithdrawalError(
+            `Failed to get Intents deposit address for ${symbol} on ${network}`,
+            symbol,
+            amount,
+            network,
+        );
+        console.error('[Binance] Withdrawal error:', error.message);
+        return { success: false, error };
+    }
+
+    // Use the standard withdrawFromBinance function with the Intents deposit address
+    console.log(
+        `[Binance] Withdrawing ${amount} ${symbol} to Intents account ${INTENTS_BRIDGE_ACCOUNT_ID} on ${network}`,
+    );
+
+    return await withdrawFromBinance(
+        symbol,
+        amount,
+        network,
+        depositInfo.address,
+    );
+}
+
+/**
+ * Checks if a deposit has arrived in the solver's Intents account
+ *
+ * @param symbol Token symbol (e.g., 'USDT', 'USDC')
+ * @param amount Expected amount (in token units)
+ * @param network Network identifier (e.g., 'eth-mainnet', 'tron-mainnet')
+ * @param startTime Start time in milliseconds to search from
+ * @returns true if deposit found and completed, false otherwise
+ */
+export async function checkIntentsDeposit(
+    symbol: string,
+    amount: number,
+    network: string,
+    startTime: number,
+): Promise<boolean> {
+    if (!INTENTS_BRIDGE_ACCOUNT_ID) {
+        console.warn(
+            '[Binance] INTENTS_BRIDGE_ACCOUNT_ID not configured. Cannot check Intents deposits.',
+        );
+        return false;
+    }
+
+    try {
+        const bridgeService = new IntentsBridgeService({
+            accountId: INTENTS_BRIDGE_ACCOUNT_ID,
+            jwtToken: INTENTS_BRIDGE_JWT_TOKEN,
+        });
+
+        // Map network to Intents chain format
+        const binanceNetwork = mapNetworkToBinance(network);
+        const intentsChain = IntentsBridgeService.mapBinanceNetworkToIntentsChain(
+            binanceNetwork,
+        );
+
+        // Get recent deposits
+        const deposits = await bridgeService.getRecentDeposits(intentsChain);
+
+        // Filter deposits by symbol, amount, and time
+        const matchingDeposits = deposits.filter((deposit) => {
+            // Check if deposit is completed
+            if (deposit.status !== 'COMPLETED') {
+                return false;
+            }
+
+            // Check if deposit is after start time
+            // Note: deposits don't have timestamp, so we check all recent deposits
+            // The service returns recent deposits, so we assume they're recent enough
+
+            // Check amount (with some tolerance for rounding)
+            const depositAmount = parseFloat(deposit.amount) / Math.pow(10, deposit.decimals);
+            const amountTolerance = amount * 0.01; // 1% tolerance
+            const amountMatch =
+                Math.abs(depositAmount - amount) <= amountTolerance;
+
+            // Check symbol by matching asset name or defuse identifier
+            const symbolMatch =
+                deposit.defuse_asset_identifier.toLowerCase().includes(
+                    symbol.toLowerCase(),
+                ) ||
+                deposit.defuse_asset_identifier
+                    .split(':')
+                    .pop()
+                    ?.toLowerCase()
+                    .includes(symbol.toLowerCase());
+
+            return amountMatch && symbolMatch;
+        });
+
+        if (matchingDeposits.length > 0) {
+            console.log(
+                `[Binance] Found ${matchingDeposits.length} matching deposit(s) in Intents for ${symbol} on ${network}`,
+            );
+            return true;
+        }
+
+        return false;
+    } catch (error) {
+        const errorMessage =
+            error instanceof Error ? error.message : String(error);
+        console.error(
+            `[Binance] Error checking Intents deposits: ${errorMessage}`,
+        );
+        return false;
+    }
+}
+
+// --- Intents Intent Integration (Part 2: ft_withdraw from Intents to Vault) ---
+
+const VAULT_CONTRACT_ID = process.env.NEAR_CONTRACT_ID || process.env.VAULT_CONTRACT_ID;
+const SOLVER_EVM_PRIVATE_KEY = process.env.SOLVER_EVM_PRIVATE_KEY;
+
+/**
+ * Executes ft_withdraw intent from solver's Intents account to vault contract
+ * This completes Part 2 of the CEX flow: Intents -> Vault (repayment)
+ *
+ * @param tokenId OMFT token ID (e.g., "eth-0x...omft.near")
+ * @param amount Amount in minimal units (string)
+ * @param receiverId Optional receiver (defaults to vault contract)
+ * @returns Transaction hash of the intent execution
+ */
+export async function executeFtWithdrawIntent(
+    tokenId: string,
+    amount: string,
+    receiverId?: string,
+): Promise<{ success: boolean; txHash?: string; error?: BinanceError }> {
+    if (!INTENTS_BRIDGE_ACCOUNT_ID) {
+        const error = new BinanceError(
+            'INTENTS_BRIDGE_ACCOUNT_ID not configured. Cannot execute ft_withdraw intent.',
+            'MISSING_CREDENTIALS',
+        );
+        console.error('[Binance] Intent execution error:', error.message);
+        return { success: false, error };
+    }
+
+    if (!SOLVER_EVM_PRIVATE_KEY) {
+        const error = new BinanceError(
+            'SOLVER_EVM_PRIVATE_KEY not configured. Cannot sign ft_withdraw intent.',
+            'MISSING_CREDENTIALS',
+        );
+        console.error('[Binance] Intent execution error:', error.message);
+        return { success: false, error };
+    }
+
+    if (!VAULT_CONTRACT_ID) {
+        const error = new BinanceError(
+            'VAULT_CONTRACT_ID (or NEAR_CONTRACT_ID) not configured. Cannot execute ft_withdraw intent.',
+            'MISSING_CREDENTIALS',
+        );
+        console.error('[Binance] Intent execution error:', error.message);
+        return { success: false, error };
+    }
+
+    try {
+        const config: IntentsIntentConfig = {
+            solverNearAccountId: INTENTS_BRIDGE_ACCOUNT_ID,
+            solverEvmPrivateKey: SOLVER_EVM_PRIVATE_KEY,
+            vaultContractId: VAULT_CONTRACT_ID,
+            nearAccountId: process.env.NEAR_ACCOUNT_ID || INTENTS_BRIDGE_ACCOUNT_ID,
+            nearPrivateKey: process.env.NEAR_PRIVATE_KEY,
+            nearNetworkId: process.env.NEAR_NETWORK_ID || 'mainnet',
+        };
+
+        const intentService = new IntentsIntentService(config);
+
+        console.log(
+            `[Binance] Executing ft_withdraw intent: ${amount} from ${INTENTS_BRIDGE_ACCOUNT_ID} to ${receiverId || VAULT_CONTRACT_ID}`,
+        );
+
+        const txHash = await intentService.createAndExecuteFtWithdraw(
+            tokenId,
+            amount,
+            receiverId,
+        );
+
+        console.log(
+            `[Binance] ft_withdraw intent executed successfully. Transaction: ${txHash}`,
+        );
+
+        return { success: true, txHash };
+    } catch (error: any) {
+        const intentError = new BinanceError(
+            `Failed to execute ft_withdraw intent: ${error instanceof Error ? error.message : String(error)}`,
+            'INTENT_EXECUTION_ERROR',
+            error,
+        );
+        console.error('[Binance] Intent execution error:', intentError.message);
+        return { success: false, error: intentError };
+    }
+}
+
+/**
+ * Gets the OMFT token ID from Intents Bridge Service
+ * Helper function to convert symbol and network to OMFT token ID
+ *
+ * @param symbol Token symbol (e.g., 'USDT', 'USDC')
+ * @param network Network identifier (e.g., 'eth-mainnet', 'tron-mainnet')
+ * @returns OMFT token ID or null if not found
+ */
+export async function getOmftTokenId(
+    symbol: string,
+    network: string,
+): Promise<string | null> {
+    if (!INTENTS_BRIDGE_ACCOUNT_ID) {
+        console.warn(
+            '[Binance] INTENTS_BRIDGE_ACCOUNT_ID not configured. Cannot get OMFT token ID.',
+        );
+        return null;
+    }
+
+    try {
+        const bridgeService = new IntentsBridgeService({
+            accountId: INTENTS_BRIDGE_ACCOUNT_ID,
+            jwtToken: INTENTS_BRIDGE_JWT_TOKEN,
+        });
+
+        // Map network to Intents chain format
+        const binanceNetwork = mapNetworkToBinance(network);
+        const intentsChain = IntentsBridgeService.mapBinanceNetworkToIntentsChain(
+            binanceNetwork,
+        );
+
+        // Get supported tokens
+        const supportedTokens = await bridgeService.getSupportedTokens([intentsChain]);
+
+        // Find the defuse asset identifier
+        const defuseAssetId = IntentsBridgeService.findDefuseAssetIdentifier(
+            symbol,
+            intentsChain,
+            supportedTokens,
+        );
+
+        if (!defuseAssetId) {
+            console.error(
+                `[Binance] Token ${symbol} not found on chain ${intentsChain}`,
+            );
+            return null;
+        }
+
+        // Find the token info to get the OMFT token ID
+        const tokenInfo = supportedTokens.find(
+            (t) => t.defuse_asset_identifier === defuseAssetId,
+        );
+
+        if (!tokenInfo) {
+            console.error(
+                `[Binance] Token info not found for ${defuseAssetId}`,
+            );
+            return null;
+        }
+
+        return tokenInfo.near_token_id;
+    } catch (error) {
+        const errorMessage =
+            error instanceof Error ? error.message : String(error);
+        console.error(
+            `[Binance] Error getting OMFT token ID: ${errorMessage}`,
+        );
+        return null;
+    }
+}
+

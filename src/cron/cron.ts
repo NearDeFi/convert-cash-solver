@@ -11,6 +11,10 @@ import {
     swapOnBinance,
     withdrawFromBinance,
     waitForBinanceDeposit,
+    withdrawToIntents,
+    checkIntentsDeposit,
+    executeFtWithdrawIntent,
+    getOmftTokenId,
 } from '../cex/binance.js';
 import {
     requestLiquidityUnsigned,
@@ -225,69 +229,204 @@ const stateFuncs: Record<IntentState, StateFunction> = {
         return false;
     },
     StpLiquidityDeposited: async (intent: Intent, solver_id: string) => {
-        // Get the destination deposit address (based off the contract id)
-        const { depositAddress } = await getDepositAddress(
-            process.env.NEAR_CONTRACT_ID,
-            INTENTS_CHAIN_ID_TRON,
-        );
+        if (USE_BINANCE) {
+            // Part 1b: Execute swap on Binance (from source token to destination token)
+            console.log('Executing swap on Binance...');
+            
+            // Extract token symbols from OMFT token IDs
+            // Format: "eth-0x...omft.near" or "tron-...omft.near"
+            // For now, we assume USDT for both (can be enhanced to extract from token ID)
+            const fromSymbol = 'USDT'; // Token that arrived in Binance (from burn)
+            const toSymbol = 'USDT'; // Token needed for destination (same for now, but could be different)
+            
+            // Get the amount that arrived (use srcAmount if available, otherwise destAmount)
+            const swapAmount = intent.srcAmount 
+                ? parseAmount(intent.srcAmount) 
+                : parseAmount(intent.destAmount);
 
-        console.log('TRON depositAddress', depositAddress);
+            // Execute swap (if tokens are different, otherwise skip)
+            if (fromSymbol !== toSymbol) {
+                const swapResult = await swapOnBinance(fromSymbol, toSymbol, swapAmount);
+                
+                if (!swapResult.success) {
+                    console.error(
+                        'Failed to swap on Binance:',
+                        swapResult.error?.message,
+                    );
+                    return false;
+                }
 
-        // Withdraw from CEX to destination address
-        const res = await withdrawFromCex(
-            'USDT',
-            parseAmount(intent.destAmount),
-            INTENTS_CHAIN_ID_TRON,
-            depositAddress,
-        );
+                console.log(
+                    `Swap completed successfully on Binance: ${fromSymbol} → ${toSymbol}`,
+                );
+                // Wait a bit for swap to settle
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            } else {
+                console.log(
+                    `No swap needed: source and destination tokens are the same (${fromSymbol})`,
+                );
+            }
 
-        if (!res) {
-            return false;
+            // Part 2a: Withdraw from Binance to solver's Intents account
+            console.log('Withdrawing from Binance to Intents...');
+            
+            // Determine the destination network from the intent
+            const destNetwork = intent.destToken?.includes('tron')
+                ? 'tron-mainnet'
+                : intent.destToken?.includes('eth')
+                  ? 'eth-mainnet'
+                  : 'eth-mainnet'; // Default to ETH if unclear
+
+            const result = await withdrawToIntents(
+                toSymbol, // Use the token after swap
+                parseAmount(intent.destAmount),
+                destNetwork,
+            );
+
+            if (!result.success) {
+                console.error(
+                    'Failed to withdraw from Binance to Intents:',
+                    result.error?.message,
+                );
+                return false;
+            }
+
+            console.log(
+                `Successfully withdrew to Intents. Transaction: ${result.txId || 'pending'}`,
+            );
+            intent.nextState = 'StpLiquidityWithdrawn';
+            return true;
+        } else {
+            // For Bitfinex: Get the destination deposit address (based off the contract id)
+            const { depositAddress } = await getDepositAddress(
+                process.env.NEAR_CONTRACT_ID,
+                INTENTS_CHAIN_ID_TRON,
+            );
+
+            console.log('TRON depositAddress', depositAddress);
+
+            // Withdraw from CEX to destination address
+            const res = await withdrawFromCex(
+                'USDT',
+                parseAmount(intent.destAmount),
+                INTENTS_CHAIN_ID_TRON,
+                depositAddress,
+            );
+
+            if (!res) {
+                return false;
+            }
+            intent.nextState = 'StpLiquidityWithdrawn';
+            return true;
         }
-        intent.nextState = 'StpLiquidityWithdrawn';
-        return true;
     },
     StpLiquidityWithdrawn: async (intent: Intent, solver_id: string) => {
-        // the deposit address is based off the contract id
-        const { depositAddress } = await getDepositAddress(
-            process.env.NEAR_CONTRACT_ID,
-            INTENTS_CHAIN_ID_TRON,
-        );
+        if (USE_BINANCE) {
+            // Part 2b: Check if deposit arrived in Intents account
+            console.log('Checking if deposit arrived in Intents account...');
+            
+            const destNetwork = intent.destToken?.includes('tron')
+                ? 'tron-mainnet'
+                : intent.destToken?.includes('eth')
+                  ? 'eth-mainnet'
+                  : 'eth-mainnet';
 
-        console.log('TRON depositAddress', depositAddress);
+            const depositReceived = await checkIntentsDeposit(
+                'USDT',
+                parseAmount(intent.destAmount),
+                destNetwork,
+                nanoToMs(intent.created),
+            );
 
-        // Check if withdrawal completed (for Binance, we check deposits with negative amount)
-        // For Bitfinex, negative amount indicates withdrawal
-        const amount = USE_BINANCE
-            ? parseAmount(intent.destAmount) // Binance: check positive deposit at destination
-            : parseAmount(intent.destAmount) * -1; // Bitfinex: negative for withdrawals
+            if (!depositReceived) {
+                console.log('Deposit not yet received in Intents account');
+                return false;
+            }
 
-        const res = await checkCexDeposit(
-            'USDT',
-            Math.abs(amount),
-            nanoToMs(intent.created),
-            depositAddress,
-            INTENTS_CHAIN_ID_TRON,
-        );
+            console.log('Deposit confirmed in Intents account');
+            intent.nextState = 'StpIntentAccountCredited';
+            return true;
+        } else {
+            // For Bitfinex: the deposit address is based off the contract id
+            const { depositAddress } = await getDepositAddress(
+                process.env.NEAR_CONTRACT_ID,
+                INTENTS_CHAIN_ID_TRON,
+            );
 
-        if (!res) {
-            return false;
+            console.log('TRON depositAddress', depositAddress);
+
+            // Check if withdrawal completed (for Bitfinex, negative amount indicates withdrawal)
+            const amount = parseAmount(intent.destAmount) * -1;
+
+            const res = await checkCexDeposit(
+                'USDT',
+                Math.abs(amount),
+                nanoToMs(intent.created),
+                depositAddress,
+                INTENTS_CHAIN_ID_TRON,
+            );
+
+            if (!res) {
+                return false;
+            }
+            intent.nextState = 'StpIntentAccountCredited';
+            return true;
         }
-        intent.nextState = 'StpIntentAccountCredited';
-        return true;
     },
     StpIntentAccountCredited: async (intent: Intent, solver_id: string) => {
-        // TODO something here to execute intents
+        // Part 2c: Execute ft_withdraw intent to repay the vault (for Binance flow)
+        if (USE_BINANCE) {
+            console.log('Executing ft_withdraw intent to repay vault...');
+            
+            // Determine the destination network from the intent
+            const destNetwork = intent.destToken?.includes('tron')
+                ? 'tron-mainnet'
+                : intent.destToken?.includes('eth')
+                  ? 'eth-mainnet'
+                  : 'eth-mainnet';
 
-        intent.nextState = 'SwapCompleted';
-        return true;
+            // Get OMFT token ID for the destination network
+            const tokenId = await getOmftTokenId('USDT', destNetwork);
+            if (!tokenId) {
+                console.error('Failed to get OMFT token ID');
+                return false;
+            }
+
+            // Convert amount to minimal units (assuming 6 decimals for USDT)
+            const amountInMinimalUnits = (
+                parseAmount(intent.destAmount) * 1_000_000
+            ).toString();
+
+            const result = await executeFtWithdrawIntent(
+                tokenId,
+                amountInMinimalUnits,
+            );
+
+            if (!result.success) {
+                console.error(
+                    'Failed to execute ft_withdraw intent:',
+                    result.error?.message,
+                );
+                return false;
+            }
+
+            console.log(
+                `ft_withdraw intent executed successfully. Transaction: ${result.txHash}`,
+            );
+            intent.nextState = 'SwapCompleted';
+            return true;
+        } else {
+            // For Bitfinex, keep the old flow
+            intent.nextState = 'SwapCompleted';
+            return true;
+        }
     },
 
     // Potentially check status of intent here?
 
     SwapCompleted: async (intent: Intent, solver_id: string) => {
-        // TODO ftWithdraw intent for solver to bitfinex deposit address
-
+        // Swap is completed, ft_withdraw intent has been executed
+        // Move to next state
         intent.nextState = 'UserLiquidityDeposited';
         return true;
     },

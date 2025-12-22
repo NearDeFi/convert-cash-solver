@@ -8,11 +8,18 @@ The Binance integration (`binance.ts`) provides an alternative to the Bitfinex i
 
 ## Features
 
+### Part 1: OMFT Burn to Binance (Already Implemented)
 - **Deposit Address Generation**: Get deposit addresses for various networks
 - **Deposit Detection**: Monitor incoming deposits with confirmation tracking
 - **Token Swaps**: Execute market orders with validation and error handling
 - **Withdrawals**: Send funds to external addresses with fee calculation
 - **Balance Queries**: Check available balances for any token
+
+### Part 2: Binance to Intents (New)
+- **Intents Deposit Address**: Get deposit address for solver's Intents account
+- **Withdraw to Intents**: Withdraw funds from Binance to solver's Intents account
+- **Intents Deposit Verification**: Check if deposits arrived in Intents account
+- **ft_withdraw Intent**: Execute ft_withdraw intent from solver's Intents account to vault contract (repayment)
 
 ## Configuration
 
@@ -31,6 +38,15 @@ BINANCE_API_SECRET_MAINNET=your_api_secret_here
 # Safety flags
 BINANCE_DRY_RUN=false          # Set to 'true' to simulate operations without executing
 BINANCE_ENABLE_WITHDRAWALS=true # Set to 'false' to disable withdrawals
+
+# Intents Bridge Configuration (Part 2: Binance to Intents)
+INTENTS_BRIDGE_ACCOUNT_ID=your_solver_near_account.near  # NEAR account ID registered in Intents
+INTENTS_BRIDGE_JWT_TOKEN=your_jwt_token_here             # Optional JWT token for bridge service authentication
+
+# Intents Intent Configuration (Part 2: ft_withdraw to Vault)
+SOLVER_EVM_PRIVATE_KEY=0x...                            # EVM private key for signing intents (must be registered in Intents)
+VAULT_CONTRACT_ID=your_vault_contract.near              # Vault contract account ID (or use NEAR_CONTRACT_ID)
+NEAR_NETWORK_ID=mainnet                                 # Optional: 'mainnet' or 'testnet' (default: 'mainnet')
 ```
 
 ### API Key Requirements
@@ -136,6 +152,94 @@ const balance = await getBinanceBalance('USDT');
 // Returns: number (e.g., 1234.56)
 ```
 
+### Part 2: Binance to Intents Functions
+
+#### `getIntentsDepositAddress(symbol, network)`
+
+Get the deposit address for the solver's Intents account. This address is used to withdraw funds from Binance to Intents.
+
+```typescript
+const depositInfo = await getIntentsDepositAddress('USDT', 'eth-mainnet');
+// Returns: { address: string, chain: string } | null
+```
+
+**Requirements:**
+- `INTENTS_BRIDGE_ACCOUNT_ID` must be set in environment variables
+- The account must be registered in NEAR Intents
+
+#### `withdrawToIntents(symbol, amount, network)`
+
+Withdraw funds from Binance to the solver's Intents account. This implements Part 2 of the CEX flow.
+
+**Note:** This is a convenience wrapper around `withdrawFromBinance`. It automatically:
+1. Gets the Intents deposit address for the solver account
+2. Calls `withdrawFromBinance` with that address
+3. Returns the same result as `withdrawFromBinance`
+
+```typescript
+const result = await withdrawToIntents('USDT', 100, 'eth-mainnet');
+// Returns: WithdrawalResult { success: boolean, txId?: string, error?: BinanceError }
+
+// Equivalent to:
+const depositInfo = await getIntentsDepositAddress('USDT', 'eth-mainnet');
+const result = await withdrawFromBinance('USDT', 100, 'eth-mainnet', depositInfo.address);
+```
+
+**Flow:**
+1. Gets the Intents deposit address for the solver account via `getIntentsDepositAddress`
+2. Calls `withdrawFromBinance` internally with the Intents deposit address
+3. Funds are sent from Binance to the solver's Intents account
+
+**Requirements:**
+- `INTENTS_BRIDGE_ACCOUNT_ID` must be set in environment variables
+- The account must be registered in NEAR Intents
+- All validations from `withdrawFromBinance` apply (network availability, minimum amounts, balance checks, etc.)
+
+#### `checkIntentsDeposit(symbol, amount, network, startTime)`
+
+Check if a deposit has arrived in the solver's Intents account.
+
+```typescript
+const received = await checkIntentsDeposit('USDT', 100, 'eth-mainnet', Date.now() - 3600000);
+// Returns: boolean
+```
+
+**Note:** This checks recent deposits from the Intents Bridge Service. The service returns recent deposits, so timing is approximate.
+
+#### `executeFtWithdrawIntent(tokenId, amount, receiverId?)`
+
+Executes an `ft_withdraw` intent from the solver's Intents account to the vault contract. This completes the repayment flow.
+
+```typescript
+const result = await executeFtWithdrawIntent(
+    'eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near',
+    '10000000', // Amount in minimal units
+);
+// Returns: { success: boolean, txHash?: string, error?: BinanceError }
+```
+
+**Requirements:**
+- `INTENTS_BRIDGE_ACCOUNT_ID` must be set
+- `SOLVER_EVM_PRIVATE_KEY` must be set (and the corresponding public key must be registered in Intents)
+- `VAULT_CONTRACT_ID` (or `NEAR_CONTRACT_ID`) must be set
+- `NEAR_PRIVATE_KEY` must be set for executing the intent
+
+**What it does:**
+1. Verifies vault contract is registered in OMFT (registers if needed)
+2. Creates ft_withdraw intent quote
+3. Signs quote with ERC191 using EVM private key
+4. Executes intent on `intents.near` contract
+5. Tokens are transferred from solver's Intents account to vault contract
+
+#### `getOmftTokenId(symbol, network)`
+
+Gets the OMFT token ID for a given symbol and network. This is a helper function to convert token symbols to OMFT token IDs.
+
+```typescript
+const tokenId = await getOmftTokenId('USDT', 'eth-mainnet');
+// Returns: "eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near" | null
+```
+
 ## Error Handling
 
 The integration includes comprehensive error handling with custom error types:
@@ -218,6 +322,42 @@ const USE_BINANCE = process.env.USE_BINANCE === 'true';
 await checkCexDeposit('USDT', amount, start, receiver, network);
 await withdrawFromCex('USDT', amount, network, address);
 ```
+
+### Part 2 Flow in Cron
+
+When `USE_BINANCE=true`, the flow includes Part 2 (Binance to Intents):
+
+1. **SwapCompleted State**: After swap is completed, withdraws from Binance to Intents using `withdrawToIntents()`
+2. **StpIntentAccountCredited State**: Checks if deposit arrived in Intents account using `checkIntentsDeposit()`
+
+**State Flow (Binance):**
+```
+StpLiquidityBorrowed → StpLiquidityDeposited → (swapOnBinance) → (withdrawToIntents) → 
+StpLiquidityWithdrawn → (checkIntentsDeposit) → 
+StpIntentAccountCredited → (executeFtWithdrawIntent) → 
+SwapCompleted → UserLiquidityDeposited
+```
+
+**Detailed Flow:**
+1. **StpLiquidityBorrowed**: Check if OMFT was burned and deposited to Binance (Part 1 - already existed)
+2. **StpLiquidityDeposited**: 
+   - **Part 1b**: Execute swap on Binance (from source token to destination token) (`swapOnBinance`)
+   - **Part 2a**: Withdraw from Binance to solver's Intents account (`withdrawToIntents`)
+3. **StpLiquidityWithdrawn**: Verify deposit arrived in Intents account (`checkIntentsDeposit`)
+4. **StpIntentAccountCredited**: Execute `ft_withdraw` intent to repay vault (`executeFtWithdrawIntent`)
+   - Verifies/registers vault storage in OMFT contract
+   - Creates intent quote
+   - Signs with ERC191
+   - Executes on `intents.near`
+5. **SwapCompleted**: Swap and repayment completed
+6. **UserLiquidityDeposited**: Continue with user flow
+
+**Complete Flow Explanation:**
+- **Part 1**: OMFT burn from NEAR contract → Binance deposit address (already working)
+- **Part 1b**: Swap on Binance (e.g., USDT on ETH → USDT on TRON) - **NEW**
+- **Part 2a**: Withdraw from Binance → Solver's Intents account (new asset after swap)
+- **Part 2b**: Verify deposit in Intents account
+- **Part 2c**: Execute `ft_withdraw` intent from solver's Intents account → Vault contract (repayment)
 
 ## Troubleshooting
 

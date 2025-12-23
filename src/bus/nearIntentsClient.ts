@@ -343,11 +343,15 @@ export class NearIntentsClient {
             // Calculate bridge fee (10% of input - paid by user)
             const bridgeFee = Math.floor(amountIn * this.FEE_PERCENTAGE);
 
-            // Calculate output amount (what user receives - input minus bridge fee)
-            const amountOut = amountIn - bridgeFee;
+            // Calculate base output amount (what user should receive - input minus bridge fee)
+            const baseAmountOut = amountIn - bridgeFee;
 
             // Calculate protocol fee on output (0.000111% - paid by solver)
-            const protocolFee = Math.floor(amountOut * this.PROTOCOL_FEE_RATE);
+            const protocolFee = Math.floor(baseAmountOut * this.PROTOCOL_FEE_RATE);
+
+            // IMPORTANT: The protocol deducts the protocol fee from amount_out when returning quotes to users
+            // So we need to offer amount_out + protocol_fee to compensate, so user receives the intended amount
+            const amountOut = baseAmountOut + protocolFee;
 
             console.log(`💰 Fee calculation:`);
             console.log(
@@ -361,15 +365,24 @@ export class NearIntentsClient {
                 ).toFixed(2)})`,
             );
             console.log(
-                `   Output amount (user receives): ${amountOut} ($${(
+                `   Base output amount: ${baseAmountOut} ($${(
+                    baseAmountOut / 1000000
+                ).toFixed(2)})`,
+            );
+            console.log(`   Protocol fee (deducted by protocol): ${protocolFee}`);
+            console.log(
+                `   Offered amount_out (base + protocol fee): ${amountOut} ($${(
                     amountOut / 1000000
                 ).toFixed(2)})`,
             );
-            console.log(`   Protocol fee: ${protocolFee}`);
             console.log(
-                `   Total solver cost: ${amountOut + protocolFee} ($${(
-                    (amountOut + protocolFee) /
-                    1000000
+                `   User will receive after protocol fee: ${baseAmountOut} ($${(
+                    baseAmountOut / 1000000
+                ).toFixed(2)})`,
+            );
+            console.log(
+                `   Total solver cost: ${amountOut} ($${(
+                    amountOut / 1000000
                 ).toFixed(2)})`,
             );
 
@@ -477,10 +490,9 @@ export class NearIntentsClient {
         quoteRequest: QuoteRequest,
         amountOut: string,
     ): Promise<SignedData> {
-        // Calculate protocol fee for the token_diff
+        // Use exact amount_in from request (do not add protocol fee to amount_in)
+        // The protocol fee is handled separately and should not modify the amount_in
         const amountInInt = parseInt(quoteRequest.exact_amount_in!);
-        const protocolFee = Math.floor(amountInInt * this.PROTOCOL_FEE_RATE);
-        const totalAmountIn = amountInInt + protocolFee;
         const amountOutInt = parseInt(amountOut);
 
         const messageData: IntentMessage = {
@@ -493,7 +505,8 @@ export class NearIntentsClient {
                     intent: 'token_diff',
                     diff: {
                         // Solver receives ETH (positive - solver gains)
-                        [quoteRequest.defuse_asset_identifier_in]: totalAmountIn.toString(),
+                        // Must match exact_amount_in from the quote request
+                        [quoteRequest.defuse_asset_identifier_in]: amountInInt.toString(),
                         // Solver pays TRON (negative - solver pays, must match quote_output.amount_out)
                         [quoteRequest.defuse_asset_identifier_out]: `-${amountOutInt}`,
                     },

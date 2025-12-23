@@ -148,6 +148,30 @@ async function main() {
         const quoteRes = await nearIntentsFetch('quote', quoteRequestParams);
         console.log('Quote:', quoteRes);
 
+        // Identify our solver's quote by expiration_time (our solver uses '2025-12-31T11:59:59Z')
+        const identifyOurSolverQuote = (options) => {
+            if (!options || options.length === 0) {
+                return null;
+            }
+            
+            // Our solver uses a unique deadline: '2025-12-31T11:59:59.000Z'
+            // This appears as expiration_time in quotes
+            const ourSolverExpiration = '2025-12-31T11:59:59Z';
+            
+            for (const option of options) {
+                // Check if expiration_time matches our solver's deadline
+                if (option.expiration_time && option.expiration_time.includes('2025-12-31T11:59:59')) {
+                    console.log('✅ Found our solver quote!');
+                    console.log('   Quote Hash:', option.quote_hash);
+                    console.log('   Amount Out:', option.amount_out);
+                    console.log('   Expiration:', option.expiration_time);
+                    return option;
+                }
+            }
+            
+            return null;
+        };
+
         // Select best option - chooses the one with HIGHEST amount_out (best for user)
         const selectBestOption = (options) => {
             if (!options || options.length === 0) {
@@ -272,26 +296,47 @@ async function main() {
 
         // Select and display the best option
         if (quoteRes && quoteRes.result && Array.isArray(quoteRes.result)) {
+            // First, try to identify our solver's quote
+            const ourSolverQuote = identifyOurSolverQuote(quoteRes.result);
+            
+            // Also get the best option (highest amount_out)
             const bestOption = selectBestOption(quoteRes.result);
-            if (bestOption) {
+            
+            // Display all quotes for comparison
+            console.log('---');
+            console.log('All Available Quotes:');
+            quoteRes.result.forEach((quote, index) => {
+                const isOurs = quote.expiration_time && quote.expiration_time.includes('2025-12-31T11:59:59');
+                console.log(`  ${index + 1}. ${isOurs ? '⭐ OUR SOLVER' : ''} Amount Out: ${quote.amount_out}, Expiration: ${quote.expiration_time}, Hash: ${quote.quote_hash}`);
+            });
+            console.log('---');
+            
+            // Use our solver's quote if found, otherwise use best option
+            const selectedOption = ourSolverQuote || bestOption;
+            
+            if (selectedOption) {
                 console.log('---');
-                console.log('Best Quote Option:');
-                console.log('Quote Hash:', bestOption.quote_hash);
-                console.log('Amount In:', bestOption.amount_in);
-                console.log('Amount Out:', bestOption.amount_out);
-                console.log('Expiration:', bestOption.expiration_time);
+                if (ourSolverQuote) {
+                    console.log('✅ Using Our Solver Quote:');
+                } else {
+                    console.log('📊 Using Best Quote Option (highest amount_out):');
+                }
+                console.log('Quote Hash:', selectedOption.quote_hash);
+                console.log('Amount In:', selectedOption.amount_in);
+                console.log('Amount Out:', selectedOption.amount_out);
+                console.log('Expiration:', selectedOption.expiration_time);
                 console.log('asset in:', ASSET_IN);
                 console.log('asset out:', ASSET_OUT);
                 console.log('---');
                 
-                // Create token_diff_quote using the best option
+                // Create token_diff_quote using the selected option
                 // Ensure amounts are strings (contract expects string values for amounts)
                 const tokenDiffQuote = createTokenDiffQuote(
                     wallet.address,
                     ASSET_IN,
-                    String(bestOption.amount_in),
+                    String(selectedOption.amount_in),
                     ASSET_OUT,
-                    String(bestOption.amount_out)
+                    String(selectedOption.amount_out)
                 );
                 
                 console.log('Generated Token Diff Quote:');
@@ -339,7 +384,7 @@ async function main() {
                 // To make this call, use the near-js API
                 console.log('\n📤 Publishing intent to NEAR contract...');
                 console.log('\n📤 Sending signed intent to Access Point...');
-                const apResponse = await sendToAccessPoint(signedCommitment, bestOption.quote_hash);
+                const apResponse = await sendToAccessPoint(signedCommitment, selectedOption.quote_hash);
                 console.log('🎉 Access Point response:', JSON.stringify(apResponse, null, 2));
                 
                 // try {

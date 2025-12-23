@@ -6,6 +6,8 @@
 
 import { ethers } from 'ethers';
 import bs58 from 'bs58';
+import * as crypto from 'crypto';
+import { BorshSchema, borshSerialize } from 'borsher';
 import { JsonRpcProvider } from '@near-js/providers';
 import { Account } from '@near-js/accounts';
 import { KeyPairSigner } from '@near-js/signers';
@@ -35,17 +37,25 @@ export interface IntentQuote {
 }
 
 export interface SignedIntent {
-    standard: 'erc191';
-    payload: string; // JSON string of the quote
-    signature: string; // secp256k1:base58 encoded signature
+    standard: 'erc191' | 'nep413';
+    payload: string | Nep413Payload; // JSON string for ERC-191, Nep413Payload for NEP-413
+    signature: string; // secp256k1:base58 for ERC-191, ed25519:base58 for NEP-413
+    public_key?: string; // Required for NEP-413 (ed25519:...)
+}
+
+export interface Nep413Payload {
+    message: string; // JSON string of { signer_id, deadline, intents }
+    nonce: string; // Base64 encoded 32-byte nonce
+    recipient: string; // "intents.near"
+    callback_url?: string; // Optional
 }
 
 export interface IntentsIntentConfig {
-    solverNearAccountId: string; // NEAR account ID of the solver (for signer_id, same as INTENTS_BRIDGE_ACCOUNT_ID)
-    solverEvmPrivateKey?: string; // EVM private key for signing (required for signing intents, optional for key registration)
+    solverNearAccountId: string; // NEAR account ID of the solver (same as INTENTS_BRIDGE_ACCOUNT_ID)
+    solverEvmPrivateKey?: string; // EVM private key (optional, not needed for NEP-413 signing - only for ERC-191 if needed)
     vaultContractId?: string; // NEAR account ID of the vault contract (required for ft_withdraw, optional for key registration)
     nearAccountId?: string; // NEAR account ID for executing the intent (optional, defaults to solverNearAccountId)
-    nearPrivateKey?: string; // NEAR private key for executing the intent (required for executing intents and registering keys)
+    nearPrivateKey?: string; // NEAR private key for executing the intent (required for executing intents directly and registering keys)
     nearNetworkId?: string; // 'mainnet' or 'testnet' (default: 'mainnet')
 }
 
@@ -53,6 +63,7 @@ export class IntentsIntentService {
     private readonly config: IntentsIntentConfig;
     private provider: JsonRpcProvider | null = null;
     private account: Account | null = null;
+    private keyPair: KeyPair | null = null; // Store keyPair for NEP-413 signing
 
     constructor(config: IntentsIntentConfig) {
         this.config = config;
@@ -108,12 +119,85 @@ export class IntentsIntentService {
     }
 
     /**
+     * Signs a quote using NEP-413 standard (NEAR native signing)
+     * Returns the signature in the format expected by NEAR Intents: "ed25519:base58(...)"
+     * Based on: https://docs.near-intents.org/near-intents/market-makers/verifier/intent-types-and-execution
+     * 
+     * Solvers with NEAR accounts use NEP-413, not ERC-191
+     */
+    async signQuoteNep413(quote: IntentQuote): Promise<SignedIntent> {
+        await this.initNearConnection();
+
+        if (!this.account || !this.keyPair) {
+            throw new Error('NEAR connection not initialized');
+        }
+
+        // Use the stored key pair
+        const keyPair = this.keyPair;
+        const publicKey = keyPair.getPublicKey().toString();
+
+        // Create the message JSON string (as per NEP-413 format)
+        // Note: NEP-413 uses { signer_id, deadline, intents } (no verifying_contract or nonce in message)
+        const message = JSON.stringify({
+            signer_id: quote.signer_id,
+            deadline: quote.deadline,
+            intents: quote.intents,
+        });
+
+        // Generate nonce (32 random bytes)
+        const nonceBytes = crypto.randomBytes(32);
+
+        // Create payload structure for Borsh serialization
+        const nep413PayloadSchema = BorshSchema.Struct({
+            message: BorshSchema.String,
+            nonce: BorshSchema.Array(BorshSchema.u8, 32),
+            recipient: BorshSchema.String,
+            callback_url: BorshSchema.Option(BorshSchema.String),
+        });
+
+        const payload = {
+            message,
+            nonce: Array.from(nonceBytes), // Convert to array for Borsh
+            recipient: quote.verifying_contract,
+        };
+
+        // Serialize payload with NEP-413 magic number (2^31 + 413 = 2147484061)
+        const magicNumber = 2147484061;
+        const magicNumberSerialized = borshSerialize(BorshSchema.u32, magicNumber);
+        const payloadSerialized = borshSerialize(nep413PayloadSchema, payload);
+        
+        // Hash the combined data
+        const payloadToSign = crypto
+            .createHash('sha256')
+            .update(Buffer.concat([magicNumberSerialized, payloadSerialized]))
+            .digest();
+
+        // Sign with NEAR key pair
+        const signature = keyPair.sign(payloadToSign);
+
+        // Format as NEP-413
+        const nep413Payload: Nep413Payload = {
+            message,
+            nonce: nonceBytes.toString('base64'),
+            recipient: quote.verifying_contract,
+        };
+
+        return {
+            standard: 'nep413',
+            payload: nep413Payload,
+            signature: 'ed25519:' + bs58.encode(signature.signature),
+            public_key: publicKey,
+        };
+    }
+
+    /**
+     * @deprecated Use signQuoteNep413 instead. Solvers with NEAR accounts use NEP-413, not ERC-191.
      * Signs a quote using ERC191 standard (Ethereum personal sign)
      * Returns the signature in the format expected by NEAR Intents: "secp256k1:base58(...)"
      */
     async signQuote(quote: IntentQuote): Promise<SignedIntent> {
         if (!this.config.solverEvmPrivateKey) {
-            throw new Error('solverEvmPrivateKey is required for signing intents');
+            throw new Error('solverEvmPrivateKey is required for ERC-191 signing');
         }
 
         // Convert quote to compact JSON string (no spaces, no newlines)
@@ -178,10 +262,10 @@ export class IntentsIntentService {
         this.provider = new JsonRpcProvider({ url: nodeUrl });
 
         // Create signer from private key
-        const keyPair = KeyPair.fromString(
+        this.keyPair = KeyPair.fromString(
             this.config.nearPrivateKey as KeyPairString,
         );
-        const signer = new KeyPairSigner(keyPair);
+        const signer = new KeyPairSigner(this.keyPair);
 
         // Create account instance
         this.account = new Account(
@@ -192,7 +276,9 @@ export class IntentsIntentService {
     }
 
     /**
-     * Executes the signed intent on intents.near contract
+     * Executes the signed intent on intents.near contract using execute_intents
+     * All intents (including ft_withdraw) are executed through execute_intents
+     * Supports both ERC-191 and NEP-413 signed intents
      */
     async executeIntent(signedIntent: SignedIntent): Promise<string> {
         await this.initNearConnection();
@@ -204,23 +290,35 @@ export class IntentsIntentService {
         const contractId = 'intents.near';
 
         // Structure the data as expected by execute_intents
-        const requestData = {
-            signed: [
-                {
-                    standard: signedIntent.standard,
-                    payload: signedIntent.payload, // String JSON, not parsed
-                    signature: signedIntent.signature,
-                },
-            ],
+        // For NEP-413, payload is an object; for ERC-191, payload is a string
+        const signedData: any = {
+            standard: signedIntent.standard,
+            signature: signedIntent.signature,
         };
 
-        console.log('📤 Executing intent on intents.near...');
+        if (signedIntent.standard === 'nep413') {
+            // NEP-413: payload is an object with message, nonce, recipient
+            signedData.payload = signedIntent.payload as Nep413Payload;
+            if (signedIntent.public_key) {
+                signedData.public_key = signedIntent.public_key;
+            }
+        } else {
+            // ERC-191: payload is a JSON string
+            signedData.payload = signedIntent.payload as string;
+        }
+
+        const requestData = {
+            signed: [signedData],
+        };
+
+        console.log('📤 Executing intent on intents.near via execute_intents...');
         console.log('   Contract:', contractId);
         console.log(
             '   Account:',
             this.config.nearAccountId || this.config.solverNearAccountId,
         );
-        console.log('   Payload:', signedIntent.payload);
+        console.log('   Standard:', signedIntent.standard);
+        console.log('   Payload:', JSON.stringify(signedIntent.payload, null, 2));
 
         try {
             const gasAmount = BigInt('300000000000000'); // 300 TGas
@@ -247,7 +345,9 @@ export class IntentsIntentService {
     }
 
     /**
-     * Creates, signs, and executes an ft_withdraw intent
+     * Complete flow: create quote, sign with NEP-413, and execute via execute_intents
+     * Solvers with NEAR accounts use NEP-413 signing (not ERC-191)
+     * All intents are executed through execute_intents method
      * This is the main function to use for withdrawing from solver's Intents account to vault
      */
     async createAndExecuteFtWithdraw(
@@ -263,32 +363,45 @@ export class IntentsIntentService {
             throw new Error('receiverId or vaultContractId must be provided');
         }
 
+        // Remove nep141: prefix if present (intents expect just the account ID)
+        const tokenId = token.startsWith('nep141:') ? token.replace('nep141:', '') : token;
+
         // CRITICAL: Ensure the vault is registered in the OMFT token contract
         // If not registered, tokens sent to it will be lost!
         console.log(
             `\n⚠️  IMPORTANT: Verifying storage registration for ${finalReceiverId}...`,
         );
-        await this.ensureStorageRegistered(token, finalReceiverId);
+        await this.ensureStorageRegistered(tokenId, finalReceiverId);
+
+        // Create the ft_withdraw intent
+        const intent: FtWithdrawIntent = {
+            intent: 'ft_withdraw',
+            token: tokenId,
+            receiver_id: finalReceiverId,
+            amount,
+        };
+
+        // Add optional fields
+        if (msg) {
+            intent.msg = msg;
+        }
+        if (memo) {
+            intent.memo = memo;
+        }
 
         console.log('\n🔍 Creating ft_withdraw intent...');
-        const quote = this.createFtWithdrawQuote(
-            token,
-            amount,
-            receiverId,
-            msg,
-            memo,
-        );
+        const quote = this.createFtWithdrawQuote(tokenId, amount, receiverId, msg, memo);
         console.log('✅ Quote created:', JSON.stringify(quote, null, 2));
 
-        console.log('\n🔍 Signing quote with ERC191...');
-        const signedIntent = await this.signQuote(quote);
-        console.log('✅ Quote signed');
-        console.log(
-            '   Signature:',
-            signedIntent.signature.substring(0, 50) + '...',
-        );
+        console.log('\n🔍 Signing quote with NEP-413 (NEAR native signing)...');
+        console.log('   Note: Solvers with NEAR accounts use NEP-413, not ERC-191');
+        const signedIntent = await this.signQuoteNep413(quote);
+        console.log('✅ Quote signed with NEP-413');
+        console.log('   Public Key:', signedIntent.public_key);
+        console.log('   Signature:', signedIntent.signature.substring(0, 50) + '...');
 
-        console.log('\n🔍 Executing intent...');
+        console.log('\n🔍 Executing intent via execute_intents...');
+        console.log('   Note: All intents are executed through execute_intents method');
         const txHash = await this.executeIntent(signedIntent);
 
         return txHash;

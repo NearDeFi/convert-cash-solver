@@ -1003,11 +1003,13 @@ export async function checkIntentsDeposit(
 // --- Intents Intent Integration (Part 2: ft_withdraw from Intents to Vault) ---
 
 const VAULT_CONTRACT_ID = process.env.NEAR_CONTRACT_ID || process.env.VAULT_CONTRACT_ID;
-const SOLVER_EVM_PRIVATE_KEY = process.env.SOLVER_EVM_PRIVATE_KEY;
 
 /**
  * Executes ft_withdraw intent from solver's Intents account to vault contract
  * This completes Part 2 of the CEX flow: Intents -> Vault (repayment)
+ * 
+ * Uses NEP-413 (NEAR native signing) - no EVM private key needed!
+ * All intents are executed through execute_intents method
  *
  * @param tokenId OMFT token ID (e.g., "eth-0x...omft.near")
  * @param amount Amount in minimal units (string)
@@ -1028,9 +1030,9 @@ export async function executeFtWithdrawIntent(
         return { success: false, error };
     }
 
-    if (!SOLVER_EVM_PRIVATE_KEY) {
+    if (!process.env.NEAR_PRIVATE_KEY) {
         const error = new BinanceError(
-            'SOLVER_EVM_PRIVATE_KEY not configured. Cannot sign ft_withdraw intent.',
+            'NEAR_PRIVATE_KEY not configured. Cannot sign ft_withdraw intent with NEP-413.',
             'MISSING_CREDENTIALS',
         );
         console.error('[Binance] Intent execution error:', error.message);
@@ -1049,7 +1051,7 @@ export async function executeFtWithdrawIntent(
     try {
         const config: IntentsIntentConfig = {
             solverNearAccountId: INTENTS_BRIDGE_ACCOUNT_ID,
-            solverEvmPrivateKey: SOLVER_EVM_PRIVATE_KEY,
+            // solverEvmPrivateKey is optional - not needed for NEP-413 signing
             vaultContractId: VAULT_CONTRACT_ID,
             nearAccountId: process.env.NEAR_ACCOUNT_ID || INTENTS_BRIDGE_ACCOUNT_ID,
             nearPrivateKey: process.env.NEAR_PRIVATE_KEY,
@@ -1060,6 +1062,9 @@ export async function executeFtWithdrawIntent(
 
         console.log(
             `[Binance] Executing ft_withdraw intent: ${amount} from ${INTENTS_BRIDGE_ACCOUNT_ID} to ${receiverId || VAULT_CONTRACT_ID}`,
+        );
+        console.log(
+            `[Binance] Using NEP-413 (NEAR native signing) - no EVM key needed!`,
         );
 
         const txHash = await intentService.createAndExecuteFtWithdraw(

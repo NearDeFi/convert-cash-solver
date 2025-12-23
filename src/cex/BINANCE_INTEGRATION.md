@@ -44,7 +44,8 @@ INTENTS_BRIDGE_ACCOUNT_ID=your_solver_near_account.near  # NEAR account ID regis
 INTENTS_BRIDGE_JWT_TOKEN=your_jwt_token_here             # Optional JWT token for bridge service authentication
 
 # Intents Intent Configuration (Part 2: ft_withdraw to Vault)
-SOLVER_EVM_PRIVATE_KEY=0x...                            # EVM private key for signing intents (must be registered in Intents)
+# SOLVER_EVM_PRIVATE_KEY is no longer needed - solvers use NEP-413 (NEAR native signing) instead of ERC-191
+NEAR_PRIVATE_KEY=ed25519:...                            # NEAR private key for signing and executing intents (required)
 VAULT_CONTRACT_ID=your_vault_contract.near              # Vault contract account ID (or use NEAR_CONTRACT_ID)
 NEAR_NETWORK_ID=mainnet                                 # Optional: 'mainnet' or 'testnet' (default: 'mainnet')
 ```
@@ -220,16 +221,18 @@ const result = await executeFtWithdrawIntent(
 
 **Requirements:**
 - `INTENTS_BRIDGE_ACCOUNT_ID` must be set
-- `SOLVER_EVM_PRIVATE_KEY` must be set (and the corresponding public key must be registered in Intents)
+- `NEAR_PRIVATE_KEY` must be set (for NEP-413 signing and executing the intent)
 - `VAULT_CONTRACT_ID` (or `NEAR_CONTRACT_ID`) must be set
-- `NEAR_PRIVATE_KEY` must be set for executing the intent
+- `NEAR_ACCOUNT_ID` (optional, defaults to `INTENTS_BRIDGE_ACCOUNT_ID`)
 
 **What it does:**
 1. Verifies vault contract is registered in OMFT (registers if needed)
 2. Creates ft_withdraw intent quote
-3. Signs quote with ERC191 using EVM private key
-4. Executes intent on `intents.near` contract
+3. Signs quote with NEP-413 (NEAR native signing) using NEAR private key
+4. Executes intent via `execute_intents` method on `intents.near` contract
 5. Tokens are transferred from solver's Intents account to vault contract
+
+**Note:** Solvers with NEAR accounts use NEP-413 signing, not ERC-191. No EVM private key needed!
 
 #### `getOmftTokenId(symbol, network)`
 
@@ -347,8 +350,8 @@ SwapCompleted → UserLiquidityDeposited
 4. **StpIntentAccountCredited**: Execute `ft_withdraw` intent to repay vault (`executeFtWithdrawIntent`)
    - Verifies/registers vault storage in OMFT contract
    - Creates intent quote
-   - Signs with ERC191
-   - Executes on `intents.near`
+   - Signs with NEP-413 (NEAR native signing)
+   - Executes via `execute_intents` method on `intents.near`
 5. **SwapCompleted**: Swap and repayment completed
 6. **UserLiquidityDeposited**: Continue with user flow
 

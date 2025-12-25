@@ -16,17 +16,18 @@
 //! This yield is distributed to lenders proportionally to their shares.
 
 use crate::*;
-use near_contract_standards::fungible_token::{core::ext_ft_core, FungibleTokenCore};
-use near_sdk::{env, ext_contract, json_types::U128, Gas, NearToken, Promise, PromiseResult};
+use near_contract_standards::fungible_token::core::ext_ft_core;
+use near_sdk::{
+    env, ext_contract,
+    json_types::{U128, U64},
+    Gas, NearToken, Promise, PromiseResult,
+};
 
 /// Gas allocation for the solver borrow `ft_transfer`.
 const GAS_FOR_SOLVER_BORROW: Gas = Gas::from_tgas(30);
 
 /// Gas allocation for the `on_new_intent_callback`.
 const GAS_FOR_NEW_INTENT_CALLBACK: Gas = Gas::from_tgas(8);
-
-/// Default borrow amount when not specified (5 USDC with 6 decimals).
-pub const SOLVER_BORROW_AMOUNT: u128 = 5_000_000;
 
 /// External contract interface for callback methods.
 #[allow(dead_code)]
@@ -72,7 +73,7 @@ pub enum State {
 #[derive(Clone)]
 pub struct Intent {
     /// Unix timestamp when the intent was created.
-    pub created: u64,
+    pub created: U64,
     /// Current state in the intent lifecycle.
     pub state: State,
     /// Serialized intent data (quote details, destination, etc.).
@@ -80,11 +81,19 @@ pub struct Intent {
     /// Hash of the user's deposit transaction for verification.
     pub user_deposit_hash: String,
     /// Amount of liquidity borrowed from the vault (principal).
-    pub borrow_amount: u128,
-    /// Total share supply at borrow time (for yield attribution).
-    pub borrow_total_supply: u128,
+    pub borrow_amount: U128,
     /// Repayment amount when liquidity is returned (principal + yield).
-    pub repayment_amount: Option<u128>,
+    pub repayment_amount: Option<U128>,
+}
+
+/// Intent with its index for view methods.
+#[near(serializers = [json])]
+#[derive(Clone)]
+pub struct IndexedIntent {
+    /// The intent index in the contract.
+    pub index: U128,
+    /// The intent data.
+    pub intent: Intent,
 }
 
 // ============================================================================
@@ -103,7 +112,7 @@ impl Contract {
     /// * `intent_data` - Serialized intent/quote details
     /// * `_solver_deposit_address` - Reserved for future use
     /// * `user_deposit_hash` - Hash of user's deposit for verification
-    /// * `amount` - Optional borrow amount (defaults to `SOLVER_BORROW_AMOUNT`)
+    /// * `amount` - Amount of liquidity to borrow from the vault
     ///
     /// # Panics
     ///
@@ -115,8 +124,9 @@ impl Contract {
         intent_data: String,
         _solver_deposit_address: AccountId,
         user_deposit_hash: String,
-        amount: Option<U128>,
+        amount: U128,
     ) {
+        self.require_not_paused();
         // Prevent duplicate intents for the same user deposit
         if self
             .index_to_intent
@@ -127,7 +137,7 @@ impl Contract {
         }
 
         let solver_id = env::predecessor_account_id();
-        let borrow_amount = amount.map(|a| a.0).unwrap_or(SOLVER_BORROW_AMOUNT);
+        let borrow_amount = amount.0;
 
         // Block borrowing while lenders are waiting for redemptions
         require!(
@@ -173,7 +183,7 @@ impl Contract {
                     ),
             );
 
-        promise.as_return();
+        let _ = promise.as_return();
     }
 
     /// Callback after attempting to transfer borrowed liquidity.
@@ -221,18 +231,20 @@ impl Contract {
         }
         self.solver_id_to_indices.insert(solver_id.clone(), indices);
 
-        // Capture share supply for yield attribution
-        let borrow_total_supply = self.token.ft_total_supply().0;
+        // Track total borrowed amount
+        self.total_borrowed = self
+            .total_borrowed
+            .checked_add(borrow_amount.0)
+            .expect("total_borrowed overflow");
 
         self.index_to_intent.insert(
             index,
             Intent {
-                created: env::block_timestamp(),
+                created: U64(env::block_timestamp()),
                 state: State::StpLiquidityBorrowed,
                 intent_data,
                 user_deposit_hash,
-                borrow_amount: borrow_amount.0,
-                borrow_total_supply,
+                borrow_amount,
                 repayment_amount: None,
             },
         );
@@ -240,14 +252,36 @@ impl Contract {
 
     /// Clears all intents (owner-only, for debugging).
     pub fn clear_intents(&mut self) {
+        self.require_not_paused();
         self.require_owner();
         self.solver_id_to_indices.clear();
         self.index_to_intent.clear();
+        self.total_borrowed = 0;
     }
 
-    /// Returns all intents in the contract.
-    pub fn get_intents(&self) -> Vec<Intent> {
-        self.index_to_intent.values().cloned().collect()
+    /// Returns intents in the contract with their indices, with optional pagination.
+    ///
+    /// # Arguments
+    ///
+    /// * `from_index` - Starting index for pagination (default: 0)
+    /// * `limit` - Maximum number of intents to return (default: all)
+    ///
+    /// # Returns
+    ///
+    /// A vector of indexed intents within the specified range.
+    pub fn get_intents(&self, from_index: Option<u32>, limit: Option<u32>) -> Vec<IndexedIntent> {
+        let from = from_index.unwrap_or(0) as usize;
+        let limit = limit.unwrap_or(self.index_to_intent.len() as u32) as usize;
+
+        self.index_to_intent
+            .iter()
+            .skip(from)
+            .take(limit)
+            .map(|(index, intent)| IndexedIntent {
+                index: U128(*index),
+                intent: intent.clone(),
+            })
+            .collect()
     }
 
     /// Updates the state of an intent.
@@ -264,6 +298,7 @@ impl Contract {
     /// - If the caller doesn't own the intent
     /// - If the intent doesn't exist
     pub fn update_intent_state(&mut self, index: u128, state: State) {
+        self.require_not_paused();
         let solver_id = env::predecessor_account_id();
         let indices = self.get_intent_indices(solver_id);
 
@@ -279,12 +314,37 @@ impl Contract {
         );
     }
 
-    /// Returns all intents owned by a specific solver.
-    pub fn get_intents_by_solver(&self, solver_id: AccountId) -> Vec<Intent> {
+    /// Returns intents owned by a specific solver with optional pagination.
+    ///
+    /// # Arguments
+    ///
+    /// * `solver_id` - The solver's account ID
+    /// * `from_index` - Starting index for pagination (default: 0)
+    /// * `limit` - Maximum number of intents to return (default: all)
+    ///
+    /// # Returns
+    ///
+    /// A vector of intents owned by the solver within the specified range.
+    pub fn get_intents_by_solver(
+        &self,
+        solver_id: AccountId,
+        from_index: Option<u32>,
+        limit: Option<u32>,
+    ) -> Vec<IndexedIntent> {
         let indices = self.get_intent_indices(solver_id);
+        let from = from_index.unwrap_or(0) as usize;
+        let limit = limit.unwrap_or(indices.len() as u32) as usize;
+
         indices
             .iter()
-            .filter_map(|i| self.index_to_intent.get(i).cloned())
+            .skip(from)
+            .take(limit)
+            .filter_map(|i| {
+                self.index_to_intent.get(i).map(|intent| IndexedIntent {
+                    index: U128(*i),
+                    intent: intent.clone(),
+                })
+            })
             .collect()
     }
 
@@ -319,7 +379,7 @@ mod tests {
             "intent".to_string(),
             "solver.deposit".parse().unwrap(),
             "hash-1".to_string(),
-            None,
+            U128(5_000_000),
         );
     }
 
@@ -334,25 +394,9 @@ mod tests {
             "intent".to_string(),
             "solver.deposit".parse().unwrap(),
             "hash-2".to_string(),
-            Some(U128(3_000_000)),
+            U128(3_000_000),
         );
         assert_eq!(contract.total_assets, 7_000_000);
-    }
-
-    #[test]
-    fn new_intent_default_amount_uses_solver_borrow_amount() {
-        let mut contract = ContractBuilder::new("owner.test", "usdc.test")
-            .total_assets(SOLVER_BORROW_AMOUNT + 1_000_000)
-            .predecessor("solver.test")
-            .attached(1)
-            .build();
-        contract.new_intent(
-            "intent".to_string(),
-            "solver.deposit".parse().unwrap(),
-            "hash-default".to_string(),
-            None,
-        );
-        assert_eq!(contract.total_assets, 1_000_000);
     }
 
     #[test]
@@ -373,7 +417,7 @@ mod tests {
             "intent".to_string(),
             "solver.deposit".parse().unwrap(),
             "dup-hash".to_string(),
-            None,
+            U128(5_000_000),
         );
     }
 
@@ -410,8 +454,8 @@ mod tests {
         );
         init_account("solver.test", 1);
         contract.update_intent_state(0, State::SwapCompleted);
-        let intents = contract.get_intents();
+        let intents = contract.get_intents(None, None);
         assert_eq!(intents.len(), 1);
-        assert!(matches!(intents[0].state, State::SwapCompleted));
+        assert!(matches!(intents[0].intent.state, State::SwapCompleted));
     }
 }

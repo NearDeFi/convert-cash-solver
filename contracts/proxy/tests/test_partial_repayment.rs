@@ -166,8 +166,8 @@ async fn test_partial_repayment_less_than_principal() -> Result<(), Box<dyn std:
         .await?;
 
     if !intents.data.is_empty() {
-        let intent = &intents.data[0];
-        let state = intent["state"].as_str().unwrap_or("");
+        let indexed_intent = &intents.data[0];
+        let state = indexed_intent["intent"]["state"].as_str().unwrap_or("");
         println!("Intent state: {} (should be 'StpLiquidityBorrowed')", state);
         assert_eq!(state, "StpLiquidityBorrowed", "Intent should still be in borrowed state");
         println!("✅ Contract correctly REJECTED partial repayment - state unchanged");
@@ -389,21 +389,15 @@ async fn test_repayment_with_yield() -> Result<(), Box<dyn std::error::Error + S
     println!("\nTotal assets after repayment: {} (should be {})", total_assets_after, repayment);
     assert_eq!(total_assets_after, repayment, "Total assets should include principal + yield");
 
+    // After successful repayment, intents are deleted
     let intents: Data<Vec<serde_json::Value>> = builder.vault_contract()
-        .call_function("get_intents_by_solver", json!({ "solver_id": solver_id }))?
+        .call_function("get_intents", json!({}))?
         .read_only()
         .fetch_from(builder.network_config())
         .await?;
-
-    if !intents.data.is_empty() {
-        let intent = &intents.data[0];
-        let state = intent["state"].as_str().unwrap_or("");
-        println!("Intent state: {} (should be 'StpLiquidityReturned')", state);
-        assert_eq!(state, "StpLiquidityReturned", "Intent should be in returned state");
-        
-        let repayment_amount = intent["repayment_amount"].as_str().unwrap_or("0");
-        println!("Repayment amount recorded: {}", repayment_amount);
-    }
+    
+    println!("Intents after repayment: {} (should be 0 - intent deleted)", intents.data.len());
+    assert!(intents.data.is_empty(), "Intent should be deleted after repayment");
 
     let solver_balance_final = get_balance(&builder, "solver").await?;
     println!("Solver final balance: {} (should be 0)", solver_balance_final);

@@ -188,7 +188,7 @@ async fn test_borrow_with_redemption() -> Result<(), Box<dyn std::error::Error +
     sleep(Duration::from_millis(1000)).await;
 
     let pending_redemptions: Data<Vec<serde_json::Value>> = vault_contract
-        .call_function("get_pending_redemptions", json!([]))?
+        .call_function("get_pending_redemptions", json!({}))?
         .read_only()
         .fetch_from(&network_config)
         .await?;
@@ -274,7 +274,7 @@ async fn test_borrow_with_redemption() -> Result<(), Box<dyn std::error::Error +
     sleep(Duration::from_millis(2000)).await;
 
     let pending_after_repay: Data<Vec<serde_json::Value>> = vault_contract
-        .call_function("get_pending_redemptions", json!([]))?
+        .call_function("get_pending_redemptions", json!({}))?
         .read_only()
         .fetch_from(&network_config)
         .await?;

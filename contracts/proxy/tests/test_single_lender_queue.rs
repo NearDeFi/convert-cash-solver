@@ -162,7 +162,8 @@ async fn test_single_lender_queue() -> Result<(), Box<dyn std::error::Error + Se
         .call_function("new_intent", json!({
             "intent_data": "intent",
             "_solver_deposit_address": solver_id,
-            "user_deposit_hash": "hash-queue"
+            "user_deposit_hash": "hash-queue",
+            "amount": SOLVER_BORROW_AMOUNT.to_string()
         }))?
         .transaction()
         .with_signer(solver_id.clone(), solver_signer.clone())

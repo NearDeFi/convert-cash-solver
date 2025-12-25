@@ -164,7 +164,10 @@ async fn test_half_redemptions() -> Result<(), Box<dyn std::error::Error + Send 
         .read_only()
         .fetch_from(&network_config)
         .await?;
-    let intent1_index = intents.data.len() - 1;
+    let intent1_index: u128 = intents.data.last()
+        .and_then(|i| i["index"].as_str())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
     println!("Intent 1 created with index: {}", intent1_index);
 
     let total_assets_after_borrow: Data<String> = vault_contract
@@ -223,7 +226,7 @@ async fn test_half_redemptions() -> Result<(), Box<dyn std::error::Error + Send 
     sleep(Duration::from_millis(1000)).await;
 
     let pending_redemptions_after_l1: Data<Vec<serde_json::Value>> = vault_contract
-        .call_function("get_pending_redemptions", json!([]))?
+        .call_function("get_pending_redemptions", json!({}))?
         .read_only()
         .fetch_from(&network_config)
         .await?;
@@ -374,7 +377,7 @@ async fn test_half_redemptions() -> Result<(), Box<dyn std::error::Error + Send 
     sleep(Duration::from_millis(3000)).await;
 
     let pending_redemptions_before: Data<Vec<serde_json::Value>> = vault_contract
-        .call_function("get_pending_redemptions", json!([]))?
+        .call_function("get_pending_redemptions", json!({}))?
         .read_only()
         .fetch_from(&network_config)
         .await?;
@@ -482,7 +485,10 @@ async fn test_half_redemptions() -> Result<(), Box<dyn std::error::Error + Send 
         .read_only()
         .fetch_from(&network_config)
         .await?;
-    let intent2_index = intents2.data.len() - 1;
+    let intent2_index: u128 = intents2.data.last()
+        .and_then(|i| i["index"].as_str())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
     println!("Intent 2 created with index: {}", intent2_index);
 
     let total_assets_after_borrow2: Data<String> = vault_contract
@@ -514,7 +520,7 @@ async fn test_half_redemptions() -> Result<(), Box<dyn std::error::Error + Send 
     println!("Lender2 redemption queued");
 
     let pending_redemptions_after_l2: Data<Vec<serde_json::Value>> = vault_contract
-        .call_function("get_pending_redemptions", json!([]))?
+        .call_function("get_pending_redemptions", json!({}))?
         .read_only()
         .fetch_from(&network_config)
         .await?;

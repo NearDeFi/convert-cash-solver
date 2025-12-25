@@ -225,7 +225,8 @@ pub async fn deploy_vault_contract(
             "reference_hash": null,
             "decimals": 24
         },
-        "extra_decimals": EXTRA_DECIMALS
+        "extra_decimals": EXTRA_DECIMALS,
+        "solver_fee": 1
     });
     println!("Deploying vault with init args: {}", init_args);
 

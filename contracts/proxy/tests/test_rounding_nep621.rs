@@ -241,12 +241,12 @@ async fn test_small_amount_precision() -> Result<(), Box<dyn std::error::Error +
     let vault_contract = builder.vault_contract();
     let network_config = builder.network_config();
 
-    // Minimum deposit (1 micro-USDC)
-    let min_deposit = 1u128;
+    // Minimum deposit (1 USDC = 1,000,000 micro-USDC)
+    let min_deposit = 1_000_000u128;
     let shares_received = deposit_to_vault(&builder, "lender", min_deposit).await?;
     
-    // First deposit: shares = assets * 10^extra_decimals = 1 * 1000
-    println!("Minimum deposit ({} micro-USDC) -> {} shares", min_deposit, shares_received);
+    // First deposit: shares = assets * 10^extra_decimals = 1,000,000 * 1000 = 1,000,000,000
+    println!("Minimum deposit ({} micro-USDC = 1 USDC) -> {} shares", min_deposit, shares_received);
     
     assert!(shares_received > 0, "Minimum deposit should receive at least 1 share");
     assert_eq!(shares_received, min_deposit * 1000, "First deposit should use exact multiplier");
@@ -310,7 +310,7 @@ async fn test_yield_calculation_rounding() -> Result<(), Box<dyn std::error::Err
     println!("Expected yield (integer division): {} micro-USDC", expected_yield);
     println!("Theoretical yield (float): {} micro-USDC", borrow_amount as f64 / 100.0);
     
-    solver_borrow(&builder, Some(borrow_amount), "yield-test").await?;
+    solver_borrow(&builder, borrow_amount, "yield-test").await?;
 
     // Check calculated yield in convert_to_assets
     let assets_with_yield: Data<String> = vault_contract
@@ -380,10 +380,10 @@ async fn test_redemption_rounds_down() -> Result<(), Box<dyn std::error::Error +
     let l1_shares = deposit_to_vault(&builder, "lender1", l1_deposit).await?;
     println!("L1 deposited {} USDC, got {} shares", l1_deposit, l1_shares);
 
-    // L2 deposits 1 micro-USDC to change ratio
-    let l2_deposit = 1u128;
+    // L2 deposits minimum amount (1 USDC) to create a different ratio
+    let l2_deposit = 1_000_000u128; // 1 USDC
     let _l2_shares = deposit_to_vault(&builder, "lender2", l2_deposit).await?;
-    println!("L2 deposited {} micro-USDC, got {} shares", l2_deposit, _l2_shares);
+    println!("L2 deposited {} micro-USDC (1 USDC), got {} shares", l2_deposit, _l2_shares);
 
     // Check state
     let total_supply: Data<String> = vault_contract
@@ -433,11 +433,11 @@ async fn test_redemption_rounds_down() -> Result<(), Box<dyn std::error::Error +
         "Redemption should round DOWN, not UP"
     );
 
-    // Vault should have remainder for L2
+    // Vault should have L2's deposit remaining
     let vault_remaining = get_total_assets(&builder).await?;
     
     println!("Vault remaining assets: {} USDC", vault_remaining);
-    assert!(vault_remaining > 0, "Vault should have remaining assets for L2");
+    assert!(vault_remaining >= l2_deposit, "Vault should have at least L2's deposit remaining");
 
     println!("\n✅ Redemption rounding test passed!");
     println!("   - Redemption uses integer division (rounds down)");

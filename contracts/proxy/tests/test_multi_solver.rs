@@ -215,7 +215,7 @@ async fn test_multi_solver() -> Result<(), Box<dyn std::error::Error + Send + Sy
     sleep(Duration::from_millis(1000)).await;
 
     let pending_redemptions: Data<Vec<serde_json::Value>> = vault_contract
-        .call_function("get_pending_redemptions", json!([]))?
+        .call_function("get_pending_redemptions", json!({}))?
         .read_only()
         .fetch_from(&network_config)
         .await?;
@@ -287,7 +287,7 @@ async fn test_multi_solver() -> Result<(), Box<dyn std::error::Error + Send + Sy
     sleep(Duration::from_millis(1000)).await;
 
     let pending_after_s1_repay: Data<Vec<serde_json::Value>> = vault_contract
-        .call_function("get_pending_redemptions", json!([]))?
+        .call_function("get_pending_redemptions", json!({}))?
         .read_only()
         .fetch_from(&network_config)
         .await?;
@@ -358,7 +358,7 @@ async fn test_multi_solver() -> Result<(), Box<dyn std::error::Error + Send + Sy
     sleep(Duration::from_millis(2000)).await;
 
     let pending_after_s2_repay: Data<Vec<serde_json::Value>> = vault_contract
-        .call_function("get_pending_redemptions", json!([]))?
+        .call_function("get_pending_redemptions", json!({}))?
         .read_only()
         .fetch_from(&network_config)
         .await?;

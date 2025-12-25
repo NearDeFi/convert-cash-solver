@@ -82,6 +82,7 @@ pub mod helpers {
             asset.parse().unwrap(),
             metadata,
             extra_decimals,
+            1, // 1% solver fee
         )
     }
 }
@@ -184,6 +185,7 @@ pub mod builders {
                 self.asset.parse().unwrap(),
                 meta,
                 self.extra,
+                1, // 1% solver fee
             );
             if self.supply > 0 {
                 c.token

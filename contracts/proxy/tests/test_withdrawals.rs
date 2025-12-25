@@ -160,7 +160,7 @@ async fn test_withdraw_omft_to_solana_enqueues_transfer() -> Result<(), Box<dyn 
     // =========================================================================
     ft.call_function("ft_transfer_call", json!({
         "receiver_id": vault_id,
-        "amount": "800000", // 0.8 USDC
+        "amount": "2000000", // 2 USDC (above MIN_DEPOSIT_AMOUNT of 1 USDC)
         "msg": json!({
             "donate": true
         }).to_string()
@@ -187,7 +187,7 @@ async fn test_withdraw_omft_to_solana_enqueues_transfer() -> Result<(), Box<dyn 
     let outcome = vault
         .call_function("withdraw_omft_to_solana", json!({
             "token_contract": ft_id,
-            "amount": "300000",
+            "amount": "1000000", // 1 USDC (MIN_DEPOSIT_AMOUNT)
             "sol_address": "1111111111111111111111111111111111111111111111111111111111111111"
         }))?
         .transaction()

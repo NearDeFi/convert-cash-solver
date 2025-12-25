@@ -63,6 +63,7 @@ impl Contract {
         evm_address: String,
     ) -> Promise {
         // Access control
+        self.require_not_paused();
         self.require_owner();
         near_sdk::assert_one_yocto();
 
@@ -132,6 +133,7 @@ impl Contract {
         sol_address: String,
     ) -> Promise {
         // Access control
+        self.require_not_paused();
         self.require_owner();
         near_sdk::assert_one_yocto();
 

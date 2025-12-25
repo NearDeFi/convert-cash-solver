@@ -156,7 +156,8 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
         .call_function("new_intent", json!({
             "intent_data": "test-intent",
             "_solver_deposit_address": solver_id,
-            "user_deposit_hash": "hash-123"
+            "user_deposit_hash": "hash-123",
+            "amount": SOLVER_BORROW_AMOUNT.to_string()
         }))?
         .transaction()
         .with_signer(solver_id.clone(), solver_signer.clone())
@@ -202,10 +203,11 @@ async fn test_solver_borrow() -> Result<(), Box<dyn std::error::Error + Send + S
         "Solver should have at least one intent stored"
     );
 
-    let latest_intent = intents
+    let latest_indexed_intent = intents
         .data
         .first()
         .expect("intent list should contain the new intent");
+    let latest_intent = &latest_indexed_intent["intent"];
     assert_eq!(latest_intent["user_deposit_hash"], "hash-123");
     assert_eq!(latest_intent["intent_data"], "test-intent");
 

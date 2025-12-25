@@ -261,29 +261,14 @@ impl Contract {
 
     /// Calculates expected yield from all active (unpaid) borrows.
     ///
-    /// Iterates through all intents in the `StpLiquidityBorrowed` state
-    /// and sums up the principal amounts and their 1% expected yields.
+    /// Uses the tracked `total_borrowed` field for O(1) lookup instead of
+    /// iterating through all intents.
     ///
     /// # Returns
     ///
     /// A tuple of (total_borrowed, expected_yield).
     pub fn calculate_expected_yield(&self) -> (u128, u128) {
-        let mut expected_yield = 0u128;
-        let mut total_borrowed = 0u128;
-
-        for (_index, intent) in self.index_to_intent.iter() {
-            // Only count active borrows (not yet repaid)
-            if intent.state == crate::intents::State::StpLiquidityBorrowed {
-                total_borrowed = total_borrowed
-                    .checked_add(intent.borrow_amount)
-                    .expect("total_borrowed overflow");
-                let intent_yield = intent.borrow_amount / 100; // 1% yield
-                expected_yield = expected_yield
-                    .checked_add(intent_yield)
-                    .expect("expected_yield overflow");
-            }
-        }
-
-        (total_borrowed, expected_yield)
+        let expected_yield = self.total_borrowed * self.solver_fee as u128 / 100;
+        (self.total_borrowed, expected_yield)
     }
 }

@@ -33,6 +33,7 @@ use near_contract_standards::fungible_token::{
 mod chainsig;
 mod intents;
 mod near_intents;
+mod upgrade;
 mod vault;
 mod vault_standards;
 mod withdraw;
@@ -54,6 +55,16 @@ pub struct Worker {
 /// Storage keys for NEAR SDK collections.
 #[derive(BorshSerialize, BorshDeserialize, BorshStorageKey)]
 pub enum StorageKey {
+    /// Storage prefix for approved TEE codehashes.
+    ApprovedCodehashes,
+    /// Storage prefix for approved solver accounts.
+    ApprovedSolvers,
+    /// Storage prefix for worker agents by account ID.
+    WorkerByAccountId,
+    /// Storage prefix for solver intent indices.
+    SolverIdToIndices,
+    /// Storage prefix for intents by index.
+    IndexToIntent,
     /// Storage prefix for the NEP-141 fungible token (vault shares).
     FungibleToken,
     /// Storage prefix for the pending redemption queue.
@@ -66,6 +77,8 @@ pub enum StorageKey {
 pub struct Contract {
     /// The account authorized to manage contract settings.
     pub owner_id: AccountId,
+    /// Whether the contract is paused (all state-changing operations blocked).
+    pub is_paused: bool,
     /// Set of approved TEE codehashes for worker agent verification.
     pub approved_codehashes: IterableSet<String>,
     /// Set of approved solver account IDs.
@@ -88,10 +101,12 @@ pub struct Contract {
     pub asset: AccountId,
     /// Total available assets in the vault (deposits minus active borrows).
     pub total_assets: u128,
-    /// Vault owner account.
-    pub owner: AccountId,
+    /// Total amount currently borrowed by solvers (sum of active intent borrow amounts).
+    pub total_borrowed: u128,
     /// Extra decimals for share precision (e.g., 3 means 1000 shares per asset unit).
     pub extra_decimals: u8,
+    /// Fee percentage that solvers must pay when repaying borrowed liquidity (e.g., 1 = 1%).
+    pub solver_fee: u8,
     /// FIFO queue for pending redemptions awaiting liquidity.
     pub pending_redemptions: Vector<PendingRedemption>,
     /// Head index of the pending redemptions queue.
@@ -108,6 +123,7 @@ impl Contract {
     /// * `asset` - Account ID of the underlying NEP-141 asset token
     /// * `metadata` - Fungible token metadata for vault shares
     /// * `extra_decimals` - Additional decimal precision for shares
+    /// * `solver_fee` - Fee percentage solvers must pay on repayment (e.g., 1 = 1%)
     ///
     /// # Returns
     ///
@@ -119,21 +135,24 @@ impl Contract {
         asset: AccountId,
         metadata: FungibleTokenMetadata,
         extra_decimals: u8,
+        solver_fee: u8,
     ) -> Self {
         Self {
             owner_id,
-            approved_codehashes: IterableSet::new(b"a"),
-            approved_solvers: IterableSet::new(b"b"),
-            worker_by_account_id: IterableMap::new(b"c"),
-            solver_id_to_indices: IterableMap::new(b"d"),
-            index_to_intent: IterableMap::new(b"e"),
+            is_paused: false,
+            approved_codehashes: IterableSet::new(StorageKey::ApprovedCodehashes),
+            approved_solvers: IterableSet::new(StorageKey::ApprovedSolvers),
+            worker_by_account_id: IterableMap::new(StorageKey::WorkerByAccountId),
+            solver_id_to_indices: IterableMap::new(StorageKey::SolverIdToIndices),
+            index_to_intent: IterableMap::new(StorageKey::IndexToIntent),
             intent_nonce: 0,
             token: FungibleToken::new(StorageKey::FungibleToken),
             metadata,
             asset,
             total_assets: 0,
-            owner: env::predecessor_account_id(),
+            total_borrowed: 0,
             extra_decimals,
+            solver_fee,
             pending_redemptions: Vector::new(StorageKey::PendingRedemptions),
             pending_redemptions_head: 0,
         }
@@ -144,8 +163,41 @@ impl Contract {
     /// # Panics
     ///
     /// Panics if the predecessor account is not the owner.
-    pub fn require_owner(&mut self) {
+    pub fn require_owner(&self) {
         require!(env::predecessor_account_id() == self.owner_id);
+    }
+
+    /// Asserts that the contract is not paused.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the contract is currently paused.
+    pub fn require_not_paused(&self) {
+        require!(!self.is_paused, "Contract is paused");
+    }
+
+    /// Pauses the contract, blocking all state-changing operations.
+    ///
+    /// Only the contract owner can pause. View methods remain accessible.
+    ///
+    /// # Panics
+    ///
+    /// Panics if caller is not the contract owner.
+    pub fn pause(&mut self) {
+        self.require_owner();
+        self.is_paused = true;
+    }
+
+    /// Unpauses the contract, resuming normal operations.
+    ///
+    /// Only the contract owner can unpause.
+    ///
+    /// # Panics
+    ///
+    /// Panics if caller is not the contract owner.
+    pub fn unpause(&mut self) {
+        self.require_owner();
+        self.is_paused = false;
     }
 
     /// Approves a TEE codehash for worker agent registration.
@@ -161,6 +213,7 @@ impl Contract {
     ///
     /// Panics if caller is not the contract owner.
     pub fn approve_codehash(&mut self, codehash: String) {
+        self.require_not_paused();
         self.require_owner();
         self.approved_codehashes.insert(codehash);
     }
@@ -188,6 +241,7 @@ impl Contract {
     ///
     /// `true` if registration succeeded.
     pub fn register_agent(&mut self, codehash: String) -> bool {
+        self.require_not_paused();
         let predecessor = env::predecessor_account_id();
         self.worker_by_account_id
             .insert(predecessor, Worker { codehash });
@@ -215,6 +269,7 @@ impl Contract {
         payload: String,
         key_type: String,
     ) -> Promise {
+        self.require_not_paused();
         chainsig::internal_request_signature(path, payload, key_type)
     }
 
@@ -231,6 +286,7 @@ impl Contract {
     ///
     /// A promise for the cross-contract call result.
     pub fn add_public_key(&mut self, public_key: String) -> Promise {
+        self.require_not_paused();
         near_intents::internal_add_public_key(public_key)
     }
 
@@ -244,6 +300,7 @@ impl Contract {
     ///
     /// A promise for the cross-contract call result.
     pub fn remove_public_key(&mut self, public_key: String) -> Promise {
+        self.require_not_paused();
         near_intents::internal_remove_public_key(public_key)
     }
 

@@ -277,7 +277,7 @@ pub async fn deposit_to_vault(
 /// # Arguments
 ///
 /// * `builder` - The test scenario builder
-/// * `amount` - Optional borrow amount (defaults to SOLVER_BORROW_AMOUNT)
+/// * `amount` - Amount to borrow from the vault
 /// * `intent_hash` - Unique hash for the intent
 ///
 /// # Returns
@@ -285,7 +285,7 @@ pub async fn deposit_to_vault(
 /// The amount borrowed.
 pub async fn solver_borrow(
     builder: &TestScenarioBuilder,
-    amount: Option<u128>,
+    amount: u128,
     intent_hash: &str,
 ) -> Result<u128, Box<dyn std::error::Error + Send + Sync>> {
     let (solver_id, solver_signer, _) = builder.get_account("solver")
@@ -294,17 +294,12 @@ pub async fn solver_borrow(
     let vault_contract = builder.vault_contract();
     let network_config = builder.network_config();
 
-    let borrow_amount = amount.unwrap_or(SOLVER_BORROW_AMOUNT);
-    
-    let mut intent_params = json!({
+    let intent_params = json!({
         "intent_data": format!("intent-{}", intent_hash),
         "_solver_deposit_address": solver_id,
-        "user_deposit_hash": intent_hash
+        "user_deposit_hash": intent_hash,
+        "amount": amount.to_string()
     });
-
-    if let Some(amt) = amount {
-        intent_params["amount"] = json!(amt.to_string());
-    }
 
     vault_contract
         .call_function("new_intent", intent_params)?
@@ -315,7 +310,7 @@ pub async fn solver_borrow(
 
     sleep(Duration::from_millis(1200)).await;
 
-    Ok(borrow_amount)
+    Ok(amount)
 }
 
 /// Repays borrowed liquidity with yield.
@@ -559,7 +554,7 @@ pub async fn calculate_expected_shares_for_deposit(
 
     // Get intents to calculate total_borrowed and expected_yield
     let intents: Data<Vec<serde_json::Value>> = vault_contract
-        .call_function("get_intents", json!([]))?
+        .call_function("get_intents", json!({}))?
         .read_only()
         .fetch_from(network_config)
         .await?;
@@ -567,7 +562,8 @@ pub async fn calculate_expected_shares_for_deposit(
     let mut total_borrowed = 0u128;
     let mut expected_yield = 0u128;
 
-    for intent in intents.data {
+    for indexed_intent in intents.data {
+        let intent = &indexed_intent["intent"];
         let state_str = intent["state"].as_str().unwrap_or("");
         
         if state_str == "StpLiquidityBorrowed" {
